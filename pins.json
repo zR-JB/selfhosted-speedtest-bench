@@ -52,8 +52,8 @@
       "source": "https://github.com/librespeed/speedtest",
       "quickStart": "docker run -p 80:8080 -d --name speedtest --rm ghcr.io/librespeed/speedtest",
       "reports": {
-        "quantity": "link",
-        "evidence": "speedtest_worker.js v6.3.0 line 63: overheadCompensationFactor 1.06 multiplies measured payload to estimate transport overhead"
+        "quantity": "payload",
+        "evidence": "speedtest_worker.js v6.3.0: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
       },
       "proxy": {
         "evidence": "doc.md v6.3.0: Nginx client_max_body_size 128m",
@@ -65,6 +65,9 @@
       "watch": {
         "github": "librespeed/speedtest",
         "image": "ghcr.io/librespeed/speedtest:latest"
+      },
+      "options": {
+        "overheadCompensationFactor": 1
       }
     },
     "librespeed-go": {
@@ -83,12 +86,15 @@
       "source": "https://github.com/librespeed/speedtest-go",
       "quickStart": "Release binary with its bundled settings.toml (the project publishes no public image)",
       "reports": {
-        "quantity": "link",
-        "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor 1.06"
+        "quantity": "payload",
+        "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
       },
       "watch": {
         "github": "librespeed/speedtest-go",
         "release": "https://github.com/librespeed/speedtest-go/releases/download/v{version}/speedtest-go_{version}_linux_amd64.tar.gz"
+      },
+      "options": {
+        "overheadCompensationFactor": 1
       }
     },
     "librespeed-rust": {
@@ -101,12 +107,15 @@
       "source": "https://github.com/librespeed/speedtest-rust",
       "quickStart": "Published image with its default configs.toml",
       "reports": {
-        "quantity": "link",
-        "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor 1.06"
+        "quantity": "payload",
+        "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
       },
       "watch": {
         "github": "librespeed/speedtest-rust",
         "image": "ghcr.io/librespeed/speedtest-rust:v{version}"
+      },
+      "options": {
+        "overheadCompensationFactor": 1
       }
     },
     "openspeedtest": {
@@ -118,8 +127,8 @@
       "source": "https://github.com/openspeedtest/Speed-Test",
       "quickStart": "docker run --restart=unless-stopped --name openspeedtest -d -p 3000:3000 -p 3001:3001 openspeedtest/latest",
       "reports": {
-        "quantity": "link",
-        "evidence": "index.html in the image: upAdjust = dlAdjust = 1.04 multiply measured payload"
+        "quantity": "payload",
+        "evidence": "assets/js/app-2.5.4.js in the image: upAdjust (default 1.04) only multiplies the displayed and averaged rate; README: the Clean URL parameter resets it to zero"
       },
       "proxy": {
         "evidence": "README: behind a reverse proxy, increase the post-body content length to 35 megabytes",
@@ -130,29 +139,8 @@
       },
       "watch": {
         "image": "docker.io/openspeedtest/latest:latest"
-      }
-    },
-    "librespeed-nofactor": {
-      "variantOf": "librespeed",
-      "name": "LibreSpeed, factor 1",
-      "adapter": "librespeed",
-      "options": {
-        "overheadCompensationFactor": 1
       },
-      "reports": {
-        "quantity": "payload",
-        "evidence": "doc.md v6.3.0: setParameter(\"overheadCompensationFactor\", value); 1 disables the compensation"
-      }
-    },
-    "openspeedtest-clean": {
-      "variantOf": "openspeedtest",
-      "name": "OpenSpeedTest, ?clean",
-      "adapter": "openspeedtest",
-      "urlSuffix": "?clean",
-      "reports": {
-        "quantity": "payload",
-        "evidence": "README: pass Clean as a URL parameter to reset Overhead Compensation factor to zero"
-      }
+      "urlSuffix": "?clean"
     },
     "graphite-meter-h2": {
       "variantOf": "graphite-meter",
@@ -162,7 +150,8 @@
       ],
       "onlyScenarios": [
         "accuracy-1000",
-        "loss-1000"
+        "loss-1000",
+        "accuracy-10000"
       ],
       "tls": {
         "mount": "/certs",
@@ -199,7 +188,8 @@
       ],
       "onlyScenarios": [
         "accuracy-1000",
-        "loss-1000"
+        "loss-1000",
+        "accuracy-10000"
       ],
       "tls": {
         "mount": "/certs",
@@ -236,7 +226,8 @@
       ],
       "onlyScenarios": [
         "accuracy-1000",
-        "loss-1000"
+        "loss-1000",
+        "accuracy-10000"
       ],
       "tls": {
         "mount": "/certs",
@@ -273,7 +264,8 @@
       ],
       "onlyScenarios": [
         "accuracy-1000",
-        "loss-1000"
+        "loss-1000",
+        "accuracy-10000"
       ],
       "tls": {
         "mount": "/certs",
@@ -308,7 +300,7 @@
         "/config/settings.toml"
       ],
       "reports": {
-        "quantity": "link",
+        "quantity": "payload",
         "evidence": "settings.toml v1.1.6: TLS and HTTP/2 settings, TLS is required for HTTP/2"
       },
       "expectProtocol": "2"
@@ -321,7 +313,8 @@
       ],
       "onlyScenarios": [
         "accuracy-1000",
-        "loss-1000"
+        "loss-1000",
+        "accuracy-10000"
       ],
       "tls": {
         "mount": "/etc/ssl",
@@ -364,7 +357,7 @@
         ]
       },
       "reports": {
-        "quantity": "link",
+        "quantity": "payload",
         "evidence": "OpenSpeedTest-Server.conf in the image: add http2 to the TLS listen line and enable the HTTP2 & HTTP3 upload fix"
       },
       "expectProtocol": "2"

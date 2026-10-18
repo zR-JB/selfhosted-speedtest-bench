@@ -73,14 +73,14 @@ for (let scenario of scenarios) {
     return v.length ? `${fmt(median(v))} [${fmt(quantile(v, 0.25))}, ${fmt(quantile(v, 0.75))}]` : "n/a";
   };
   if (!shaped) {
-    out("No shaping: rates measure the host, not a network, so only CPU cost is compared.");
+    out("No shaping: the host's CPU is the limit, so rates show how far each tool gets on it, not a network's capacity. Rates show median [25th, 75th percentile].");
     out();
-    out("| Tool | Runs ok | Server CPU s/GB | Server peak MB | Browser CPU s/GB |");
-    out("| --- | --- | --- | --- | --- |");
+    out("| Tool | Runs ok | Download Mbit/s | Upload Mbit/s | Server CPU s/GB | Server peak MB | Browser CPU s/GB |");
+    out("| --- | --- | --- | --- | --- | --- | --- |");
     const gb = (run) => (run.linkBytes.down + run.linkBytes.up) / 1e9;
     for (const group of groups.values())
       out(
-        `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${fmt(pick(group, (r) => r.serverCpuSeconds / gb(r)), 2)} | ${fmt(pick(group, (r) => r.serverMemoryPeakBytes / 1e6), 0)} | ${fmt(pick(group, (r) => (r.reported.browserCpuSeconds ?? NaN) / gb(r)), 2)} |`,
+        `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${spread(group, (r) => r.reported.downloadMbit)} | ${spread(group, (r) => r.reported.uploadMbit)} | ${fmt(pick(group, (r) => r.serverCpuSeconds / gb(r)), 2)} | ${fmt(pick(group, (r) => r.serverMemoryPeakBytes / 1e6), 0)} | ${fmt(pick(group, (r) => (r.reported.browserCpuSeconds ?? NaN) / gb(r)), 2)} |`,
       );
     continue;
   }

@@ -15,10 +15,10 @@ corrections to how a tool is set up or read are welcome as issues.
 | Tool | Version | Deployment | Reports |
 | --- | --- | --- | --- |
 | Graphite Meter | 0.13.1 | `ghcr.io/zr-jb/graphite-meter`, defaults | Payload rate |
-| LibreSpeed | 6.3.0 (`latest` image) | `ghcr.io/librespeed/speedtest`, defaults (classic page) | Payload × 1.06, its default estimate of transport overhead |
-| LibreSpeed Go backend | 1.1.6 | Release binary with its bundled `settings.toml` (no public image), serving its embedded page | Payload × 1.06 |
-| LibreSpeed Rust backend | 1.4.0 | `ghcr.io/librespeed/speedtest-rust`, defaults | Payload × 1.06 |
-| OpenSpeedTest | app 2.5.4 (`latest` image, v2.0.6) | `openspeedtest/latest`, defaults (nginx, HTTP/1.1) | Payload × 1.04, its default overhead adjustment |
+| LibreSpeed | 6.3.0 (`latest` image) | `ghcr.io/librespeed/speedtest`, defaults (classic page), overhead factor 1 | Payload rate |
+| LibreSpeed Go backend | 1.1.6 | Release binary with its bundled `settings.toml` (no public image), serving its embedded page, overhead factor 1 | Payload rate |
+| LibreSpeed Rust backend | 1.4.0 | `ghcr.io/librespeed/speedtest-rust`, defaults, overhead factor 1 | Payload rate |
+| OpenSpeedTest | app 2.5.4 (`latest` image, v2.0.6) | `openspeedtest/latest`, defaults (nginx, HTTP/1.1), `?clean` | Payload rate |
 | Graphite Meter terminal client | 0.13.1 | Release binary, `--report`, against the Graphite Meter server | Payload rate |
 | LibreSpeed CLI | 1.0.14 | Release binary, `--json`, against the LibreSpeed (PHP) server | Payload rate |
 
@@ -36,10 +36,12 @@ cells: it does not accept a test certificate for QUIC, and Graphite Meter's own 
 Chrome-only for a Firefox worker bug. LibreSpeed's PHP image and Rust backend document no HTTP/2 setting and are not
 in this profile.
 
-Both overhead factors are defaults the operator can change: OpenSpeedTest documents a `?clean` URL parameter that sets
-its 4 % to zero, and LibreSpeed documents `setParameter("overheadCompensationFactor", 1)`. The bench runs both tools at
-their defaults, as users see them, scored against the link rate, and again as variants with the factor off
-("OpenSpeedTest, ?clean" and "LibreSpeed, factor 1"), scored against the payload rate like Graphite Meter.
+By default LibreSpeed shows its measured rate × 1.06 and OpenSpeedTest × 1.04, as an estimate of transport overhead.
+In both, the factor only multiplies the displayed rate: test duration, stop rules and stream counts use the
+unadjusted rate (`speedtest_worker.js` lines 404 to 411 and 562 to 569; `app-2.5.4.js` `upAdjust`, whose only consumer
+is the displayed and averaged rate). So the bench turns it off with each project's documented setting
+(`setParameter("overheadCompensationFactor", 1)` and the `?clean` URL parameter) and scores every tool against the
+same payload rate. A default page shows exactly these numbers × 1.06 or × 1.04.
 
 Exact image digests, browser builds and checksums are in [`pins.json`](pins.json) and in every run's manifest.
 Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, headed under Xvfb.
@@ -57,7 +59,8 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
   wires them; no container bridge, port publishing or NAT is in the path. This is the one difference from the
   authors' quick starts, and it applies to every tool alike.
 - The shaper applies half the RTT on each side (`netem`), the rate (`tbf`), and the queue: a FIFO of fixed depth, or
-  `fq_codel`.
+  `fq_codel`. Segmentation offloads are off up to 1 Gbit/s and wherever loss applies, so shaping and loss act on real
+  frames; the 10 Gbit/s and unshaped scenarios turn them on, as real network cards do.
 - CPU sets are fixed per role (shaper, server, client) and the same for every tool.
 - Every repetition runs every tool in every browser plus an iperf3 reference, in a seeded random order followed by its
   reverse, so a slow stretch on a shared machine hits every tool alike.
@@ -86,7 +89,7 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 | Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory |
 | Browser CPU | CPU seconds per GB of the browser's process tree |
 
-Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT, 300/30 Mbit/s behind a
+Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT, 10 Gbit/s at 2 ms, 300/30 Mbit/s behind a
 200 ms FIFO, 1 % and 0.1 % loss at 40 ms, a 160 ms path, competing traffic, a reverse proxy, two servers, and an
 unshaped CPU-cost run. Accuracy is only scored where iperf3 shows the link can be filled; elsewhere the tools are compared with each
 other. This testbed cannot show real network card, Wi-Fi or switch behaviour, and its unshaped scenario measures CPU

@@ -244,6 +244,15 @@ export async function shape(s) {
     if (s.queue === "fq_codel") script.push(`tc qdisc add dev ${dev} parent 10:1 handle 20: fq_codel`);
   }
   await podman("exec", "sb-shaper", "sh", "-ec", script.join("\n"));
+  // Offloads stay off where shaping and loss must act on real frames; multi-gigabit and unshaped runs use them, as
+  // real network cards do, so the shaper's per-packet cost does not become the limit.
+  const state = s.offloads ? "on" : "off";
+  const running = (await podman("ps", "--format", "{{.Names}}")).split("\n");
+  const shaper = await pid("sb-shaper");
+  const ends = [[shaper, "cl"], [await pid("sb-client"), "eth0"]];
+  if (running.includes("sb-server")) ends.push([shaper, "sv"], [await pid("sb-server"), "eth0"]);
+  if (running.includes("sb-server2")) ends.push([shaper, "sv2"], [await pid("sb-server2"), "eth0"]);
+  await privileged(ends.map(([p, dev]) => `nsenter -t ${p} -n ethtool -K ${dev} tso ${state} gso ${state} gro ${state}`).join("\n"));
   if (!two) return;
   for (const name of ["sb-server", "sb-server2"]) {
     const p = await pid(name);
