@@ -38,7 +38,9 @@ const cpuArgs = (role) => (cpusets ? ["--cpuset-cpus", CPUS[role]] : []);
 const flat = (p, dev) => `nsenter -t ${p} -n ethtool -K ${dev} tso off gso off gro off`;
 
 async function link(shaperPid, peerPid, dev, address, gateway) {
+  // A replaced server's namespace can outlive its container for a moment, and its link with it.
   await privileged(`
+    nsenter -t ${shaperPid} -n ip link del ${dev} 2>/dev/null || true
     nsenter -t ${shaperPid} -n ip link add ${dev} type veth peer name eth0 netns ${peerPid}
     nsenter -t ${shaperPid} -n ip addr add ${gateway}/24 dev ${dev}
     nsenter -t ${shaperPid} -n ip link set ${dev} up

@@ -1,0 +1,12 @@
+{
+  "rep": 1,
+  "position": 6,
+  "baseRttMs": 20.088,
+  "tool": "graphite-meter",
+  "browser": "firefox",
+  "scenario": "compete-100",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman run -d --rm --name sb-server --network none --cpuset-cpus 1 ghcr.io/zr-jb/graphite-meter:0.13.1@sha256:e5d9cd78954d96c4486918e21f4f96595886ab620f364e54c2d78b09d40ae5cf\nError: creating container storage: the container name \"sb-server\" is already in use by 80f8270f7eab35b057ceadec093c07b96774f44164471d2355366b424e8afaa3. You have to remove that container to be able to reuse that name: that name is already in use, or use --replace to instruct Podman to do so.\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

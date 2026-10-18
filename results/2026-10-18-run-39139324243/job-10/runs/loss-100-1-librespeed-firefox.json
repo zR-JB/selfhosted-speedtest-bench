@@ -1,0 +1,12 @@
+{
+  "rep": 1,
+  "position": 14,
+  "baseRttMs": 40.132,
+  "tool": "librespeed",
+  "browser": "firefox",
+  "scenario": "loss-100",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo sh -ec \n    nsenter -t 3588 -n ip link add sv type veth peer name eth0 netns 187252\n    nsenter -t 3588 -n ip addr add 10.71.2.1/24 dev sv\n    nsenter -t 3588 -n ip link set sv up\n    nsenter -t 187252 -n ip link set lo up\n    nsenter -t 187252 -n ip addr add 10.71.2.10/24 dev eth0\n    nsenter -t 187252 -n ip link set eth0 up\n    nsenter -t 187252 -n ip route add default via 10.71.2.1\n    nsenter -t 3588 -n ethtool -K sv tso off gso off gro off\n    nsenter -t 187252 -n ethtool -K eth0 tso off gso off gro off\nRTNETLINK answers: File exists\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

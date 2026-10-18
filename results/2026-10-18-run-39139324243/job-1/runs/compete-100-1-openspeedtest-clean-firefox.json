@@ -1,0 +1,12 @@
+{
+  "rep": 1,
+  "position": 9,
+  "baseRttMs": 20.094,
+  "tool": "openspeedtest-clean",
+  "browser": "firefox",
+  "scenario": "compete-100",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman run -d --rm --name sb-server --network none --cpuset-cpus 1 docker.io/openspeedtest/latest:latest@sha256:1745e913f596fe98882b286a67751efdae74774e9caa742a4934bb056e8748d2\nError: creating container storage: the container name \"sb-server\" is already in use by 625cf950ea0a95d977135979a33c4c2f961394ed2da92d2e27df714d34da73d4. You have to remove that container to be able to reuse that name: that name is already in use, or use --replace to instruct Podman to do so.\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

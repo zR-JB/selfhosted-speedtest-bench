@@ -296,10 +296,18 @@ try {
       // A proxy scenario runs the reference and the tools whose projects document a proxy setup.
       const eligible = units.filter((u) => !scenario.proxy || u.tool === "iperf3" || pins.tools[u.tool]?.proxy);
       order = rep % 2 ? shuffle(eligible) : [...order].reverse();
-      await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
-      await bed.shape(scenario);
-      const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise(), baseRttMs: await baseRtt() };
-      await bed.unserve();
+      const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise() };
+      // A block whose base RTT cannot be measured still runs; its runs carry no base RTT instead of ending the job.
+      try {
+        await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
+        await bed.shape(scenario);
+        block.baseRttMs = await baseRtt();
+      } catch (error) {
+        block.baseRttMs = null;
+        block.error = String(error.message ?? error).split("\n")[0];
+      } finally {
+        await bed.unserve();
+      }
       manifest.blocks.push(block);
       writeManifest();
       for (const [position, unit] of order.entries()) {

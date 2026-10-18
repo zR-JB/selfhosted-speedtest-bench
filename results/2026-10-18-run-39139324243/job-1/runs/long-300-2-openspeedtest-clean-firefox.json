@@ -1,0 +1,33 @@
+{
+  "rep": 2,
+  "position": 6,
+  "baseRttMs": 160.091,
+  "tool": "openspeedtest-clean",
+  "browser": "firefox",
+  "scenario": "long-300",
+  "reported": {
+    "startedAt": 1792342053693,
+    "outcome": "harness-error",
+    "error": "Error: unknown error: Error: Address rejected\n    at socket.onmessage (file:///driver/browser.js:43:38)\n    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:848:20)\n    at WebSocket.dispatchEvent (node:internal/event_target:789:26)\n    at fireEvent (node:internal/deps/undici/undici:14438:14)\n    at #onMessage (node:internal/deps/undici/undici:15762:9)\n    at Object.onMessage (node:internal/deps/undici/undici:15469:76)\n    at websocketMessageReceived (node:internal/deps/undici/undici:14442:15)\n    at ByteParser.run (node:internal/deps/undici/undici:15145:19)\n    at ByteParser._write (node:internal/deps/undici/undici:15021:14)\n    at writeOrBuffer (node:internal/streams/writable:574:12)",
+    "endedAt": 1792342054341
+  },
+  "linkBytes": {
+    "down": 4224,
+    "up": 1353
+  },
+  "serverCpuSeconds": 0.003019,
+  "serverMemoryPeakBytes": 4329472,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 0,
+      "medianQueueMs": null,
+      "medianOwnLinkMbit": null
+    },
+    "up": {
+      "loadedSamples": 0,
+      "medianQueueMs": null,
+      "medianOwnLinkMbit": null
+    }
+  }
+}
