@@ -19,6 +19,8 @@ corrections to how a tool is set up or read are welcome as issues.
 | LibreSpeed Go backend | 1.1.6 | Release binary with its bundled `settings.toml` (no public image), serving its embedded page | Payload × 1.06 |
 | LibreSpeed Rust backend | 1.4.0 | `ghcr.io/librespeed/speedtest-rust`, defaults | Payload × 1.06 |
 | OpenSpeedTest | app 2.5.4 (`latest` image, v2.0.6) | `openspeedtest/latest`, defaults (nginx, HTTP/1.1) | Payload × 1.04, its default overhead adjustment |
+| Graphite Meter terminal client | 0.13.1 | Release binary, `--report`, against the Graphite Meter server | Payload rate |
+| LibreSpeed CLI | 1.0.14 | Release binary, `--json`, against the LibreSpeed (PHP) server | Payload rate |
 
 Both overhead factors are defaults the operator can change: OpenSpeedTest documents a `?clean` URL parameter that sets
 its 4 % to zero, and LibreSpeed documents `setParameter("overheadCompensationFactor", 1)`. The bench runs both tools at
@@ -46,20 +48,30 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 - Every repetition runs every tool in every browser plus an iperf3 reference, in a seeded random order followed by its
   reverse, so a slow stretch on a shared machine hits every tool alike.
 - Each tool is pressed through its own start button; results are read from what the page shows or saves. Adapters are
-  in [`bench/driver/adapters`](bench/driver/adapters), one small file per tool.
+  in [`bench/driver/adapters`](bench/driver/adapters), one small file per tool. Terminal clients run in the client's
+  namespace and their own report is parsed.
+- The proxy scenario puts the same nginx in front of every tool whose project documents a proxy setup, with only the
+  directives that project's documentation asks for (recorded in `pins.json`).
+- The competing-traffic scenario adds one bulk TCP flow each way through the same bottleneck for the whole run.
+- A weekly [watcher](.github/workflows/watch.yml) moves the pins to new releases in a pull request; merging it reruns
+  the bench.
 
 ## What is compared
 
 | Measure | Reference |
 | --- | --- |
 | Download and upload | Shaped link rate, and payload rate (1,448 of every 1,514 bytes on the wire). Each tool is scored against the quantity it says it reports. |
+| Download and upload with competing traffic | Each run's own share of the link: link bytes minus the competing flow's, counted on the shaper (`fq_codel` only, where the queue drops little) |
 | Idle latency | Base RTT measured with ping before each block |
 | Latency under load | Base RTT plus the bottleneck FIFO's queue delay, sampled on the shaper every 100 ms (FIFO scenarios only; under `fq_codel` a probe flow skips the bulk queue) |
 | Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory |
 | Browser CPU | CPU seconds per GB of the browser's process tree |
 
-Scenarios are in [`scenarios.json`](scenarios.json). This testbed cannot show real network card, Wi-Fi or switch
-behaviour, and its unshaped scenario measures CPU cost, not network capacity.
+Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT, 300/30 Mbit/s behind a
+200 ms FIFO, 1 % and 0.1 % loss at 40 ms, a 160 ms path, competing traffic, a reverse proxy, and an unshaped CPU-cost
+run. Accuracy is only scored where iperf3 shows the link can be filled; elsewhere the tools are compared with each
+other. This testbed cannot show real network card, Wi-Fi or switch behaviour, and its unshaped scenario measures CPU
+cost, not network capacity.
 
 ## Results, 18 October 2026
 
