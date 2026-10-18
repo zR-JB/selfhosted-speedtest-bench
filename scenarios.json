@@ -7,5 +7,6 @@
   {"id": "long-300", "title": "300/300 Mbit/s, 160 ms RTT, fq_codel", "downMbit": 300, "upMbit": 300, "rttMs": 160, "lossPct": 0, "queue": "fq_codel"},
   {"id": "compete-100", "title": "100/100 Mbit/s, 20 ms RTT, fq_codel, one competing flow each way", "downMbit": 100, "upMbit": 100, "rttMs": 20, "lossPct": 0, "queue": "fq_codel", "competing": true},
   {"id": "proxy-1000", "title": "1/1 Gbit/s, 20 ms RTT, fq_codel, behind nginx", "downMbit": 1000, "upMbit": 1000, "rttMs": 20, "lossPct": 0, "queue": "fq_codel", "proxy": true},
+  {"id": "multi-200", "title": "Two servers, 200/200 Mbit/s path each, 20 ms RTT, fq_codel", "downMbit": 200, "upMbit": 200, "rttMs": 20, "lossPct": 0, "queue": "fq_codel", "servers": 2, "tools": ["graphite-meter", "graphite-meter-client"]},
   {"id": "unshaped", "title": "Unshaped veth, CPU cost only", "downMbit": null, "upMbit": null, "rttMs": 0, "lossPct": 0, "queue": null}
 ]

@@ -47,6 +47,10 @@ export async function run(page, url, deadline, options = {}) {
     screen: await page.evaluate(
       `[...document.querySelectorAll(".results .card .headline")].map((h) => h.textContent.replace(/\\s+/g, " ").trim())`,
     ),
-    detail: { engineVersion: record.engine, protocol: result.multiServer?.servers?.[0]?.throughput ?? null },
+    detail: {
+      engineVersion: record.engine,
+      protocol: result.multiServer?.servers?.[0]?.throughput ?? null,
+      participants: result.multiServer?.participants ?? null,
+    },
   };
 }

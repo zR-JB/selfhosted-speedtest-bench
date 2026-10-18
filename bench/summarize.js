@@ -57,7 +57,7 @@ out(
   `Tools: ${Object.values({ ...pins.tools, ...pins.clients }).filter((t) => !t.variantOf).map((t) => `${t.name} ${t.version}`).join(", ")}. Browsers: ${Object.entries(pins.browsers).map(([name, b]) => `${name} ${b.version}`).join(", ")}.`,
 );
 
-for (const scenario of scenarios) {
+for (let scenario of scenarios) {
   const mine = runs.filter((run) => run.scenario === scenario.id);
   if (!mine.length) continue;
   const groups = Map.groupBy(mine, (run) => `${run.tool}|${run.browser}`);
@@ -85,6 +85,9 @@ for (const scenario of scenarios) {
     continue;
   }
   const reference = [...groups.values()].find((group) => group[0].tool === "iperf3") ?? [];
+  // Rates and references are for the whole run: with two servers, both paths together.
+  const paths = scenario.servers ?? 1;
+  scenario = { ...scenario, downMbit: scenario.downMbit * paths, upMbit: scenario.upMbit * paths };
   const fillable =
     pick(reference, (r) => r.reported.downloadMbit) >= scenario.downMbit * PAYLOAD_SHARE * FILLABLE &&
     pick(reference, (r) => r.reported.uploadMbit) >= scenario.upMbit * PAYLOAD_SHARE * FILLABLE;

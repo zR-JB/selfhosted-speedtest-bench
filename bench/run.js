@@ -113,10 +113,15 @@ async function configFile(name) {
 }
 
 // A tool ships as an image, or as a release archive run unchanged in the small tools image.
-async function serveTool(name, proxied) {
+async function serveTool(name, proxied, multi) {
   const tool = pins.tools[name];
   const env = Object.fromEntries(
-    Object.entries({ ...tool.env, ...(proxied ? tool.proxy.env : {}), ...tool.tls?.env }).map(([key, value]) => [
+    Object.entries({
+      ...tool.env,
+      ...(proxied ? tool.proxy.env : {}),
+      ...tool.tls?.env,
+      ...(multi ? tool.multiServer.env : {}),
+    }).map(([key, value]) => [
       key,
       value.replaceAll("{host}", bed.NET.server),
     ]),
@@ -225,12 +230,16 @@ async function baseRtt() {
   return min ? Number(min[1]) : null;
 }
 
-async function iperf(reverse) {
+async function iperf(reverse, host = bed.NET.server) {
   const json = JSON.parse(
-    await bed.clientTool("iperf3", "-c", bed.NET.server, "-P", "4", "-t", "10", "-O", "2", "-J", ...(reverse ? ["-R"] : [])),
+    await bed.clientTool("iperf3", "-c", host, "-P", "4", "-t", "10", "-O", "2", "-J", ...(reverse ? ["-R"] : [])),
   );
   return json.end.sum_received.bits_per_second / 1e6;
 }
+
+// With two servers the reference measures both paths at once, as the tools do.
+const iperfAll = async (reverse, hosts) =>
+  (await Promise.all(hosts.map((host) => iperf(reverse, host)))).reduce((sum, mbit) => sum + mbit, 0);
 
 const toolUrl = (name, proxied) =>
   proxied
@@ -245,10 +254,14 @@ async function measure(unit, scenario, file) {
   let sampling = false;
   // Whatever fails, the next run must start from a clean server side: no sampler, competitor, proxy or server left.
   try {
+    const multi = scenario.servers === 2;
+    const hosts = multi ? [bed.NET.server, bed.NET.server2] : [bed.NET.server];
     if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
-    else await serveTool(server, proxied);
+    else await serveTool(server, proxied, multi);
+    if (multi && isReference) await bed.serveSecond(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
+    else if (multi) await bed.serveSecond(pins.tools[server].image, pins.tools[server].env);
     await bed.shape(scenario);
-    await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
+    for (const host of hosts) await bed.waitForPort(isReference ? 5201 : pins.tools[server].port, host);
     if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
     // A variant named for a protocol must really serve it; a server that falls back would be reported under a false name.
     const expected = pins.tools[server]?.expectProtocol;
@@ -256,11 +269,15 @@ async function measure(unit, scenario, file) {
       ? await bed.clientTool("curl", "-sk", "--http2", "-o", "/dev/null", "-w", "%{http_version}", toolUrl(server, false))
       : null;
     if (expected && served !== expected) throw new Error(`${server} served HTTP/${served}, expected HTTP/${expected}`);
+    // Everything on the server side counts: a proxy in front, or the second server.
     const cgroups = async () => {
-      const own = await bed.serverCgroup();
-      if (!proxied) return own;
-      const proxy = await bed.serverCgroup("sb-proxy");
-      return { cpuUsec: own.cpuUsec + proxy.cpuUsec, memoryPeakBytes: own.memoryPeakBytes + proxy.memoryPeakBytes };
+      const parts = await Promise.all(
+        ["sb-server", ...(proxied ? ["sb-proxy"] : []), ...(multi ? ["sb-server2"] : [])].map((n) => bed.serverCgroup(n)),
+      );
+      return {
+        cpuUsec: parts.reduce((sum, p) => sum + p.cpuUsec, 0),
+        memoryPeakBytes: parts.reduce((sum, p) => sum + p.memoryPeakBytes, 0),
+      };
     };
     if (scenario.competing) await bed.startCompetitor();
     const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
@@ -269,8 +286,8 @@ async function measure(unit, scenario, file) {
     let reported;
     if (isReference) {
       const startedAt = Date.now();
-      const downloadMbit = await iperf(true);
-      const uploadMbit = await iperf(false);
+      const downloadMbit = await iperfAll(true, hosts);
+      const uploadMbit = await iperfAll(false, hosts);
       reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
     } else if (client) {
       reported = await runClient(unit.tool);
@@ -381,6 +398,7 @@ try {
       // A block whose base RTT cannot be measured still runs; its runs carry no base RTT instead of ending the job.
       try {
         await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
+        if (scenario.servers === 2) await bed.serveSecond(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
         await bed.shape(scenario);
         block.baseRttMs = await baseRtt();
       } catch (error) {

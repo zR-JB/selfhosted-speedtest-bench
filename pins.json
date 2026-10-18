@@ -35,6 +35,12 @@
       "watch": {
         "github": "zR-JB/graphite-meter",
         "image": "ghcr.io/zr-jb/graphite-meter:{version}"
+      },
+      "multiServer": {
+        "evidence": "docs/REFERENCE.md, Server catalog: GM_SERVER_CATALOG with defaultSelection",
+        "env": {
+          "GM_SERVER_CATALOG": "{\"defaultSelection\": [\"self\", \"second\"], \"servers\": [{\"id\": \"second\", \"name\": \"Second\", \"url\": \"http://10.71.3.10:7246\"}]}"
+        }
       }
     },
     "librespeed": {

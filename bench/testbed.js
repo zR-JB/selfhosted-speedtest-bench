@@ -115,7 +115,7 @@ EOF`);
 }
 
 export async function down() {
-  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-client", "sb-shaper").catch(() => {});
+  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2", "sb-client", "sb-shaper").catch(() => {});
 }
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
@@ -134,7 +134,14 @@ export async function sweepClient() {
 }
 
 export async function unserve() {
-  await podman("rm", "-f", "-t", "2", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server").catch(() => {});
+  await podman("rm", "-f", "-t", "2", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2").catch(() => {});
+}
+
+// The second server of a multi-server scenario, on its own link and subnet.
+export async function serveSecond(image, env = {}, command = [], args = []) {
+  const vars = Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
+  await start("sb-server2", "server", image, [...vars, ...args], command);
+  await link(await pid("sb-shaper"), await pid("sb-server2"), "sv2", NET.server2, NET.server2Gateway);
 }
 
 // The proxy shares the server's namespace and CPU set, like a proxy on the same host, and forwards over loopback.
@@ -144,10 +151,10 @@ export async function startProxy(image, port, configFile) {
   await waitForPort(port);
 }
 
-export async function waitForPort(port, timeoutMs = 60_000) {
+export async function waitForPort(port, host = NET.server, timeoutMs = 60_000) {
   const until = Date.now() + timeoutMs;
   for (;;) {
-    const open = await clientTool("nc", "-z", "-w", "1", NET.server, String(port)).then(
+    const open = await clientTool("nc", "-z", "-w", "1", host, String(port)).then(
       () => true,
       () => false,
     );
@@ -203,12 +210,22 @@ const queue = (s, rateMbit) => {
 };
 
 // Each direction is shaped on the shaper's egress toward the receiver: cl carries downloads, sv carries uploads.
+// With two servers each has its own path: its downloads are shaped where they leave the server, its uploads on the
+// shaper's link toward it, and the client link carries only the delay.
 export async function shape(s) {
   const script = [];
-  for (const [dev, rate] of [
-    ["cl", s.downMbit],
-    ["sv", s.upMbit],
-  ]) {
+  const two = s.servers === 2;
+  const links = two
+    ? [
+        ["cl", null],
+        ["sv", s.upMbit],
+        ["sv2", s.upMbit],
+      ]
+    : [
+        ["cl", s.downMbit],
+        ["sv", s.upMbit],
+      ];
+  for (const [dev, rate] of links) {
     script.push(`tc qdisc del dev ${dev} root 2>/dev/null || true`);
     if (rate == null && !s.rttMs && !s.lossPct) continue;
     const loss = s.lossPct ? ` loss ${s.lossPct}%` : "";
@@ -218,14 +235,22 @@ export async function shape(s) {
     if (s.queue === "fq_codel") script.push(`tc qdisc add dev ${dev} parent 10:1 handle 20: fq_codel`);
   }
   await podman("exec", "sb-shaper", "sh", "-ec", script.join("\n"));
+  if (!two) return;
+  for (const name of ["sb-server", "sb-server2"]) {
+    const p = await pid(name);
+    await privileged(`
+      nsenter -t ${p} -n tc qdisc replace dev eth0 root handle 10: ${queue(s, s.downMbit)}
+      nsenter -t ${p} -n tc qdisc add dev eth0 parent 10:1 handle 20: fq_codel`);
+  }
 }
 
 export async function linkBytes() {
   const links = JSON.parse(await podman("exec", "sb-shaper", "ip", "-s", "-j", "link", "show"));
   const bytes = (dev) => links.find((l) => l.ifname === dev)?.stats64;
-  const cl = bytes("cl");
-  const sv = bytes("sv");
-  return { down: cl?.tx.bytes ?? 0, up: sv?.tx.bytes ?? 0 };
+  return {
+    down: bytes("cl")?.tx.bytes ?? 0,
+    up: (bytes("sv")?.tx.bytes ?? 0) + (bytes("sv2")?.tx.bytes ?? 0),
+  };
 }
 
 // Samples the bottleneck queues every 100 ms on the shaper itself, so the reference adds no traffic to the path.
