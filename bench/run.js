@@ -78,8 +78,9 @@ function noise() {
 
 async function baseRtt() {
   const text = await bed.clientTool("ping", "-c", "10", "-i", "0.2", "-q", bed.NET.server);
-  const avg = /= [\d.]+\/([\d.]+)\//.exec(text);
-  return avg ? Number(avg[1]) : null;
+  // The minimum: the first probe also waits for neighbour discovery.
+  const min = /= ([\d.]+)\//.exec(text);
+  return min ? Number(min[1]) : null;
 }
 
 async function iperf(reverse) {

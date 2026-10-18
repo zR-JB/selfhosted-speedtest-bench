@@ -35,7 +35,7 @@ for (const scenario of scenarios) {
   out();
   const shaped = scenario.downMbit != null;
   if (shaped) {
-    out(`Payload reference ${fmt(scenario.downMbit * PAYLOAD_SHARE)} / ${fmt(scenario.upMbit * PAYLOAD_SHARE)} Mbit/s; link rate ${scenario.downMbit} / ${scenario.upMbit} Mbit/s. Error is against the quantity each tool says it reports.`);
+    out(`Payload reference ${fmt(scenario.downMbit * PAYLOAD_SHARE)} / ${fmt(scenario.upMbit * PAYLOAD_SHARE)} Mbit/s; link rate ${scenario.downMbit} / ${scenario.upMbit} Mbit/s. Error is against the quantity each tool says it reports.${scenario.queue === "fifo" ? "" : " Under fq_codel a latency probe skips the bulk queue, so loaded latency has no reference."}`);
     out();
     out("| Tool | Runs ok | Reports | Download Mbit/s | Error | Upload Mbit/s | Error | Idle ms (base) | Loaded down ms (ref) | Loaded up ms (ref) |");
     out("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
@@ -60,7 +60,7 @@ for (const scenario of scenarios) {
     const up = pick((r) => r.reported.uploadMbit);
     const fifo = scenario.queue === "fifo";
     const ref = (dir) => (fifo ? pick((r) => r.baseRttMs + (r.queues?.[dir].medianQueueMs ?? NaN)) : null);
-    const loaded = (key, dir) => `${fmt(pick((r) => r.reported[key]))} (${fifo ? fmt(ref(dir)) : "fq"})`;
+    const loaded = (key, dir) => `${fmt(pick((r) => r.reported[key]))} (${fifo ? fmt(ref(dir)) : "n/a"})`;
     out(
       `| ${name} | ${okText} | ${quantity(group[0].tool)} | ${fmt(down)} | ${pct(down == null ? null : down / (scenario.downMbit * share) - 1)} | ${fmt(up)} | ${pct(up == null ? null : up / (scenario.upMbit * share) - 1)} | ${fmt(pick((r) => r.reported.idleLatencyMs))} (${fmt(pick((r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
     );
