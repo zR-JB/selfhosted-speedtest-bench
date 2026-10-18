@@ -57,7 +57,7 @@ async function start(name, role, image, args = [], command = []) {
 
 export async function prepare(pins, root) {
   await podman("build", "-q", "-t", TOOLS_IMAGE, `${root}/images/tools`);
-  for (const image of [pins.client, ...Object.values(pins.tools).flatMap((tool) => tool.image ?? [])])
+  for (const image of [pins.client, pins.proxy.image, ...Object.values(pins.tools).flatMap((tool) => tool.image ?? [])])
     await podman("pull", "-q", image);
   // Pinning needs one CPU each for shaper and server and two for the browser; smaller hosts run unpinned.
   cpusets =
@@ -109,7 +109,7 @@ EOF`);
 }
 
 export async function down() {
-  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv", "sb-server", "sb-client", "sb-shaper").catch(() => {});
+  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-client", "sb-shaper").catch(() => {});
 }
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
@@ -120,7 +120,14 @@ export async function serve(image, env = {}, command = [], args = []) {
 }
 
 export async function unserve() {
-  await podman("rm", "-f", "-t", "2", "sb-server").catch(() => {});
+  await podman("rm", "-f", "-t", "2", "sb-proxy", "sb-server").catch(() => {});
+}
+
+// The proxy shares the server's namespace and CPU set, like a proxy on the same host, and forwards over loopback.
+export async function startProxy(image, port, configFile) {
+  await podman("run", "-d", "--rm", "--name", "sb-proxy", "--network", "container:sb-server", ...cpuArgs("server"),
+    "-v", `${configFile}:/etc/nginx/conf.d/default.conf:ro`, image);
+  await waitForPort(port);
 }
 
 export async function waitForPort(port, timeoutMs = 60_000) {
@@ -221,8 +228,8 @@ export async function stopSampler() {
     });
 }
 
-export async function serverCgroup() {
-  const path = await podman("inspect", "-f", "{{.State.CgroupPath}}", "sb-server");
+export async function serverCgroup(name = "sb-server") {
+  const path = await podman("inspect", "-f", "{{.State.CgroupPath}}", name);
   const read = (file) => readFile(`/sys/fs/cgroup${path}/${file}`, "utf8").catch(() => null);
   const stat = await read("cpu.stat");
   const peak = await read("memory.peak");

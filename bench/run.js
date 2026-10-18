@@ -80,11 +80,37 @@ function fetchArchives() {
 }
 
 // A tool ships as an image, or as a release archive run unchanged in the small tools image.
-function serveTool(name) {
+function serveTool(name, proxied) {
   const tool = pins.tools[name];
-  if (!tool.release) return bed.serve(tool.image, tool.env);
+  const env = { ...tool.env, ...(proxied ? tool.proxy.env : {}) };
+  if (!tool.release) return bed.serve(tool.image, env);
   const dir = `${releaseDir}/${tool.variantOf ?? name}-${tool.version}`;
-  return bed.serve(bed.TOOLS_IMAGE, tool.env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
+  return bed.serve(bed.TOOLS_IMAGE, env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
+}
+
+// The same nginx for every tool, with only the directives that tool's own documentation asks for.
+function proxyConfig(name) {
+  const tool = pins.tools[name];
+  const file = `${out}/config/nginx-${name}.conf`;
+  mkdirSync(`${out}/config`, { recursive: true });
+  writeFileSync(
+    file,
+    `map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+server {
+    listen ${pins.proxy.port};
+    location / {
+        proxy_pass http://127.0.0.1:${tool.port};
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+${tool.proxy.location.map((line) => `        ${line}`).join("\n")}
+    }
+}
+`,
+  );
+  return file;
 }
 
 // Terminal clients print a report; each parser turns one into the fields the browser adapters return.
@@ -162,12 +188,20 @@ async function measure(unit, scenario, file) {
   const isReference = unit.tool === "iperf3";
   const client = pins.clients[unit.tool];
   const server = client?.server ?? unit.tool;
+  const proxied = Boolean(scenario.proxy && !isReference);
   if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
-  else await serveTool(server);
+  else await serveTool(server, proxied);
   await bed.shape(scenario);
   await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
+  if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
+  const cgroups = async () => {
+    const own = await bed.serverCgroup();
+    if (!proxied) return own;
+    const proxy = await bed.serverCgroup("sb-proxy");
+    return { cpuUsec: own.cpuUsec + proxy.cpuUsec, memoryPeakBytes: own.memoryPeakBytes + proxy.memoryPeakBytes };
+  };
   if (scenario.competing) await bed.startCompetitor();
-  const before = { bytes: await bed.linkBytes(), cgroup: await bed.serverCgroup() };
+  const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
   await bed.startSampler();
   let reported;
   if (isReference) {
@@ -184,7 +218,7 @@ async function measure(unit, scenario, file) {
         adapter: pins.tools[unit.tool].adapter ?? unit.tool,
         browser: unit.browser,
         binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
-        url: `http://${bed.NET.server}:${pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
+        url: `http://${bed.NET.server}:${proxied ? pins.proxy.port : pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
         options: pins.tools[unit.tool].options ?? {},
         screenshot: `/results/screens/${file}.png`,
         timeoutMs: Number(opts["timeout-ms"]),
@@ -192,7 +226,7 @@ async function measure(unit, scenario, file) {
     );
   }
   const samples = await bed.stopSampler();
-  const after = { bytes: await bed.linkBytes(), cgroup: await bed.serverCgroup() };
+  const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
   await bed.stopCompetitor();
   await bed.unserve();
   const bytes = { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up };
@@ -254,7 +288,9 @@ try {
     // Balanced order: each new random order is followed by its reverse, so slow stretches hit every unit alike.
     let order = [];
     for (let rep = 1; rep <= reps; rep++) {
-      order = rep % 2 ? shuffle(units) : [...order].reverse();
+      // A proxy scenario runs the reference and the tools whose projects document a proxy setup.
+      const eligible = units.filter((u) => !scenario.proxy || u.tool === "iperf3" || pins.tools[u.tool]?.proxy);
+      order = rep % 2 ? shuffle(eligible) : [...order].reverse();
       await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
       await bed.shape(scenario);
       const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise(), baseRttMs: await baseRtt() };

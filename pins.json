@@ -11,6 +11,26 @@
       "reports": {
         "quantity": "payload",
         "evidence": "docs/MEASUREMENTS.md: payload bytes per second; the wire-rate estimate is shown separately"
+      },
+      "proxy": {
+        "evidence": "docs/DEPLOYMENT.md, Reverse proxies and nginx",
+        "env": {
+          "GM_ADVERTISED_NATIVE_ENDPOINTS": "none",
+          "GM_PUBLIC_ORIGINS": "self",
+          "GM_TRUSTED_PROXIES": "127.0.0.1/32"
+        },
+        "location": [
+          "proxy_set_header Upgrade $http_upgrade;",
+          "proxy_set_header Connection $connection_upgrade;",
+          "proxy_set_header X-Real-IP $remote_addr;",
+          "proxy_set_header X-Forwarded-Proto $scheme;",
+          "proxy_set_header X-Forwarded-Host $http_host;",
+          "proxy_buffering off;",
+          "proxy_request_buffering off;",
+          "proxy_read_timeout 300s;",
+          "proxy_send_timeout 300s;",
+          "client_max_body_size 0;"
+        ]
       }
     },
     "librespeed": {
@@ -24,6 +44,13 @@
       "reports": {
         "quantity": "link",
         "evidence": "speedtest_worker.js v6.3.0 line 63: overheadCompensationFactor 1.06 multiplies measured payload to estimate transport overhead"
+      },
+      "proxy": {
+        "evidence": "doc.md v6.3.0: Nginx client_max_body_size 128m",
+        "env": {},
+        "location": [
+          "client_max_body_size 128m;"
+        ]
       }
     },
     "librespeed-go": {
@@ -71,6 +98,13 @@
       "reports": {
         "quantity": "link",
         "evidence": "index.html in the image: upAdjust = dlAdjust = 1.04 multiply measured payload"
+      },
+      "proxy": {
+        "evidence": "README: behind a reverse proxy, increase the post-body content length to 35 megabytes",
+        "env": {},
+        "location": [
+          "client_max_body_size 35m;"
+        ]
       }
     },
     "librespeed-nofactor": {
@@ -165,5 +199,11 @@
         "evidence": "defs/bytes_counter.go v1.0.14: AvgMbps of counted payload bytes, no compensation factor"
       }
     }
+  },
+  "proxy": {
+    "name": "nginx",
+    "version": "1.30.6",
+    "image": "docker.io/library/nginx:1.30.6-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5",
+    "port": 80
   }
 }
