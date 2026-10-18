@@ -28,7 +28,10 @@ const { values: opts } = parseArgs({
 // A variant is its base tool with a documented option set; it inherits everything it does not override.
 for (const tool of Object.values(pins.tools))
   if (tool.variantOf) Object.assign(tool, { ...pins.tools[tool.variantOf], ...tool });
-const scenarios = opts.scenarios.split(",").map((id) => allScenarios.find((s) => s.id === id) ?? fail(`no scenario ${id}`));
+const requested = opts.scenarios.split(",").map((id) => allScenarios.find((s) => s.id === id) ?? fail(`no scenario ${id}`));
+// Scenarios beyond what a small host can carry (multi-gigabit shaping) are skipped there and listed in the manifest.
+const scenarios = requested.filter((s) => (s.minHostCpus ?? 0) <= os.availableParallelism());
+const skipped = requested.filter((s) => !scenarios.includes(s)).map((s) => s.id);
 const tools = opts.tools.split(",");
 const browsers = opts.browsers.split(",");
 const reps = Number(opts.reps);
@@ -272,7 +275,7 @@ async function measure(unit, scenario, file) {
     // Everything on the server side counts: a proxy in front, or the second server.
     const cgroups = async () => {
       const parts = await Promise.all(
-        ["sb-server", ...(proxied ? ["sb-proxy"] : []), ...(multi ? ["sb-server2"] : [])].map((n) => bed.serverCgroup(n)),
+        [bed.C.server, ...(proxied ? [bed.C.proxy] : []), ...(multi ? [bed.C.server2] : [])].map((n) => bed.serverCgroup(n)),
       );
       return {
         cpuUsec: parts.reduce((sum, p) => sum + p.cpuUsec, 0),
@@ -349,6 +352,7 @@ const manifest = {
   seed: Number(opts.seed),
   reps,
   scenarios: scenarios.map((s) => s.id),
+  skipped,
   units,
   pins,
   host: {
@@ -380,10 +384,11 @@ let harnessErrors = 0;
 await bed.down();
 try {
   await bed.up(pins, { browsers: browserDir, driver: `${root}/bench/driver`, results: out });
-  for (const scenario of scenarios) {
-    // Balanced order: each new random order is followed by its reverse, so slow stretches hit every unit alike.
-    let order = [];
-    for (let rep = 1; rep <= reps; rep++) {
+  // Each repetition passes through every scenario, so a run cut short still covers all of them and a scenario's runs
+  // spread over the whole job. Per scenario, each new random order is followed by its reverse (balanced A B B A).
+  const orders = new Map();
+  for (let rep = 1; rep <= reps; rep++) {
+    for (const scenario of scenarios) {
       // Scenarios and variants can narrow who runs: a proxy scenario only tools whose projects document a proxy, a
       // multi-server scenario only tools that measure several servers at once, a transport variant only its scenarios.
       const eligible = units.filter((u) => {
@@ -393,7 +398,8 @@ try {
         if (entry.onlyScenarios && !entry.onlyScenarios.includes(scenario.id)) return false;
         return !scenario.proxy || Boolean(pins.tools[u.tool]?.proxy && !entry.tls);
       });
-      order = rep % 2 ? shuffle(eligible) : [...order].reverse();
+      const order = rep % 2 ? shuffle(eligible) : [...orders.get(scenario.id)].reverse();
+      orders.set(scenario.id, order);
       const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise() };
       // A block whose base RTT cannot be measured still runs; its runs carry no base RTT instead of ending the job.
       try {

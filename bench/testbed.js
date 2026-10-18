@@ -21,7 +21,20 @@ export const NET = {
   server2Gateway: "10.71.3.1",
 };
 export const TOOLS_IMAGE = "localhost/sb-tools:latest";
-const CPUS = { shaper: "0", server: "1", client: "2-3" };
+// One machine can host several independent instances: each has its own container names and its own CPU sets.
+const PREFIX = process.env.SB_PREFIX ?? "sb";
+export const C = Object.fromEntries(
+  Object.entries({
+    shaper: "shaper",
+    client: "client",
+    server: "server",
+    server2: "server2",
+    proxy: "proxy",
+    competeServer: "compete-srv",
+    competeClient: "compete-cl",
+  }).map(([role, name]) => [role, `${PREFIX}-${name}`]),
+);
+const CPUS = process.env.SB_CPUSETS ? JSON.parse(process.env.SB_CPUSETS) : { shaper: "0", server: "1", client: "2-3" };
 const COMPETITOR_PORT = 5202;
 
 async function sh([cmd, ...args], { timeoutMs = 120_000 } = {}) {
@@ -34,7 +47,16 @@ const privileged = (script) => sh([...PRIVILEGED, "sh", "-ec", script]);
 const pid = (name) => podman("inspect", "-f", "{{.State.Pid}}", name);
 
 let cpusets = true;
-const cpuArgs = (role) => (cpusets ? ["--cpuset-cpus", CPUS[role]] : []);
+// Every bench container has a memory cap and is the kernel's first choice if the host runs short, so a runaway
+// browser or server can only fail its own run, never take the desktop or other processes with it.
+const MEMORY = { shaper: "1g", server: "4g", client: "8g" };
+const cpuArgs = (role) => [
+  ...(cpusets ? ["--cpuset-cpus", CPUS[role]] : []),
+  "--memory",
+  MEMORY[role],
+  "--oom-score-adj",
+  "500",
+];
 
 // Offloads off on both ends, so every hop carries real 1,500 byte frames.
 const flat = (p, dev) => `nsenter -t ${p} -n ethtool -K ${dev} tso off gso off gro off`;
@@ -66,7 +88,7 @@ export async function prepare(pins, root) {
   // Pinning needs one CPU each for shaper and server and two for the browser; smaller hosts run unpinned.
   cpusets =
     os.availableParallelism() >= 4 &&
-    (await podman("run", "--rm", "--network", "none", "--cpuset-cpus", "0", TOOLS_IMAGE, "true").then(
+    (await podman("run", "--rm", "--network", "none", "--cpuset-cpus", CPUS.shaper, TOOLS_IMAGE, "true").then(
       () => true,
       () => false,
     ));
@@ -74,12 +96,12 @@ export async function prepare(pins, root) {
 }
 
 export async function up(pins, { browsers, driver, results }) {
-  await start("sb-shaper", "shaper", TOOLS_IMAGE, ["--cap-add", "NET_ADMIN", "--sysctl", "net.ipv4.ip_forward=1"], [
+  await start(C.shaper, "shaper", TOOLS_IMAGE, ["--cap-add", "NET_ADMIN", "--sysctl", "net.ipv4.ip_forward=1"], [
     "sleep",
     "infinity",
   ]);
   await start(
-    "sb-client",
+    C.client,
     "client",
     pins.client,
     [
@@ -98,9 +120,9 @@ export async function up(pins, { browsers, driver, results }) {
     ],
     ["sleep", "infinity"],
   );
-  await link(await pid("sb-shaper"), await pid("sb-client"), "cl", NET.client, NET.clientGateway);
+  await link(await pid(C.shaper), await pid(C.client), "cl", NET.client, NET.clientGateway);
   // Counts the competing flow where it crosses the shaper, so each run's own share of a shared link is known.
-  await podman("exec", "sb-shaper", "sh", "-ec", `nft -f - <<'EOF'
+  await podman("exec", C.shaper, "sh", "-ec", `nft -f - <<'EOF'
 table inet sb {
   counter compdown {}
   counter compup {}
@@ -111,11 +133,11 @@ table inet sb {
   }
 }
 EOF`);
-  await podman("exec", "-d", "sb-client", "Xvfb", ":99", "-screen", "0", "1280x900x24", "-nolisten", "tcp");
+  await podman("exec", "-d", C.client, "Xvfb", ":99", "-screen", "0", "1280x900x24", "-nolisten", "tcp");
 }
 
 export async function down() {
-  await remove(["sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2", "sb-client", "sb-shaper"], 0);
+  await remove([C.competeClient, C.competeServer, C.proxy, C.server, C.server2, C.client, C.shaper], 0);
 }
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
@@ -123,13 +145,13 @@ export async function serve(image, env = {}, command = [], args = []) {
   // Sidecars share the old server's namespace; they must go before the server can be replaced.
   await unserve();
   const vars = Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
-  await start("sb-server", "server", image, [...vars, ...args], command);
-  await link(await pid("sb-shaper"), await pid("sb-server"), "sv", NET.server, NET.serverGateway);
+  await start(C.server, "server", image, [...vars, ...args], command);
+  await link(await pid(C.shaper), await pid(C.server), "sv", NET.server, NET.serverGateway);
 }
 
 // A driver that died cannot take its browser down; kill whatever runs from the pinned browser directory.
 export async function sweepClient() {
-  await podman("exec", "sb-client", "sh", "-c", "pkill -9 -f '^/browsers/' || true");
+  await podman("exec", C.client, "sh", "-c", "pkill -9 -f '^/browsers/' || true");
   await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
@@ -146,18 +168,18 @@ async function remove(names, graceSeconds) {
   }
 }
 
-export const unserve = () => remove(["sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2"], 2);
+export const unserve = () => remove([C.competeClient, C.competeServer, C.proxy, C.server, C.server2], 2);
 
 // The second server of a multi-server scenario, on its own link and subnet.
 export async function serveSecond(image, env = {}, command = [], args = []) {
   const vars = Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
-  await start("sb-server2", "server", image, [...vars, ...args], command);
-  await link(await pid("sb-shaper"), await pid("sb-server2"), "sv2", NET.server2, NET.server2Gateway);
+  await start(C.server2, "server", image, [...vars, ...args], command);
+  await link(await pid(C.shaper), await pid(C.server2), "sv2", NET.server2, NET.server2Gateway);
 }
 
 // The proxy shares the server's namespace and CPU set, like a proxy on the same host, and forwards over loopback.
 export async function startProxy(image, port, configFile) {
-  await podman("run", "-d", "--rm", "--name", "sb-proxy", "--network", "container:sb-server", ...cpuArgs("server"),
+  await podman("run", "-d", "--rm", "--name", C.proxy, "--network", `container:${C.server}`, ...cpuArgs("server"),
     "-v", `${configFile}:/etc/nginx/conf.d/default.conf:ro`, image);
   await waitForPort(port);
 }
@@ -178,29 +200,29 @@ export async function waitForPort(port, host = NET.server, timeoutMs = 60_000) {
 // One bulk TCP flow each way between sidecars in the client's and server's namespaces, on the shaper's CPU so the
 // tool and browser CPUs stay untouched.
 export async function startCompetitor() {
-  await podman("run", "-d", "--rm", "--name", "sb-compete-srv", "--network", "container:sb-server", ...cpuArgs("shaper"),
+  await podman("run", "-d", "--rm", "--name", C.competeServer, "--network", `container:${C.server}`, ...cpuArgs("shaper"),
     TOOLS_IMAGE, "iperf3", "-s", "-p", String(COMPETITOR_PORT));
   await waitForPort(COMPETITOR_PORT);
-  await podman("run", "-d", "--rm", "--name", "sb-compete-cl", "--network", "container:sb-client", ...cpuArgs("shaper"),
+  await podman("run", "-d", "--rm", "--name", C.competeClient, "--network", `container:${C.client}`, ...cpuArgs("shaper"),
     TOOLS_IMAGE, "iperf3", "-c", NET.server, "-p", String(COMPETITOR_PORT), "--bidir", "-t", "86400");
   // Long enough for both flows to leave slow start before the tool begins.
   await new Promise((resolve) => setTimeout(resolve, 3000));
 }
 
-export const stopCompetitor = () => remove(["sb-compete-cl", "sb-compete-srv"], 0);
+export const stopCompetitor = () => remove([C.competeClient, C.competeServer], 0);
 
 // What a finished run must not leave behind; anything listed here would distort or break the runs after it.
 export async function residue() {
   const problems = [];
-  const containers = (await podman("ps", "--format", "{{.Names}}")).split("\n").filter((n) => n.startsWith("sb-"));
-  const extra = containers.filter((name) => !["sb-shaper", "sb-client"].includes(name));
+  const containers = (await podman("ps", "--format", "{{.Names}}")).split("\n").filter((n) => n.startsWith(`${PREFIX}-`));
+  const extra = containers.filter((name) => ![C.shaper, C.client].includes(name));
   if (extra.length) problems.push(`containers left: ${extra.join(", ")}`);
-  const processes = (await podman("exec", "sb-client", "ps", "-eo", "comm", "--no-headers"))
+  const processes = (await podman("exec", C.client, "ps", "-eo", "comm", "--no-headers"))
     .split("\n")
     .map((line) => line.trim())
     .filter((name) => name && !["podman-init", "catatonit", "sleep", "Xvfb", "ps"].includes(name));
   if (processes.length) problems.push(`client processes left: ${processes.join(", ")}`);
-  const loops = Number(await podman("exec", "sb-shaper", "sh", "-c", "pgrep -f 'while \\[ ! -f /tmp/stop' | wc -l"));
+  const loops = Number(await podman("exec", C.shaper, "sh", "-c", "pgrep -f 'while \\[ ! -f /tmp/stop' | wc -l"));
   if (loops) problems.push(`${loops} queue sampler(s) still running`);
   return problems;
 }
@@ -209,13 +231,14 @@ export async function residue() {
 export const clientTool = (...command) => clientRun([], command);
 
 export const clientRun = (args, command) =>
-  podman("run", "--rm", "--network", "container:sb-client", ...cpuArgs("client"), ...args, TOOLS_IMAGE, ...command);
+  podman("run", "--rm", "--network", `container:${C.client}`, ...cpuArgs("client"), ...args, TOOLS_IMAGE, ...command);
 
 const queue = (s, rateMbit) => {
   const bytesPerMs = (rateMbit * 1e6) / 8 / 1000;
   const burst = Math.max(Math.round(bytesPerMs * 4), 16_000);
   if (s.queue === "fifo") return `tbf rate ${rateMbit}mbit burst ${burst} limit ${Math.round(bytesPerMs * s.queueMs)}`;
-  return `tbf rate ${rateMbit}mbit burst ${burst} limit ${Math.round(bytesPerMs * 1000)}`;
+  // tbf's byte limit is 32-bit; under fq_codel it is unused, so one second's worth is capped below 2^31.
+  return `tbf rate ${rateMbit}mbit burst ${burst} limit ${Math.min(Math.round(bytesPerMs * 1000), 2 ** 31 - 1)}`;
 };
 
 // Each direction is shaped on the shaper's egress toward the receiver: cl carries downloads, sv carries uploads.
@@ -243,18 +266,18 @@ export async function shape(s) {
     script.push(`tc qdisc add dev ${dev} parent 1:1 handle 10: ${queue(s, rate)}`);
     if (s.queue === "fq_codel") script.push(`tc qdisc add dev ${dev} parent 10:1 handle 20: fq_codel`);
   }
-  await podman("exec", "sb-shaper", "sh", "-ec", script.join("\n"));
+  await podman("exec", C.shaper, "sh", "-ec", script.join("\n"));
   // Offloads stay off where shaping and loss must act on real frames; multi-gigabit and unshaped runs use them, as
   // real network cards do, so the shaper's per-packet cost does not become the limit.
   const state = s.offloads ? "on" : "off";
   const running = (await podman("ps", "--format", "{{.Names}}")).split("\n");
-  const shaper = await pid("sb-shaper");
-  const ends = [[shaper, "cl"], [await pid("sb-client"), "eth0"]];
-  if (running.includes("sb-server")) ends.push([shaper, "sv"], [await pid("sb-server"), "eth0"]);
-  if (running.includes("sb-server2")) ends.push([shaper, "sv2"], [await pid("sb-server2"), "eth0"]);
+  const shaper = await pid(C.shaper);
+  const ends = [[shaper, "cl"], [await pid(C.client), "eth0"]];
+  if (running.includes(C.server)) ends.push([shaper, "sv"], [await pid(C.server), "eth0"]);
+  if (running.includes(C.server2)) ends.push([shaper, "sv2"], [await pid(C.server2), "eth0"]);
   await privileged(ends.map(([p, dev]) => `nsenter -t ${p} -n ethtool -K ${dev} tso ${state} gso ${state} gro ${state}`).join("\n"));
   if (!two) return;
-  for (const name of ["sb-server", "sb-server2"]) {
+  for (const name of [C.server, C.server2]) {
     const p = await pid(name);
     await privileged(`
       nsenter -t ${p} -n tc qdisc replace dev eth0 root handle 10: ${queue(s, s.downMbit)}
@@ -263,7 +286,7 @@ export async function shape(s) {
 }
 
 export async function linkBytes() {
-  const links = JSON.parse(await podman("exec", "sb-shaper", "ip", "-s", "-j", "link", "show"));
+  const links = JSON.parse(await podman("exec", C.shaper, "ip", "-s", "-j", "link", "show"));
   const bytes = (dev) => links.find((l) => l.ifname === dev)?.stats64;
   return {
     down: bytes("cl")?.tx.bytes ?? 0,
@@ -276,7 +299,7 @@ export async function startSampler() {
   await podman(
     "exec",
     "-d",
-    "sb-shaper",
+    C.shaper,
     "sh",
     "-c",
     'rm -f /tmp/samples /tmp/stop; while [ ! -f /tmp/stop ]; do printf "%s\\t%s\\t%s\\n" "$(cut -d" " -f1 /proc/uptime)" "$(tc -s -j qdisc show)" "$(nft -j list counters table inet sb)" >> /tmp/samples; usleep 100000; done',
@@ -284,9 +307,9 @@ export async function startSampler() {
 }
 
 export async function stopSampler() {
-  await podman("exec", "sb-shaper", "touch", "/tmp/stop");
+  await podman("exec", C.shaper, "touch", "/tmp/stop");
   await new Promise((resolve) => setTimeout(resolve, 300));
-  const text = await podman("exec", "sb-shaper", "cat", "/tmp/samples").catch(() => "");
+  const text = await podman("exec", C.shaper, "cat", "/tmp/samples").catch(() => "");
   // A line cut short by the stop, or a tool call that printed nothing, is skipped rather than guessed at.
   return text.split("\n").flatMap((line) => {
     try {
@@ -303,7 +326,7 @@ export async function stopSampler() {
   });
 }
 
-export async function serverCgroup(name = "sb-server") {
+export async function serverCgroup(name = C.server) {
   const path = await podman("inspect", "-f", "{{.State.CgroupPath}}", name);
   const read = (file) => readFile(`/sys/fs/cgroup${path}/${file}`, "utf8").catch(() => null);
   const stat = await read("cpu.stat");
@@ -315,4 +338,4 @@ export async function serverCgroup(name = "sb-server") {
 }
 
 export const driver = (args) =>
-  sh([...PODMAN, "exec", "sb-client", "node", "/driver/main.js", JSON.stringify(args)], { timeoutMs: 300_000 });
+  sh([...PODMAN, "exec", C.client, "node", "/driver/main.js", JSON.stringify(args)], { timeoutMs: 300_000 });
