@@ -1,7 +1,7 @@
 // Runs every tool in every browser through each scenario, interleaved, and writes one JSON file per run.
 // node bench/run.js [--scenarios a,b] [--tools a,b] [--browsers chrome,firefox] [--reps 3] [--out dir] [--seed n]
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { parseArgs } from "node:util";
@@ -81,13 +81,59 @@ function fetchArchives() {
   }
 }
 
-// A tool ships as an image, or as a release archive run unchanged in the small tools image.
-function serveTool(name, proxied) {
+// One self-signed certificate for every server address, made per job. Chrome trusts its key by hash and Firefox
+// accepts it through WebDriver, so no tool's TLS setup differs from what its documentation describes.
+async function tlsMaterial() {
+  const dir = `${out}/config/tls`;
+  mkdirSync(dir, { recursive: true });
+  await bed.podman("run", "--rm", "--network", "none", "-v", `${dir}:/tls`, bed.TOOLS_IMAGE, "sh", "-ec", `
+    openssl req -x509 -newkey rsa:2048 -nodes -days 7 -subj /CN=${bed.NET.server} \
+      -addext subjectAltName=IP:${bed.NET.server},IP:${bed.NET.server2} -keyout /tls/key.pem -out /tls/cert.pem 2>/dev/null
+    cp /tls/cert.pem /tls/nginx.crt && cp /tls/key.pem /tls/nginx.key && chmod 644 /tls/*`);
+  const spki = createHash("sha256")
+    .update(new X509Certificate(readFileSync(`${dir}/cert.pem`)).publicKey.export({ type: "spki", format: "der" }))
+    .digest("base64");
+  return { dir, spki };
+}
+
+// A documented option that lives in a config file: the tool's own file with exact edits, each of which must match.
+async function configFile(name) {
+  const { source, target, edits } = pins.tools[name].configFile;
   const tool = pins.tools[name];
-  const env = { ...tool.env, ...(proxied ? tool.proxy.env : {}) };
-  if (!tool.release) return bed.serve(tool.image, env);
+  let text = source.startsWith("release:")
+    ? readFileSync(`${releaseDir}/${tool.variantOf ?? name}-${tool.version}/${source.slice(8)}`, "utf8")
+    : await bed.podman("run", "--rm", "--network", "none", "--entrypoint", "cat", tool.image, source.slice(6));
+  for (const [from, to] of edits) {
+    if (!text.includes(from)) fail(`${name}: ${source} no longer contains ${JSON.stringify(from)}`);
+    text = text.replaceAll(from, to);
+  }
+  const file = `${out}/config/${name}-${target.split("/").pop()}`;
+  writeFileSync(file, text);
+  return ["-v", `${file}:${target}:ro`];
+}
+
+// A tool ships as an image, or as a release archive run unchanged in the small tools image.
+async function serveTool(name, proxied) {
+  const tool = pins.tools[name];
+  const env = Object.fromEntries(
+    Object.entries({ ...tool.env, ...(proxied ? tool.proxy.env : {}), ...tool.tls?.env }).map(([key, value]) => [
+      key,
+      value.replaceAll("{host}", bed.NET.server),
+    ]),
+  );
+  const mounts = [
+    ...(tool.tls ? ["-v", `${tls.dir}:${tool.tls.mount}:ro`] : []),
+    ...(tool.configFile ? await configFile(name) : []),
+  ];
+  if (!tool.release) return bed.serve(tool.image, env, [], mounts);
   const dir = `${releaseDir}/${tool.variantOf ?? name}-${tool.version}`;
-  return bed.serve(bed.TOOLS_IMAGE, env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
+  return bed.serve(bed.TOOLS_IMAGE, env, tool.command ?? tool.release.command, [
+    "-v",
+    `${dir}:/opt/tool:ro`,
+    "-w",
+    "/opt/tool",
+    ...mounts,
+  ]);
 }
 
 // The same nginx for every tool, with only the directives that tool's own documentation asks for.
@@ -186,6 +232,11 @@ async function iperf(reverse) {
   return json.end.sum_received.bits_per_second / 1e6;
 }
 
+const toolUrl = (name, proxied) =>
+  proxied
+    ? `http://${bed.NET.server}:${pins.proxy.port}/`
+    : (pins.tools[name].url ?? `http://${bed.NET.server}:${pins.tools[name].port}/`).replaceAll("{host}", bed.NET.server);
+
 async function measure(unit, scenario, file) {
   const isReference = unit.tool === "iperf3";
   const client = pins.clients[unit.tool];
@@ -199,6 +250,12 @@ async function measure(unit, scenario, file) {
     await bed.shape(scenario);
     await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
     if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
+    // A variant named for a protocol must really serve it; a server that falls back would be reported under a false name.
+    const expected = pins.tools[server]?.expectProtocol;
+    const served = expected
+      ? await bed.clientTool("curl", "-sk", "--http2", "-o", "/dev/null", "-w", "%{http_version}", toolUrl(server, false))
+      : null;
+    if (expected && served !== expected) throw new Error(`${server} served HTTP/${served}, expected HTTP/${expected}`);
     const cgroups = async () => {
       const own = await bed.serverCgroup();
       if (!proxied) return own;
@@ -221,11 +278,15 @@ async function measure(unit, scenario, file) {
       const pin = pins.browsers[unit.browser];
       reported = JSON.parse(
         await bed.driver({
-          adapter: pins.tools[unit.tool].adapter ?? unit.tool,
+          adapter: pins.tools[unit.tool].adapter ?? pins.tools[unit.tool].variantOf ?? unit.tool,
           browser: unit.browser,
           binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
-          url: `http://${bed.NET.server}:${proxied ? pins.proxy.port : pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
+          url: `${toolUrl(unit.tool, proxied)}${pins.tools[unit.tool].urlSuffix ?? ""}`,
           options: pins.tools[unit.tool].options ?? {},
+          chromeArgs: [
+            `--ignore-certificate-errors-spki-list=${tls.spki}`,
+            `--origin-to-force-quic-on=${pins.quicOrigins.join(",")}`,
+          ],
           screenshot: `/results/screens/${file}.png`,
           timeoutMs: Number(opts["timeout-ms"]),
         }),
@@ -238,6 +299,7 @@ async function measure(unit, scenario, file) {
       ...unit,
       scenario: scenario.id,
       reported,
+      ...(served ? { serverProtocol: `HTTP/${served}` } : {}),
       linkBytes: { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up },
       serverCpuSeconds: after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6,
       serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
@@ -253,13 +315,18 @@ async function measure(unit, scenario, file) {
 
 const units = [
   { tool: "iperf3", browser: null },
-  ...tools.flatMap((tool) => (pins.clients[tool] ? [{ tool, browser: null }] : browsers.map((browser) => ({ tool, browser })))),
+  ...tools.flatMap((tool) =>
+    pins.clients[tool]
+      ? [{ tool, browser: null }]
+      : browsers.filter((b) => pins.tools[tool].browsers?.includes(b) ?? true).map((browser) => ({ tool, browser })),
+  ),
 ];
 
 mkdirSync(`${out}/runs`, { recursive: true });
 mkdirSync(`${out}/screens`, { recursive: true });
 fetchArchives();
 const host = await bed.prepare(pins, root);
+const tls = await tlsMaterial();
 const manifest = {
   startedAt: new Date().toISOString(),
   seed: Number(opts.seed),
@@ -300,8 +367,15 @@ try {
     // Balanced order: each new random order is followed by its reverse, so slow stretches hit every unit alike.
     let order = [];
     for (let rep = 1; rep <= reps; rep++) {
-      // A proxy scenario runs the reference and the tools whose projects document a proxy setup.
-      const eligible = units.filter((u) => !scenario.proxy || u.tool === "iperf3" || pins.tools[u.tool]?.proxy);
+      // Scenarios and variants can narrow who runs: a proxy scenario only tools whose projects document a proxy, a
+      // multi-server scenario only tools that measure several servers at once, a transport variant only its scenarios.
+      const eligible = units.filter((u) => {
+        if (u.tool === "iperf3") return true;
+        const entry = pins.tools[u.tool] ?? pins.clients[u.tool];
+        if (scenario.tools && !scenario.tools.includes(u.tool)) return false;
+        if (entry.onlyScenarios && !entry.onlyScenarios.includes(scenario.id)) return false;
+        return !scenario.proxy || Boolean(pins.tools[u.tool]?.proxy && !entry.tls);
+      });
       order = rep % 2 ? shuffle(eligible) : [...order].reverse();
       const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise() };
       // A block whose base RTT cannot be measured still runs; its runs carry no base RTT instead of ending the job.

@@ -147,6 +147,221 @@
         "quantity": "payload",
         "evidence": "README: pass Clean as a URL parameter to reset Overhead Compensation factor to zero"
       }
+    },
+    "graphite-meter-h2": {
+      "variantOf": "graphite-meter",
+      "name": "Graphite Meter, HTTP/2",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {
+          "GM_H2_ADDR": ":7248",
+          "GM_H3_ADDR": ":7249",
+          "GM_TLS_CERT": "/certs/cert.pem",
+          "GM_TLS_KEY": "/certs/key.pem",
+          "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+          "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+          "GM_H1_TLS_ADDR": ":7247",
+          "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+        }
+      },
+      "options": {
+        "config": {
+          "transports": {
+            "throughputTarget": "protocol:http2",
+            "latencyTarget": "transport:websocket"
+          }
+        }
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+      },
+      "url": "https://{host}:7247/"
+    },
+    "graphite-meter-h3": {
+      "variantOf": "graphite-meter",
+      "name": "Graphite Meter, HTTP/3",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {
+          "GM_H2_ADDR": ":7248",
+          "GM_H3_ADDR": ":7249",
+          "GM_TLS_CERT": "/certs/cert.pem",
+          "GM_TLS_KEY": "/certs/key.pem",
+          "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+          "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+          "GM_H1_TLS_ADDR": ":7247",
+          "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+        }
+      },
+      "options": {
+        "config": {
+          "transports": {
+            "throughputTarget": "protocol:http3",
+            "latencyTarget": "transport:websocket"
+          }
+        }
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+      },
+      "url": "https://{host}:7247/"
+    },
+    "graphite-meter-wt": {
+      "variantOf": "graphite-meter",
+      "name": "Graphite Meter, WebTransport",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {
+          "GM_H2_ADDR": ":7248",
+          "GM_H3_ADDR": ":7249",
+          "GM_TLS_CERT": "/certs/cert.pem",
+          "GM_TLS_KEY": "/certs/key.pem",
+          "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+          "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+          "GM_H1_TLS_ADDR": ":7247",
+          "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+        }
+      },
+      "options": {
+        "config": {
+          "transports": {
+            "throughputTarget": "transport:webtransport",
+            "latencyTarget": "transport:webtransport"
+          }
+        }
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+      },
+      "url": "https://{host}:7247/"
+    },
+    "librespeed-go-h2": {
+      "variantOf": "librespeed-go",
+      "name": "LibreSpeed Go backend, HTTP/2",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {}
+      },
+      "url": "https://{host}:8989/",
+      "configFile": {
+        "source": "release:settings.toml",
+        "target": "/config/settings.toml",
+        "edits": [
+          [
+            "enable_tls=false",
+            "enable_tls=true"
+          ],
+          [
+            "enable_http2=false",
+            "enable_http2=true"
+          ],
+          [
+            "# tls_cert_file=\"cert.pem\"",
+            "tls_cert_file=\"/certs/cert.pem\""
+          ],
+          [
+            "# tls_key_file=\"privkey.pem\"",
+            "tls_key_file=\"/certs/key.pem\""
+          ]
+        ]
+      },
+      "command": [
+        "./speedtest-backend",
+        "-c",
+        "/config/settings.toml"
+      ],
+      "reports": {
+        "quantity": "link",
+        "evidence": "settings.toml v1.1.6: TLS and HTTP/2 settings, TLS is required for HTTP/2"
+      },
+      "expectProtocol": "2"
+    },
+    "openspeedtest-h2": {
+      "variantOf": "openspeedtest",
+      "name": "OpenSpeedTest, HTTP/2",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000"
+      ],
+      "tls": {
+        "mount": "/etc/ssl",
+        "env": {}
+      },
+      "url": "https://{host}:3001/",
+      "port": 3001,
+      "configFile": {
+        "source": "image:/etc/nginx/conf.d/OpenSpeedTest-Server.conf",
+        "target": "/etc/nginx/conf.d/OpenSpeedTest-Server.conf",
+        "edits": [
+          [
+            "listen 3001 ssl reuseport;",
+            "listen 3001 ssl http2 reuseport;"
+          ],
+          [
+            "listen [::]:3001 ssl reuseport;",
+            "listen [::]:3001 ssl http2 reuseport;"
+          ],
+          [
+            "       #location = /upload {",
+            "       location = /upload {"
+          ],
+          [
+            "       #    proxy_pass http://127.0.0.1:3000/dev-null;",
+            "           proxy_pass http://127.0.0.1:3000/dev-null;"
+          ],
+          [
+            "       #location = /dev-null {",
+            "       location = /dev-null {"
+          ],
+          [
+            "       #    return 200;",
+            "           return 200;"
+          ],
+          [
+            "       #}",
+            "       }"
+          ]
+        ]
+      },
+      "reports": {
+        "quantity": "link",
+        "evidence": "OpenSpeedTest-Server.conf in the image: add http2 to the TLS listen line and enable the HTTP2 & HTTP3 upload fix"
+      },
+      "expectProtocol": "2"
     }
   },
   "browsers": {
@@ -238,5 +453,8 @@
     "version": "1.30.6",
     "image": "docker.io/library/nginx:1.30.6-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5",
     "port": 80
-  }
+  },
+  "quicOrigins": [
+    "10.71.2.10:7249"
+  ]
 }

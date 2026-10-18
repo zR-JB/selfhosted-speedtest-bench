@@ -59,10 +59,11 @@ function connect(url) {
 // Expressions run as async functions and return JSON, so both protocols hand back the same plain values.
 const wrap = (expression) => `(async () => JSON.stringify(await (${expression})))()`;
 
-async function chrome(binary, profile) {
+async function chrome(binary, profile, extraArgs) {
   const { child } = await launchProcess(
     binary,
     [
+      ...extraArgs,
       `--user-data-dir=${profile}`,
       `--remote-debugging-port=${PORT}`,
       "--no-first-run",
@@ -106,7 +107,7 @@ async function firefox(binary, profile) {
     /WebDriver BiDi listening on (ws:\/\/\S+)/,
   );
   const bidi = await connect(`${endpoint}/session`);
-  await bidi.send("session.new", { capabilities: {} });
+  await bidi.send("session.new", { capabilities: { alwaysMatch: { acceptInsecureCerts: true } } });
   const { contexts } = await bidi.send("browsingContext.getTree", {});
   const context = contexts[0].context;
   return {
@@ -149,8 +150,8 @@ export function cpuSeconds(root) {
   return ticks / TICKS;
 }
 
-export async function launch(kind, binary, profile) {
-  const browser = await (kind === "chrome" ? chrome : firefox)(binary, profile);
+export async function launch(kind, binary, profile, chromeArgs = []) {
+  const browser = await (kind === "chrome" ? chrome(binary, profile, chromeArgs) : firefox(binary, profile));
   return {
     ...browser,
     cpuSeconds: () => cpuSeconds(browser.child.pid),

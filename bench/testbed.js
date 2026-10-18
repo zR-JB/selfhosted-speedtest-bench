@@ -17,6 +17,8 @@ export const NET = {
   server: "10.71.2.10",
   clientGateway: "10.71.1.1",
   serverGateway: "10.71.2.1",
+  server2: "10.71.3.10",
+  server2Gateway: "10.71.3.1",
 };
 export const TOOLS_IMAGE = "localhost/sb-tools:latest";
 const CPUS = { shaper: "0", server: "1", client: "2-3" };
