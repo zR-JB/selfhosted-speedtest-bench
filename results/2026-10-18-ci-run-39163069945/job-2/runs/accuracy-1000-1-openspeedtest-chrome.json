@@ -1,0 +1,47 @@
+{
+  "rep": 1,
+  "position": 5,
+  "baseRttMs": 20.13,
+  "tool": "openspeedtest",
+  "browser": "chrome",
+  "scenario": "accuracy-1000",
+  "reported": {
+    "startedAt": 1792358352720,
+    "outcome": "complete",
+    "downloadMbit": 954.1,
+    "uploadMbit": 951.7,
+    "idleLatencyMs": 21,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "screen": [
+      "954.1",
+      "951.7",
+      "21",
+      "0.2"
+    ],
+    "detail": {
+      "jitterMs": 0.2
+    },
+    "browserCpuSeconds": 31.270000000000003,
+    "endedAt": 1792358384997
+  },
+  "linkBytes": {
+    "down": 1825040558,
+    "up": 1509402608
+  },
+  "serverCpuSeconds": 6.096305,
+  "serverMemoryPeakBytes": 29691904,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 137,
+      "medianQueueMs": 3.69416,
+      "medianOwnLinkMbit": 980.9618909089693
+    },
+    "up": {
+      "loadedSamples": 112,
+      "medianQueueMs": 3.0461679999999998,
+      "medianOwnLinkMbit": 968.8498909094714
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "rep": 1,
+  "position": 3,
+  "baseRttMs": 20.04,
+  "tool": "openspeedtest",
+  "browser": "chrome",
+  "scenario": "bufferbloat-300-30",
+  "reported": {
+    "startedAt": 1792359287640,
+    "outcome": "complete",
+    "downloadMbit": 286.2,
+    "uploadMbit": 31.8,
+    "idleLatencyMs": 20,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "screen": [
+      "286.2",
+      "31.8",
+      "20",
+      "0.1"
+    ],
+    "detail": {
+      "jitterMs": 0.1
+    },
+    "browserCpuSeconds": 20.32,
+    "endedAt": 1792359319995
+  },
+  "linkBytes": {
+    "down": 547758337,
+    "up": 59550136
+  },
+  "serverCpuSeconds": 0.712763,
+  "serverMemoryPeakBytes": 22360064,
+  "queues": {
+    "kind": "fifo",
+    "down": {
+      "loadedSamples": 140,
+      "medianQueueMs": 136.62336,
+      "medianOwnLinkMbit": 311.2783999999292
+    },
+    "up": {
+      "loadedSamples": 120,
+      "medianQueueMs": 175.624,
+      "medianOwnLinkMbit": 31.00671999999295
+    }
+  }
+}

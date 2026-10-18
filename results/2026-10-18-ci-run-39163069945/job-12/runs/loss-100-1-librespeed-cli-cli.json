@@ -1,0 +1,38 @@
+{
+  "rep": 1,
+  "position": 10,
+  "baseRttMs": 40.043,
+  "tool": "librespeed-cli",
+  "browser": null,
+  "scenario": "loss-100",
+  "reported": {
+    "outcome": "complete",
+    "downloadMbit": 11.24,
+    "uploadMbit": 12.9,
+    "idleLatencyMs": 40.09,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "report": "[{\"timestamp\":\"2026-10-18T21:46:18.750169629Z\",\"server\":{\"name\":\"bench\",\"url\":\"http://10.71.2.10:8080/\"},\"client\":{\"ip\":\"\",\"hostname\":\"\",\"city\":\"\",\"region\":\"\",\"country\":\"\",\"loc\":\"\",\"org\":\"\",\"postal\":\"\",\"timezone\":\"\"},\"bytes_sent\":25165824,\"bytes_received\":21928632,\"ping\":40.09,\"jitter\":0.01,\"upload\":12.9,\"download\":11.24,\"share\":\"\"}]",
+    "startedAt": 1792359938097,
+    "endedAt": 1792359978785
+  },
+  "linkBytes": {
+    "down": 23588460,
+    "up": 25985337
+  },
+  "serverCpuSeconds": 0.090635,
+  "serverMemoryPeakBytes": 63053824,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 1,
+      "medianQueueMs": 0,
+      "medianOwnLinkMbit": 59.939520000054515
+    },
+    "up": {
+      "loadedSamples": 2,
+      "medianQueueMs": 0,
+      "medianOwnLinkMbit": 65.7900509090671
+    }
+  }
+}
