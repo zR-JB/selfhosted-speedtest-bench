@@ -91,9 +91,11 @@ for (const scenario of scenarios) {
   out(
     [
       `Link rate ${scenario.downMbit} / ${scenario.upMbit} Mbit/s; payload rate ${fmt(scenario.downMbit * PAYLOAD_SHARE)} / ${fmt(scenario.upMbit * PAYLOAD_SHARE)} Mbit/s.`,
-      fillable
-        ? "Error is against the quantity each tool says it reports."
-        : "iperf3 does not fill this link, so it has no accuracy reference: compare the tools with each other and with iperf3 (4 TCP streams).",
+      scenario.competing
+        ? "One bulk TCP flow each way shares the link, so each run is scored against its own share of it, measured on the shaper as link bytes minus the competing flow's."
+        : fillable
+          ? "Error is against the quantity each tool says it reports."
+          : "iperf3 does not fill this link, so it has no accuracy reference: compare the tools with each other and with iperf3 (4 TCP streams).",
       fifo ? "" : "Under fq_codel a latency probe skips the bulk queue, so loaded latency has no reference.",
       "Rates show median [25th, 75th percentile].",
     ]
@@ -105,7 +107,9 @@ for (const scenario of scenarios) {
   out("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const group of groups.values()) {
     const share = quantity(group[0].tool) === "payload" ? PAYLOAD_SHARE : 1;
-    const error = (fn, rate) => {
+    const error = (fn, rate, dir) => {
+      if (scenario.competing)
+        return pct(pick(group, (r) => fn(r) / ((r.queues?.[dir].medianOwnLinkMbit ?? NaN) * share) - 1));
       const value = pick(group, fn);
       return fillable && value != null ? pct(value / (rate * share) - 1) : "n/a";
     };
@@ -114,7 +118,7 @@ for (const scenario of scenarios) {
     const down = (r) => r.reported.downloadMbit;
     const up = (r) => r.reported.uploadMbit;
     out(
-      `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${quantity(group[0].tool)} | ${spread(group, down)} | ${error(down, scenario.downMbit)} | ${spread(group, up)} | ${error(up, scenario.upMbit)} | ${fmt(pick(group, (r) => r.reported.idleLatencyMs))} (${fmt(pick(group, (r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
+      `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${quantity(group[0].tool)} | ${spread(group, down)} | ${error(down, scenario.downMbit, "down")} | ${spread(group, up)} | ${error(up, scenario.upMbit, "up")} | ${fmt(pick(group, (r) => r.reported.idleLatencyMs))} (${fmt(pick(group, (r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
     );
   }
   for (const run of mine.filter((r) => r.reported.outcome !== "complete"))

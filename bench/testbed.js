@@ -20,6 +20,7 @@ export const NET = {
 };
 export const TOOLS_IMAGE = "localhost/sb-tools:latest";
 const CPUS = { shaper: "0", server: "1", client: "2-3" };
+const COMPETITOR_PORT = 5202;
 
 async function sh([cmd, ...args], { timeoutMs = 120_000 } = {}) {
   const { stdout } = await exec(cmd, args, { maxBuffer: 256 << 20, timeout: timeoutMs });
@@ -92,11 +93,23 @@ export async function up(pins, { browsers, driver, results }) {
     ["sleep", "infinity"],
   );
   await link(await pid("sb-shaper"), await pid("sb-client"), "cl", NET.client, NET.clientGateway);
+  // Counts the competing flow where it crosses the shaper, so each run's own share of a shared link is known.
+  await podman("exec", "sb-shaper", "sh", "-ec", `nft -f - <<'EOF'
+table inet sb {
+  counter compdown {}
+  counter compup {}
+  chain passing {
+    type filter hook forward priority 0;
+    tcp sport ${COMPETITOR_PORT} counter name "compdown"
+    tcp dport ${COMPETITOR_PORT} counter name "compup"
+  }
+}
+EOF`);
   await podman("exec", "-d", "sb-client", "Xvfb", ":99", "-screen", "0", "1280x900x24", "-nolisten", "tcp");
 }
 
 export async function down() {
-  await podman("rm", "-f", "-t", "0", "sb-server", "sb-client", "sb-shaper").catch(() => {});
+  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv", "sb-server", "sb-client", "sb-shaper").catch(() => {});
 }
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
@@ -121,6 +134,22 @@ export async function waitForPort(port, timeoutMs = 60_000) {
     if (Date.now() > until) throw new Error(`server port ${port} did not open within ${timeoutMs} ms`);
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
+}
+
+// One bulk TCP flow each way between sidecars in the client's and server's namespaces, on the shaper's CPU so the
+// tool and browser CPUs stay untouched.
+export async function startCompetitor() {
+  await podman("run", "-d", "--rm", "--name", "sb-compete-srv", "--network", "container:sb-server", ...cpuArgs("shaper"),
+    TOOLS_IMAGE, "iperf3", "-s", "-p", String(COMPETITOR_PORT));
+  await waitForPort(COMPETITOR_PORT);
+  await podman("run", "-d", "--rm", "--name", "sb-compete-cl", "--network", "container:sb-client", ...cpuArgs("shaper"),
+    TOOLS_IMAGE, "iperf3", "-c", NET.server, "-p", String(COMPETITOR_PORT), "--bidir", "-t", "86400");
+  // Long enough for both flows to leave slow start before the tool begins.
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+}
+
+export async function stopCompetitor() {
+  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv").catch(() => {});
 }
 
 // Tools that run on the client side (iperf3, ping) share the client's namespace and CPU set.
@@ -168,7 +197,7 @@ export async function startSampler() {
     "sb-shaper",
     "sh",
     "-c",
-    'rm -f /tmp/samples /tmp/stop; while [ ! -f /tmp/stop ]; do printf "%s\\t%s\\n" "$(cut -d" " -f1 /proc/uptime)" "$(tc -s -j qdisc show)" >> /tmp/samples; usleep 100000; done',
+    'rm -f /tmp/samples /tmp/stop; while [ ! -f /tmp/stop ]; do printf "%s\\t%s\\t%s\\n" "$(cut -d" " -f1 /proc/uptime)" "$(tc -s -j qdisc show)" "$(nft -j list counters table inet sb)" >> /tmp/samples; usleep 100000; done',
   );
 }
 
@@ -180,8 +209,13 @@ export async function stopSampler() {
     .split("\n")
     .filter(Boolean)
     .map((line) => {
-      const [t, json] = line.split("\t");
-      return { t: Number(t), qdiscs: JSON.parse(json) };
+      const [t, qdiscs, counters] = line.split("\t");
+      const competitor = Object.fromEntries(
+        JSON.parse(counters)
+          .nftables.filter((entry) => entry.counter)
+          .map(({ counter }) => [counter.name, counter]),
+      );
+      return { t: Number(t), qdiscs: JSON.parse(qdiscs), competitor };
     });
 }
 

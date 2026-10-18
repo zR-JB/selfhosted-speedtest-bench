@@ -113,6 +113,7 @@ async function measure(unit, scenario, file) {
   else await serveTool(unit.tool);
   await bed.shape(scenario);
   await bed.waitForPort(isReference ? 5201 : pins.tools[unit.tool].port);
+  if (scenario.competing) await bed.startCompetitor();
   const before = { bytes: await bed.linkBytes(), cgroup: await bed.serverCgroup() };
   await bed.startSampler();
   let reported;
@@ -136,6 +137,7 @@ async function measure(unit, scenario, file) {
   }
   const samples = await bed.stopSampler();
   const after = { bytes: await bed.linkBytes(), cgroup: await bed.serverCgroup() };
+  await bed.stopCompetitor();
   await bed.unserve();
   const bytes = { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up };
   const serverCpuSeconds =

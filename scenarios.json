@@ -5,5 +5,6 @@
   {"id": "loss-100", "title": "100/100 Mbit/s, 40 ms RTT, 1 % loss each way, fq_codel", "downMbit": 100, "upMbit": 100, "rttMs": 40, "lossPct": 1, "queue": "fq_codel"},
   {"id": "loss-1000", "title": "1/1 Gbit/s, 40 ms RTT, 0.1 % loss each way, fq_codel", "downMbit": 1000, "upMbit": 1000, "rttMs": 40, "lossPct": 0.1, "queue": "fq_codel"},
   {"id": "long-300", "title": "300/300 Mbit/s, 160 ms RTT, fq_codel", "downMbit": 300, "upMbit": 300, "rttMs": 160, "lossPct": 0, "queue": "fq_codel"},
+  {"id": "compete-100", "title": "100/100 Mbit/s, 20 ms RTT, fq_codel, one competing flow each way", "downMbit": 100, "upMbit": 100, "rttMs": 20, "lossPct": 0, "queue": "fq_codel", "competing": true},
   {"id": "unshaped", "title": "Unshaped veth, CPU cost only", "downMbit": null, "upMbit": null, "rttMs": 0, "lossPct": 0, "queue": null}
 ]
