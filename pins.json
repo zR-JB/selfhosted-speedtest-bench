@@ -25,6 +25,19 @@
         "quantity": "link",
         "evidence": "speedtest_worker.js v6.3.0 line 63: overheadCompensationFactor 1.06 multiplies measured payload to estimate transport overhead"
       }
+    },
+    "openspeedtest": {
+      "name": "OpenSpeedTest",
+      "version": "app 2.5.4 (latest image, v2.0.6)",
+      "image": "docker.io/openspeedtest/latest:latest@sha256:1745e913f596fe98882b286a67751efdae74774e9caa742a4934bb056e8748d2",
+      "port": 3000,
+      "env": {},
+      "source": "https://github.com/openspeedtest/Speed-Test",
+      "quickStart": "docker run --restart=unless-stopped --name openspeedtest -d -p 3000:3000 -p 3001:3001 openspeedtest/latest",
+      "reports": {
+        "quantity": "link",
+        "evidence": "index.html in the image: upAdjust = dlAdjust = 1.04 multiply measured payload"
+      }
     }
   },
   "browsers": {
