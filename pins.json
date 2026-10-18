@@ -31,11 +31,15 @@
           "proxy_send_timeout 300s;",
           "client_max_body_size 0;"
         ]
+      },
+      "watch": {
+        "github": "zR-JB/graphite-meter",
+        "image": "ghcr.io/zr-jb/graphite-meter:{version}"
       }
     },
     "librespeed": {
       "name": "LibreSpeed",
-      "version": "6.3.0 (latest image)",
+      "version": "6.3.0",
       "image": "ghcr.io/librespeed/speedtest:latest@sha256:94e627a2b29947a9ee1e39db465c2346b66ed4fce2c979e7f1c431eb1904703c",
       "port": 8080,
       "env": {},
@@ -51,6 +55,10 @@
         "location": [
           "client_max_body_size 128m;"
         ]
+      },
+      "watch": {
+        "github": "librespeed/speedtest",
+        "image": "ghcr.io/librespeed/speedtest:latest"
       }
     },
     "librespeed-go": {
@@ -71,6 +79,10 @@
       "reports": {
         "quantity": "link",
         "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor 1.06"
+      },
+      "watch": {
+        "github": "librespeed/speedtest-go",
+        "release": "https://github.com/librespeed/speedtest-go/releases/download/v{version}/speedtest-go_{version}_linux_amd64.tar.gz"
       }
     },
     "librespeed-rust": {
@@ -85,11 +97,15 @@
       "reports": {
         "quantity": "link",
         "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor 1.06"
+      },
+      "watch": {
+        "github": "librespeed/speedtest-rust",
+        "image": "ghcr.io/librespeed/speedtest-rust:v{version}"
       }
     },
     "openspeedtest": {
       "name": "OpenSpeedTest",
-      "version": "app 2.5.4 (latest image, v2.0.6)",
+      "version": "2.5.4",
       "image": "docker.io/openspeedtest/latest:latest@sha256:1745e913f596fe98882b286a67751efdae74774e9caa742a4934bb056e8748d2",
       "port": 3000,
       "env": {},
@@ -105,6 +121,9 @@
         "location": [
           "client_max_body_size 35m;"
         ]
+      },
+      "watch": {
+        "image": "docker.io/openspeedtest/latest:latest"
       }
     },
     "librespeed-nofactor": {
@@ -164,6 +183,16 @@
       "reports": {
         "quantity": "payload",
         "evidence": "docs/MEASUREMENTS.md: payload bytes per second, uploads timed at the receiver"
+      },
+      "watch": {
+        "github": "zR-JB/graphite-meter",
+        "release": "https://github.com/zR-JB/graphite-meter/releases/download/v{version}/graphite-meter-client_{version}_linux_amd64.tar.gz",
+        "command": [
+          "graphite-meter-client_{version}_linux_amd64/graphite-meter-client",
+          "--url",
+          "http://10.71.2.10:7246",
+          "--report"
+        ]
       }
     },
     "librespeed-cli": {
@@ -197,6 +226,10 @@
       "reports": {
         "quantity": "payload",
         "evidence": "defs/bytes_counter.go v1.0.14: AvgMbps of counted payload bytes, no compensation factor"
+      },
+      "watch": {
+        "github": "librespeed/speedtest-cli",
+        "release": "https://github.com/librespeed/speedtest-cli/releases/download/v{version}/librespeed-cli_{version}_linux_amd64.tar.gz"
       }
     }
   },

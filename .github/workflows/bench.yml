@@ -15,6 +15,9 @@ on:
         default: ""
   schedule:
     - cron: "0 3 1 * *"
+  push:
+    branches: [main]
+    paths: [pins.json]
 
 permissions:
   contents: read

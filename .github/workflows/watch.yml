@@ -1,0 +1,36 @@
+name: Watch releases
+
+# Opens a pull request when a tool, client or browser publishes a release; merging it starts a full Bench run.
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Check releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node bench/watch.js | tee changes.md
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --quiet pins.json && exit 0
+          branch="pins/$(date -u +%Y-%m-%d)"
+          git switch -c "$branch"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qam "Update pinned releases"
+          git push -f origin "$branch"
+          gh pr create --title "Update pinned releases" --body-file changes.md --head "$branch" ||
+            gh pr edit "$branch" --body-file changes.md
