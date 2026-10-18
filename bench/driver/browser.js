@@ -15,7 +15,8 @@ const FIREFOX_PREFS = {
 };
 
 function launchProcess(binary, args, banner) {
-  const child = spawn(binary, args, { stdio: ["ignore", "ignore", "pipe"] });
+  // Its own process group, so quitting can kill every helper process the browser started.
+  const child = spawn(binary, args, { stdio: ["ignore", "ignore", "pipe"], detached: true });
   return new Promise((resolve, reject) => {
     let log = "";
     const timer = setTimeout(() => reject(new Error(`no debugging endpoint from ${binary}:\n${log}`)), 30_000);
@@ -155,7 +156,7 @@ export async function launch(kind, binary, profile) {
     cpuSeconds: () => cpuSeconds(browser.child.pid),
     async quit() {
       browser.close();
-      browser.child.kill("SIGKILL");
+      process.kill(-browser.child.pid, "SIGKILL");
     },
   };
 }

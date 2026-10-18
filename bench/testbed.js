@@ -79,6 +79,8 @@ export async function up(pins, { browsers, driver, results }) {
     "client",
     pins.client,
     [
+      // An init that reaps: browser helpers orphaned at quit would otherwise stay as zombies and exhaust the pid limit.
+      "--init",
       "--shm-size",
       "2g",
       "-e",
@@ -114,13 +116,15 @@ export async function down() {
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
 export async function serve(image, env = {}, command = [], args = []) {
+  // Sidecars share the old server's namespace; they must go before the server can be replaced.
+  await unserve();
   const vars = Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
   await start("sb-server", "server", image, [...vars, ...args], command);
   await link(await pid("sb-shaper"), await pid("sb-server"), "sv", NET.server, NET.serverGateway);
 }
 
 export async function unserve() {
-  await podman("rm", "-f", "-t", "2", "sb-proxy", "sb-server").catch(() => {});
+  await podman("rm", "-f", "-t", "2", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server").catch(() => {});
 }
 
 // The proxy shares the server's namespace and CPU set, like a proxy on the same host, and forwards over loopback.
@@ -214,18 +218,20 @@ export async function stopSampler() {
   await podman("exec", "sb-shaper", "touch", "/tmp/stop");
   await new Promise((resolve) => setTimeout(resolve, 300));
   const text = await podman("exec", "sb-shaper", "cat", "/tmp/samples").catch(() => "");
-  return text
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
+  // A line cut short by the stop, or a tool call that printed nothing, is skipped rather than guessed at.
+  return text.split("\n").flatMap((line) => {
+    try {
       const [t, qdiscs, counters] = line.split("\t");
       const competitor = Object.fromEntries(
         JSON.parse(counters)
           .nftables.filter((entry) => entry.counter)
           .map(({ counter }) => [counter.name, counter]),
       );
-      return { t: Number(t), qdiscs: JSON.parse(qdiscs), competitor };
-    });
+      return [{ t: Number(t), qdiscs: JSON.parse(qdiscs), competitor }];
+    } catch {
+      return [];
+    }
+  });
 }
 
 export async function serverCgroup(name = "sb-server") {

@@ -189,58 +189,63 @@ async function measure(unit, scenario, file) {
   const client = pins.clients[unit.tool];
   const server = client?.server ?? unit.tool;
   const proxied = Boolean(scenario.proxy && !isReference);
-  if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
-  else await serveTool(server, proxied);
-  await bed.shape(scenario);
-  await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
-  if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
-  const cgroups = async () => {
-    const own = await bed.serverCgroup();
-    if (!proxied) return own;
-    const proxy = await bed.serverCgroup("sb-proxy");
-    return { cpuUsec: own.cpuUsec + proxy.cpuUsec, memoryPeakBytes: own.memoryPeakBytes + proxy.memoryPeakBytes };
-  };
-  if (scenario.competing) await bed.startCompetitor();
-  const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
-  await bed.startSampler();
-  let reported;
-  if (isReference) {
-    const startedAt = Date.now();
-    const downloadMbit = await iperf(true);
-    const uploadMbit = await iperf(false);
-    reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
-  } else if (client) {
-    reported = await runClient(unit.tool);
-  } else {
-    const pin = pins.browsers[unit.browser];
-    reported = JSON.parse(
-      await bed.driver({
-        adapter: pins.tools[unit.tool].adapter ?? unit.tool,
-        browser: unit.browser,
-        binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
-        url: `http://${bed.NET.server}:${proxied ? pins.proxy.port : pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
-        options: pins.tools[unit.tool].options ?? {},
-        screenshot: `/results/screens/${file}.png`,
-        timeoutMs: Number(opts["timeout-ms"]),
-      }),
-    );
+  let sampling = false;
+  // Whatever fails, the next run must start from a clean server side: no sampler, competitor, proxy or server left.
+  try {
+    if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
+    else await serveTool(server, proxied);
+    await bed.shape(scenario);
+    await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
+    if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
+    const cgroups = async () => {
+      const own = await bed.serverCgroup();
+      if (!proxied) return own;
+      const proxy = await bed.serverCgroup("sb-proxy");
+      return { cpuUsec: own.cpuUsec + proxy.cpuUsec, memoryPeakBytes: own.memoryPeakBytes + proxy.memoryPeakBytes };
+    };
+    if (scenario.competing) await bed.startCompetitor();
+    const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
+    await bed.startSampler();
+    sampling = true;
+    let reported;
+    if (isReference) {
+      const startedAt = Date.now();
+      const downloadMbit = await iperf(true);
+      const uploadMbit = await iperf(false);
+      reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
+    } else if (client) {
+      reported = await runClient(unit.tool);
+    } else {
+      const pin = pins.browsers[unit.browser];
+      reported = JSON.parse(
+        await bed.driver({
+          adapter: pins.tools[unit.tool].adapter ?? unit.tool,
+          browser: unit.browser,
+          binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
+          url: `http://${bed.NET.server}:${proxied ? pins.proxy.port : pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
+          options: pins.tools[unit.tool].options ?? {},
+          screenshot: `/results/screens/${file}.png`,
+          timeoutMs: Number(opts["timeout-ms"]),
+        }),
+      );
+    }
+    const samples = await bed.stopSampler();
+    sampling = false;
+    const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
+    return {
+      ...unit,
+      scenario: scenario.id,
+      reported,
+      linkBytes: { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up },
+      serverCpuSeconds: after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6,
+      serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
+      queues: analyse(samples, scenario),
+    };
+  } finally {
+    if (sampling) await bed.stopSampler().catch(() => {});
+    await bed.stopCompetitor();
+    await bed.unserve();
   }
-  const samples = await bed.stopSampler();
-  const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
-  await bed.stopCompetitor();
-  await bed.unserve();
-  const bytes = { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up };
-  const serverCpuSeconds =
-    after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6;
-  return {
-    ...unit,
-    scenario: scenario.id,
-    reported,
-    linkBytes: bytes,
-    serverCpuSeconds,
-    serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
-    queues: analyse(samples, scenario),
-  };
 }
 
 const units = [
