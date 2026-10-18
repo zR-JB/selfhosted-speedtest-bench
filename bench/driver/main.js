@@ -2,14 +2,14 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { launch } from "./browser.js";
 
-const { adapter, browser, binary, url, screenshot, timeoutMs } = JSON.parse(process.argv[2]);
+const { adapter, browser, binary, url, options, screenshot, timeoutMs } = JSON.parse(process.argv[2]);
 const { run } = await import(`./adapters/${adapter}.js`);
 const profile = `/tmp/profile-${process.pid}`;
 const page = await launch(browser, binary, profile);
 const output = { startedAt: Date.now() };
 try {
   const cpuBefore = page.cpuSeconds();
-  Object.assign(output, await run(page, url, Date.now() + timeoutMs));
+  Object.assign(output, await run(page, url, Date.now() + timeoutMs, options));
   output.browserCpuSeconds = page.cpuSeconds() - cpuBefore;
 } catch (error) {
   output.outcome = "harness-error";

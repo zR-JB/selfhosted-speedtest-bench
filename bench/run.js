@@ -23,6 +23,9 @@ const { values: opts } = parseArgs({
     "timeout-ms": { type: "string", default: "180000" },
   },
 });
+// A variant is its base tool with a documented option set; it inherits everything it does not override.
+for (const tool of Object.values(pins.tools))
+  if (tool.variantOf) Object.assign(tool, { ...pins.tools[tool.variantOf], ...tool });
 const scenarios = opts.scenarios.split(",").map((id) => allScenarios.find((s) => s.id === id) ?? fail(`no scenario ${id}`));
 const tools = opts.tools.split(",");
 const browsers = opts.browsers.split(",");
@@ -59,7 +62,7 @@ function fetchArchives() {
   const archives = [
     ...Object.entries(pins.browsers).map(([name, pin]) => [`${browserDir}/${name}-${pin.version}`, pin]),
     ...Object.entries(pins.tools)
-      .filter(([, tool]) => tool.release)
+      .filter(([, tool]) => tool.release && !tool.variantOf)
       .map(([name, tool]) => [`${releaseDir}/${name}-${tool.version}`, tool.release]),
   ];
   for (const [dir, pin] of archives) {
@@ -80,7 +83,7 @@ function fetchArchives() {
 function serveTool(name) {
   const tool = pins.tools[name];
   if (!tool.release) return bed.serve(tool.image, tool.env);
-  const dir = `${releaseDir}/${name}-${tool.version}`;
+  const dir = `${releaseDir}/${tool.variantOf ?? name}-${tool.version}`;
   return bed.serve(bed.TOOLS_IMAGE, tool.env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
 }
 
@@ -129,7 +132,8 @@ async function measure(unit, scenario, file) {
         adapter: pins.tools[unit.tool].adapter ?? unit.tool,
         browser: unit.browser,
         binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
-        url: `http://${bed.NET.server}:${pins.tools[unit.tool].port}/`,
+        url: `http://${bed.NET.server}:${pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
+        options: pins.tools[unit.tool].options ?? {},
         screenshot: `/results/screens/${file}.png`,
         timeoutMs: Number(opts["timeout-ms"]),
       }),

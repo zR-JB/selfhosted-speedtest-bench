@@ -3,10 +3,13 @@ import { navigate, until } from "../wait.js";
 
 const number = (text) => (text === "" || text == null || Number.isNaN(Number(text)) ? null : Number(text));
 
-export async function run(page, url, deadline) {
+export async function run(page, url, deadline, options) {
   await navigate(page, url, deadline);
   // Newer pages show a loading state until their server list is ready; the Go backend's older page has none.
   await until(page, `!!document.getElementById("startStopBtn") && ["hidden", undefined].includes(document.getElementById("loading")?.className)`, deadline);
+  // Documented settings go through the page's own Speedtest object, as an operator's page would set them.
+  for (const [name, value] of Object.entries(options))
+    await page.evaluate(`s.setParameter(${JSON.stringify(name)}, ${JSON.stringify(value)})`);
   await page.evaluate(`document.getElementById("startStopBtn").click()`);
   await until(page, `document.getElementById("startStopBtn").className === "running"`, deadline);
   await until(page, `document.getElementById("startStopBtn").className === ""`, deadline);

@@ -6,10 +6,10 @@ on:
     inputs:
       jobs:
         description: Independent jobs (VMs)
-        default: "10"
+        default: "15"
       reps:
         description: Repetitions per scenario in each job
-        default: "3"
+        default: "2"
       scenarios:
         description: Comma-separated scenario ids, empty for all
         default: ""
@@ -26,14 +26,14 @@ jobs:
       jobs: ${{ steps.plan.outputs.jobs }}
     steps:
       - id: plan
-        run: echo "jobs=$(seq -s, 1 "${JOBS:-10}" | sed 's/.*/[&]/')" >> "$GITHUB_OUTPUT"
+        run: echo "jobs=$(seq -s, 1 "${JOBS:-15}" | sed 's/.*/[&]/')" >> "$GITHUB_OUTPUT"
         env:
           JOBS: ${{ inputs.jobs }}
 
   bench:
     needs: plan
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 340
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +48,7 @@ jobs:
       - name: Run
         env:
           SB_ROOTFUL: "1"
-          REPS: ${{ inputs.reps || '3' }}
+          REPS: ${{ inputs.reps || '2' }}
           SCENARIOS: ${{ inputs.scenarios }}
         run: >-
           node bench/run.js --reps "$REPS" ${SCENARIOS:+--scenarios "$SCENARIOS"}

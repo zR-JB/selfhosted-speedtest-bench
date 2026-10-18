@@ -72,6 +72,28 @@
         "quantity": "link",
         "evidence": "index.html in the image: upAdjust = dlAdjust = 1.04 multiply measured payload"
       }
+    },
+    "librespeed-nofactor": {
+      "variantOf": "librespeed",
+      "name": "LibreSpeed, factor 1",
+      "adapter": "librespeed",
+      "options": {
+        "overheadCompensationFactor": 1
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "doc.md v6.3.0: setParameter(\"overheadCompensationFactor\", value); 1 disables the compensation"
+      }
+    },
+    "openspeedtest-clean": {
+      "variantOf": "openspeedtest",
+      "name": "OpenSpeedTest, ?clean",
+      "adapter": "openspeedtest",
+      "urlSuffix": "?clean",
+      "reports": {
+        "quantity": "payload",
+        "evidence": "README: pass Clean as a URL parameter to reset Overhead Compensation factor to zero"
+      }
     }
   },
   "browsers": {
