@@ -23,7 +23,12 @@ permissions:
   contents: read
 
 jobs:
+  # A full matrix only starts once every tool and every scenario has run cleanly on this commit.
+  preflight:
+    uses: ./.github/workflows/smoke.yml
+
   plan:
+    needs: preflight
     runs-on: ubuntu-24.04
     outputs:
       jobs: ${{ steps.plan.outputs.jobs }}
