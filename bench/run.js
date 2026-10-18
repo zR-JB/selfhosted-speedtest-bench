@@ -21,6 +21,8 @@ const { values: opts } = parseArgs({
     out: { type: "string", default: `${root}/results/local-${new Date().toISOString().replace(/[:.]/g, "-")}` },
     seed: { type: "string", default: String(Date.now() % 1e9) },
     "timeout-ms": { type: "string", default: "180000" },
+    // Any harness error fails the job: for the preflight that gates a full bench.
+    strict: { type: "boolean", default: false },
   },
 });
 // A variant is its base tool with a documented option set; it inherits everything it does not override.
@@ -242,6 +244,7 @@ async function measure(unit, scenario, file) {
       queues: analyse(samples, scenario),
     };
   } finally {
+    await bed.sweepClient();
     if (sampling) await bed.stopSampler().catch(() => {});
     await bed.stopCompetitor();
     await bed.unserve();
@@ -286,6 +289,10 @@ const manifest = {
 const writeManifest = () => writeFileSync(`${out}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 writeManifest();
 
+// Consecutive harness errors (not tool failures) that end a job early.
+const FAIL_FAST = 3;
+let failures = 0;
+let harnessErrors = 0;
 await bed.down();
 try {
   await bed.up(pins, { browsers: browserDir, driver: `${root}/bench/driver`, results: out });
@@ -319,6 +326,12 @@ try {
           reported: { outcome: "harness-error", error: String(error.stack ?? error) },
         }));
         writeFileSync(`${out}/runs/${file}.json`, `${JSON.stringify({ rep, position, baseRttMs: block.baseRttMs, ...result }, null, 2)}\n`);
+        // A run that leaves anything behind poisons every run after it, so the job stops instead of measuring on.
+        const problems = await bed.residue();
+        if (problems.length) throw new Error(`harness left state behind after ${file}: ${problems.join("; ")}`);
+        if (result.reported.outcome === "harness-error") harnessErrors++;
+        failures = result.reported.outcome === "harness-error" ? failures + 1 : 0;
+        if (failures >= FAIL_FAST) throw new Error(`${FAIL_FAST} harness errors in a row, last in ${file}`);
       }
     }
   }
@@ -328,3 +341,7 @@ try {
   await bed.down();
 }
 console.error(`results in ${out}`);
+if (opts.strict && harnessErrors) {
+  console.error(`${harnessErrors} harness error(s); see the runs marked harness-error`);
+  process.exitCode = 1;
+}

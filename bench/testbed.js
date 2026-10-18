@@ -125,6 +125,12 @@ export async function serve(image, env = {}, command = [], args = []) {
   await link(await pid("sb-shaper"), await pid("sb-server"), "sv", NET.server, NET.serverGateway);
 }
 
+// A driver that died cannot take its browser down; kill whatever runs from the pinned browser directory.
+export async function sweepClient() {
+  await podman("exec", "sb-client", "sh", "-c", "pkill -9 -f '^/browsers/' || true");
+  await new Promise((resolve) => setTimeout(resolve, 500));
+}
+
 export async function unserve() {
   await podman("rm", "-f", "-t", "2", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server").catch(() => {});
 }
@@ -163,6 +169,22 @@ export async function startCompetitor() {
 
 export async function stopCompetitor() {
   await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv").catch(() => {});
+}
+
+// What a finished run must not leave behind; anything listed here would distort or break the runs after it.
+export async function residue() {
+  const problems = [];
+  const containers = (await podman("ps", "--format", "{{.Names}}")).split("\n").filter((n) => n.startsWith("sb-"));
+  const extra = containers.filter((name) => !["sb-shaper", "sb-client"].includes(name));
+  if (extra.length) problems.push(`containers left: ${extra.join(", ")}`);
+  const processes = (await podman("exec", "sb-client", "ps", "-eo", "comm", "--no-headers"))
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((name) => name && !["podman-init", "catatonit", "sleep", "Xvfb", "ps"].includes(name));
+  if (processes.length) problems.push(`client processes left: ${processes.join(", ")}`);
+  const loops = Number(await podman("exec", "sb-shaper", "sh", "-c", "pgrep -f 'while \\[ ! -f /tmp/stop' | wc -l"));
+  if (loops) problems.push(`${loops} queue sampler(s) still running`);
+  return problems;
 }
 
 // Tools that run on the client side (iperf3, ping) share the client's namespace and CPU set.
