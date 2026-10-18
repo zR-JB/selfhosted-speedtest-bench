@@ -5,7 +5,8 @@ const number = (text) => (text === "" || text == null || Number.isNaN(Number(tex
 
 export async function run(page, url, deadline) {
   await navigate(page, url, deadline);
-  await until(page, `document.getElementById("testWrapper")?.className === "visible" && !!document.getElementById("startStopBtn")`, deadline);
+  // Newer pages show a loading state until their server list is ready; the Go backend's older page has none.
+  await until(page, `!!document.getElementById("startStopBtn") && ["hidden", undefined].includes(document.getElementById("loading")?.className)`, deadline);
   await page.evaluate(`document.getElementById("startStopBtn").click()`);
   await until(page, `document.getElementById("startStopBtn").className === "running"`, deadline);
   await until(page, `document.getElementById("startStopBtn").className === ""`, deadline);

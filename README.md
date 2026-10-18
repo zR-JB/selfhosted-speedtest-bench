@@ -8,7 +8,7 @@ reference that does not come from any of the tools.
 one of the tools compared. Every config, adapter and raw result is published so anyone can check or rerun it, and
 corrections to how a tool is set up or read are welcome as issues.
 
-**Status:** first results below (18 October 2026), from before OpenSpeedTest was added; the next run includes it.
+**Status:** first results below (18 October 2026), from before OpenSpeedTest and the LibreSpeed Go and Rust backends were added.
 
 ## What runs
 
@@ -16,6 +16,8 @@ corrections to how a tool is set up or read are welcome as issues.
 | --- | --- | --- | --- |
 | Graphite Meter | 0.13.1 | `ghcr.io/zr-jb/graphite-meter`, defaults | Payload rate |
 | LibreSpeed | 6.3.0 (`latest` image) | `ghcr.io/librespeed/speedtest`, defaults (classic page) | Payload × 1.06, its default estimate of transport overhead |
+| LibreSpeed Go backend | 1.1.6 | Release binary with its bundled `settings.toml` (no public image), serving its embedded page | Payload × 1.06 |
+| LibreSpeed Rust backend | 1.4.0 | `ghcr.io/librespeed/speedtest-rust`, defaults | Payload × 1.06 |
 | OpenSpeedTest | app 2.5.4 (`latest` image, v2.0.6) | `openspeedtest/latest`, defaults (nginx, HTTP/1.1) | Payload × 1.04, its default overhead adjustment |
 
 Both overhead factors are defaults the operator can change: OpenSpeedTest documents a `?clean` URL parameter that sets

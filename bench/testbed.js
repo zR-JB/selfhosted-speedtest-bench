@@ -56,7 +56,7 @@ async function start(name, role, image, args = [], command = []) {
 
 export async function prepare(pins, root) {
   await podman("build", "-q", "-t", TOOLS_IMAGE, `${root}/images/tools`);
-  for (const image of [pins.client, ...Object.values(pins.tools).map((tool) => tool.image)])
+  for (const image of [pins.client, ...Object.values(pins.tools).flatMap((tool) => tool.image ?? [])])
     await podman("pull", "-q", image);
   // Pinning needs one CPU each for shaper and server and two for the browser; smaller hosts run unpinned.
   cpusets =
@@ -100,9 +100,9 @@ export async function down() {
 }
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
-export async function serve(image, env = {}, command = []) {
+export async function serve(image, env = {}, command = [], args = []) {
   const vars = Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
-  await start("sb-server", "server", image, vars, command);
+  await start("sb-server", "server", image, [...vars, ...args], command);
   await link(await pid("sb-shaper"), await pid("sb-server"), "sv", NET.server, NET.serverGateway);
 }
 

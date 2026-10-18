@@ -2,8 +2,8 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { launch } from "./browser.js";
 
-const { tool, browser, binary, url, screenshot, timeoutMs } = JSON.parse(process.argv[2]);
-const { run } = await import(`./adapters/${tool}.js`);
+const { adapter, browser, binary, url, screenshot, timeoutMs } = JSON.parse(process.argv[2]);
+const { run } = await import(`./adapters/${adapter}.js`);
 const profile = `/tmp/profile-${process.pid}`;
 const page = await launch(browser, binary, profile);
 const output = { startedAt: Date.now() };

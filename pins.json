@@ -26,6 +26,40 @@
         "evidence": "speedtest_worker.js v6.3.0 line 63: overheadCompensationFactor 1.06 multiplies measured payload to estimate transport overhead"
       }
     },
+    "librespeed-go": {
+      "name": "LibreSpeed Go backend",
+      "version": "1.1.6",
+      "adapter": "librespeed",
+      "release": {
+        "url": "https://github.com/librespeed/speedtest-go/releases/download/v1.1.6/speedtest-go_1.1.6_linux_amd64.tar.gz",
+        "sha256": "50b778d6ae582b1af9e8f8c4c8ce5f14878e645582691dbf54f659f093ac8cc5",
+        "command": [
+          "./speedtest-backend"
+        ]
+      },
+      "port": 8989,
+      "env": {},
+      "source": "https://github.com/librespeed/speedtest-go",
+      "quickStart": "Release binary with its bundled settings.toml (the project publishes no public image)",
+      "reports": {
+        "quantity": "link",
+        "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor 1.06"
+      }
+    },
+    "librespeed-rust": {
+      "name": "LibreSpeed Rust backend",
+      "version": "1.4.0",
+      "adapter": "librespeed",
+      "image": "ghcr.io/librespeed/speedtest-rust:v1.4.0@sha256:8094b51e5b08964591ee844ebbd6cd301ae8a9b82f4f1918fae6f6dff22089e4",
+      "port": 8080,
+      "env": {},
+      "source": "https://github.com/librespeed/speedtest-rust",
+      "quickStart": "Published image with its default configs.toml",
+      "reports": {
+        "quantity": "link",
+        "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor 1.06"
+      }
+    },
     "openspeedtest": {
       "name": "OpenSpeedTest",
       "version": "app 2.5.4 (latest image, v2.0.6)",

@@ -52,19 +52,36 @@ const shuffle = (items) => {
 };
 
 const browserDir = `${root}/.cache/browsers`;
-function fetchBrowsers() {
-  for (const [name, pin] of Object.entries(pins.browsers)) {
-    const dir = `${browserDir}/${name}-${pin.version}`;
-    if (existsSync(`${dir}/${pin.binary}`)) continue;
+const releaseDir = `${root}/.cache/releases`;
+
+// Downloads, checks and unpacks every pinned archive once: browsers, and tools that ship as release binaries.
+function fetchArchives() {
+  const archives = [
+    ...Object.entries(pins.browsers).map(([name, pin]) => [`${browserDir}/${name}-${pin.version}`, pin]),
+    ...Object.entries(pins.tools)
+      .filter(([, tool]) => tool.release)
+      .map(([name, tool]) => [`${releaseDir}/${name}-${tool.version}`, tool.release]),
+  ];
+  for (const [dir, pin] of archives) {
+    if (existsSync(`${dir}/.complete`)) continue;
     mkdirSync(dir, { recursive: true });
     const archive = `${dir}.download`;
     execFileSync("curl", ["-sfL", "-o", archive, pin.url]);
     const sha = createHash("sha256").update(readFileSync(archive)).digest("hex");
-    if (sha !== pin.sha256) fail(`${name} ${pin.version}: sha256 ${sha}, pinned ${pin.sha256}`);
+    if (sha !== pin.sha256) fail(`${pin.url}: sha256 ${sha}, pinned ${pin.sha256}`);
     if (pin.url.endsWith(".zip")) execFileSync("unzip", ["-q", archive, "-d", dir]);
     else execFileSync("tar", ["-xf", archive, "-C", dir]);
     execFileSync("rm", [archive]);
+    writeFileSync(`${dir}/.complete`, "");
   }
+}
+
+// A tool ships as an image, or as a release archive run unchanged in the small tools image.
+function serveTool(name) {
+  const tool = pins.tools[name];
+  if (!tool.release) return bed.serve(tool.image, tool.env);
+  const dir = `${releaseDir}/${name}-${tool.version}`;
+  return bed.serve(bed.TOOLS_IMAGE, tool.env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
 }
 
 // A fixed amount of hashing; a block that takes much longer than the job's median ran on a busy host.
@@ -93,7 +110,7 @@ async function iperf(reverse) {
 async function measure(unit, scenario, file) {
   const isReference = unit.tool === "iperf3";
   if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
-  else await bed.serve(pins.tools[unit.tool].image, pins.tools[unit.tool].env);
+  else await serveTool(unit.tool);
   await bed.shape(scenario);
   await bed.waitForPort(isReference ? 5201 : pins.tools[unit.tool].port);
   const before = { bytes: await bed.linkBytes(), cgroup: await bed.serverCgroup() };
@@ -108,7 +125,7 @@ async function measure(unit, scenario, file) {
     const pin = pins.browsers[unit.browser];
     reported = JSON.parse(
       await bed.driver({
-        tool: unit.tool,
+        adapter: pins.tools[unit.tool].adapter ?? unit.tool,
         browser: unit.browser,
         binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
         url: `http://${bed.NET.server}:${pins.tools[unit.tool].port}/`,
@@ -141,7 +158,7 @@ const units = [
 
 mkdirSync(`${out}/runs`, { recursive: true });
 mkdirSync(`${out}/screens`, { recursive: true });
-fetchBrowsers();
+fetchArchives();
 const host = await bed.prepare(pins, root);
 const manifest = {
   startedAt: new Date().toISOString(),
