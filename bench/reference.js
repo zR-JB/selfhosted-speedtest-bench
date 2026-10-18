@@ -31,5 +31,3 @@ export function analyse(samples, scenario) {
     up: direction(samples, "sv", scenario.upMbit),
   };
 }
-
-export { median };
