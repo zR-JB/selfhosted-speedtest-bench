@@ -22,6 +22,20 @@ corrections to how a tool is set up or read are welcome as issues.
 | Graphite Meter terminal client | 0.13.1 | Release binary, `--report`, against the Graphite Meter server | Payload rate |
 | LibreSpeed CLI | 1.0.14 | Release binary, `--json`, against the LibreSpeed (PHP) server | Payload rate |
 
+Transport variants, each set up only as its project documents, Chrome only, in the 1 Gbit/s and 0.1 % loss
+scenarios:
+
+| Variant | Setup | Protocol evidence |
+| --- | --- | --- |
+| Graphite Meter, HTTP/2 / HTTP/3 / WebTransport | Native TLS listeners (`GM_H1_TLS_ADDR`, `GM_H2_ADDR`, `GM_H3_ADDR`), page over HTTPS, connection path set in its settings | The browser-observed protocol in each saved result |
+| LibreSpeed Go backend, HTTP/2 | `enable_tls` and `enable_http2` in its `settings.toml` | The server's negotiated protocol, checked with curl before each run |
+| OpenSpeedTest, HTTP/2 | `http2` on its TLS listener plus its documented upload fix, in its nginx config | The same curl check |
+
+All TLS uses one self-signed certificate per job; Chrome trusts its key by hash. Firefox is left out of these
+cells: it does not accept a test certificate for QUIC, and Graphite Meter's own tests keep its HTTP/2 cells
+Chrome-only for a Firefox worker bug. LibreSpeed's PHP image and Rust backend document no HTTP/2 setting and are not
+in this profile.
+
 Both overhead factors are defaults the operator can change: OpenSpeedTest documents a `?clean` URL parameter that sets
 its 4 % to zero, and LibreSpeed documents `setParameter("overheadCompensationFactor", 1)`. The bench runs both tools at
 their defaults, as users see them, scored against the link rate, and again as variants with the factor off
@@ -53,6 +67,11 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 - The proxy scenario puts the same nginx in front of every tool whose project documents a proxy setup, with only the
   directives that project's documentation asks for (recorded in `pins.json`).
 - The competing-traffic scenario adds one bulk TCP flow each way through the same bottleneck for the whole run.
+- The two-server scenario gives each server its own 200 Mbit/s path. Only tools that measure several servers at once
+  run in it (Graphite Meter, through its documented server catalogue); the others test one server at a time.
+- After every run the harness checks that nothing was left behind (browser processes, helper containers, sampler
+  loops) and stops the job otherwise; three harness errors in a row also stop it. A full bench only starts after a
+  [smoke](.github/workflows/smoke.yml) of every tool and every scenario passes with no harness error.
 - A weekly [watcher](.github/workflows/watch.yml) moves the pins to new releases in a pull request; merging it reruns
   the bench.
 
@@ -68,8 +87,8 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 | Browser CPU | CPU seconds per GB of the browser's process tree |
 
 Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT, 300/30 Mbit/s behind a
-200 ms FIFO, 1 % and 0.1 % loss at 40 ms, a 160 ms path, competing traffic, a reverse proxy, and an unshaped CPU-cost
-run. Accuracy is only scored where iperf3 shows the link can be filled; elsewhere the tools are compared with each
+200 ms FIFO, 1 % and 0.1 % loss at 40 ms, a 160 ms path, competing traffic, a reverse proxy, two servers, and an
+unshaped CPU-cost run. Accuracy is only scored where iperf3 shows the link can be filled; elsewhere the tools are compared with each
 other. This testbed cannot show real network card, Wi-Fi or switch behaviour, and its unshaped scenario measures CPU
 cost, not network capacity.
 
