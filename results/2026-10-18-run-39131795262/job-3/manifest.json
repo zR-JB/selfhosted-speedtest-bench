@@ -1,0 +1,289 @@
+{
+  "startedAt": "2026-10-18T13:30:52.183Z",
+  "seed": 179526203,
+  "reps": 3,
+  "scenarios": [
+    "accuracy-100",
+    "accuracy-1000",
+    "bufferbloat-300-30",
+    "unshaped"
+  ],
+  "units": [
+    {
+      "tool": "iperf3",
+      "browser": null
+    },
+    {
+      "tool": "graphite-meter",
+      "browser": "chrome"
+    },
+    {
+      "tool": "graphite-meter",
+      "browser": "firefox"
+    },
+    {
+      "tool": "librespeed",
+      "browser": "chrome"
+    },
+    {
+      "tool": "librespeed",
+      "browser": "firefox"
+    }
+  ],
+  "pins": {
+    "tools": {
+      "graphite-meter": {
+        "name": "Graphite Meter",
+        "version": "0.13.1",
+        "image": "ghcr.io/zr-jb/graphite-meter:0.13.1@sha256:e5d9cd78954d96c4486918e21f4f96595886ab620f364e54c2d78b09d40ae5cf",
+        "port": 7246,
+        "env": {},
+        "source": "https://github.com/zR-JB/graphite-meter",
+        "quickStart": "docker run -d --name graphite-meter --restart unless-stopped -p 7246:7246 ghcr.io/zr-jb/graphite-meter:latest",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "docs/MEASUREMENTS.md: payload bytes per second; the wire-rate estimate is shown separately"
+        }
+      },
+      "librespeed": {
+        "name": "LibreSpeed",
+        "version": "6.3.0 (latest image)",
+        "image": "ghcr.io/librespeed/speedtest:latest@sha256:94e627a2b29947a9ee1e39db465c2346b66ed4fce2c979e7f1c431eb1904703c",
+        "port": 8080,
+        "env": {},
+        "source": "https://github.com/librespeed/speedtest",
+        "quickStart": "docker run -p 80:8080 -d --name speedtest --rm ghcr.io/librespeed/speedtest",
+        "reports": {
+          "quantity": "link",
+          "evidence": "speedtest_worker.js v6.3.0 line 63: overheadCompensationFactor 1.06 multiplies measured payload to estimate transport overhead"
+        }
+      }
+    },
+    "browsers": {
+      "chrome": {
+        "version": "155.0.8059.84",
+        "url": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/linux64/chrome-linux64.zip",
+        "sha256": "cf0f049892dea22e6a6db26d47ed0d7776b7158edcbec4634086633df8bafcbc",
+        "binary": "chrome-linux64/chrome"
+      },
+      "firefox": {
+        "version": "158.0",
+        "url": "https://ftp.mozilla.org/pub/firefox/releases/158.0/linux-x86_64/en-US/firefox-158.0.tar.xz",
+        "sha256": "9549b054ec4cf85f50f6a19d8c6fb79580312e71ebc4ec2cb217ec9af09dc12a",
+        "binary": "firefox/firefox"
+      }
+    },
+    "client": "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf"
+  },
+  "host": {
+    "kernel": "6.17.0-1022-azure",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cpus": 4,
+    "memoryBytes": 16766414848,
+    "podman": "podman version 4.9.3",
+    "node": "v24.21.0",
+    "runner": "ubuntu24 20261012.334.1",
+    "cpusets": {
+      "shaper": "0",
+      "server": "1",
+      "client": "2-3"
+    },
+    "rootful": true
+  },
+  "bench": "4ace602",
+  "blocks": [
+    {
+      "scenario": "accuracy-100",
+      "rep": 1,
+      "order": [
+        "graphite-meter/chrome",
+        "librespeed/firefox",
+        "graphite-meter/firefox",
+        "iperf3/null",
+        "librespeed/chrome"
+      ],
+      "noise": {
+        "hashMs": 117.923237,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.098
+    },
+    {
+      "scenario": "accuracy-100",
+      "rep": 2,
+      "order": [
+        "librespeed/chrome",
+        "iperf3/null",
+        "graphite-meter/firefox",
+        "librespeed/firefox",
+        "graphite-meter/chrome"
+      ],
+      "noise": {
+        "hashMs": 117.33057,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.131
+    },
+    {
+      "scenario": "accuracy-100",
+      "rep": 3,
+      "order": [
+        "graphite-meter/chrome",
+        "graphite-meter/firefox",
+        "iperf3/null",
+        "librespeed/chrome",
+        "librespeed/firefox"
+      ],
+      "noise": {
+        "hashMs": 117.575079,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.092
+    },
+    {
+      "scenario": "accuracy-1000",
+      "rep": 1,
+      "order": [
+        "iperf3/null",
+        "librespeed/firefox",
+        "graphite-meter/firefox",
+        "graphite-meter/chrome",
+        "librespeed/chrome"
+      ],
+      "noise": {
+        "hashMs": 118.314122,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.134
+    },
+    {
+      "scenario": "accuracy-1000",
+      "rep": 2,
+      "order": [
+        "librespeed/chrome",
+        "graphite-meter/chrome",
+        "graphite-meter/firefox",
+        "librespeed/firefox",
+        "iperf3/null"
+      ],
+      "noise": {
+        "hashMs": 117.104154,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.106
+    },
+    {
+      "scenario": "accuracy-1000",
+      "rep": 3,
+      "order": [
+        "iperf3/null",
+        "librespeed/firefox",
+        "graphite-meter/chrome",
+        "graphite-meter/firefox",
+        "librespeed/chrome"
+      ],
+      "noise": {
+        "hashMs": 117.298172,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.13
+    },
+    {
+      "scenario": "bufferbloat-300-30",
+      "rep": 1,
+      "order": [
+        "librespeed/firefox",
+        "iperf3/null",
+        "librespeed/chrome",
+        "graphite-meter/firefox",
+        "graphite-meter/chrome"
+      ],
+      "noise": {
+        "hashMs": 117.261326,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.13
+    },
+    {
+      "scenario": "bufferbloat-300-30",
+      "rep": 2,
+      "order": [
+        "graphite-meter/chrome",
+        "graphite-meter/firefox",
+        "librespeed/chrome",
+        "iperf3/null",
+        "librespeed/firefox"
+      ],
+      "noise": {
+        "hashMs": 117.602132,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.13
+    },
+    {
+      "scenario": "bufferbloat-300-30",
+      "rep": 3,
+      "order": [
+        "librespeed/firefox",
+        "graphite-meter/chrome",
+        "iperf3/null",
+        "librespeed/chrome",
+        "graphite-meter/firefox"
+      ],
+      "noise": {
+        "hashMs": 117.760011,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.123
+    },
+    {
+      "scenario": "unshaped",
+      "rep": 1,
+      "order": [
+        "iperf3/null",
+        "librespeed/firefox",
+        "graphite-meter/chrome",
+        "librespeed/chrome",
+        "graphite-meter/firefox"
+      ],
+      "noise": {
+        "hashMs": 117.931534,
+        "stealTicks": 0
+      },
+      "baseRttMs": 0.061
+    },
+    {
+      "scenario": "unshaped",
+      "rep": 2,
+      "order": [
+        "graphite-meter/firefox",
+        "librespeed/chrome",
+        "graphite-meter/chrome",
+        "librespeed/firefox",
+        "iperf3/null"
+      ],
+      "noise": {
+        "hashMs": 117.91279,
+        "stealTicks": 0
+      },
+      "baseRttMs": 0.06
+    },
+    {
+      "scenario": "unshaped",
+      "rep": 3,
+      "order": [
+        "graphite-meter/firefox",
+        "graphite-meter/chrome",
+        "iperf3/null",
+        "librespeed/chrome",
+        "librespeed/firefox"
+      ],
+      "noise": {
+        "hashMs": 117.414945,
+        "stealTicks": 0
+      },
+      "baseRttMs": 0.061
+    }
+  ],
+  "endedAt": "2026-10-18T13:56:45.002Z"
+}
