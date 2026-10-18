@@ -6,7 +6,7 @@ reference that does not come from any of the tools.
 
 **Conflict of interest:** this repository is maintained by the author of [Graphite Meter](https://github.com/zR-JB/graphite-meter),
 one of the tools compared. Every config, adapter and raw result is published so anyone can check or rerun it, and
-each tool's maintainers are invited to review how their tool is set up and read.
+corrections to how a tool is set up or read are welcome as issues.
 
 **Status:** under construction. No results are published yet.
 
