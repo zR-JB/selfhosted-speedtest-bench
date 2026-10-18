@@ -18,6 +18,10 @@ corrections to how a tool is set up or read are welcome as issues.
 | LibreSpeed | 6.3.0 (`latest` image) | `ghcr.io/librespeed/speedtest`, defaults (classic page) | Payload × 1.06, its default estimate of transport overhead |
 | OpenSpeedTest | app 2.5.4 (`latest` image, v2.0.6) | `openspeedtest/latest`, defaults (nginx, HTTP/1.1) | Payload × 1.04, its default overhead adjustment |
 
+Both overhead factors are defaults the operator can change: OpenSpeedTest documents a `?clean` URL parameter that sets
+its 4 % to zero, and LibreSpeed's `overheadCompensationFactor` setting can be set to 1. The bench keeps both at their
+defaults, as users see them, and scores those tools against the link rate rather than the payload rate.
+
 Exact image digests, browser builds and checksums are in [`pins.json`](pins.json) and in every run's manifest.
 Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, headed under Xvfb.
 
