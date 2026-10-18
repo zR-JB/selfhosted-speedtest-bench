@@ -96,11 +96,12 @@ for (let scenario of scenarios) {
     [
       `Link rate ${scenario.downMbit} / ${scenario.upMbit} Mbit/s; payload rate ${fmt(scenario.downMbit * PAYLOAD_SHARE)} / ${fmt(scenario.upMbit * PAYLOAD_SHARE)} Mbit/s.`,
       scenario.competing
-        ? "One bulk TCP flow each way shares the link, so each run is scored against its own share of it, measured on the shaper as link bytes minus the competing flow's."
+        ? "One bulk TCP flow each way shares the link. A tool's share grows over its run as its flows take their part, and each tool averages a different window, so there is no single reference: compare the tools with each other and with iperf3 (4 TCP streams). Each run's median share, measured on the shaper, is in the raw data."
         : fillable
           ? "Error is against the quantity each tool says it reports."
           : "iperf3 does not fill this link, so it has no accuracy reference: compare the tools with each other and with iperf3 (4 TCP streams).",
       fifo ? "" : "Under fq_codel a latency probe skips the bulk queue, so loaded latency has no reference.",
+      scenario.note ?? "",
       "Rates show median [25th, 75th percentile].",
     ]
       .filter(Boolean)
@@ -111,18 +112,16 @@ for (let scenario of scenarios) {
   out("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const group of groups.values()) {
     const share = quantity(group[0].tool) === "payload" ? PAYLOAD_SHARE : 1;
-    const error = (fn, rate, dir) => {
-      if (scenario.competing)
-        return pct(pick(group, (r) => fn(r) / ((r.queues?.[dir].medianOwnLinkMbit ?? NaN) * share) - 1));
+    const error = (fn, rate) => {
       const value = pick(group, fn);
-      return fillable && value != null ? pct(value / (rate * share) - 1) : "n/a";
+      return fillable && !scenario.competing && value != null ? pct(value / (rate * share) - 1) : "n/a";
     };
     const ref = (dir) => (fifo ? fmt(pick(group, (r) => r.baseRttMs + (r.queues?.[dir].medianQueueMs ?? NaN))) : "n/a");
     const loaded = (key, dir) => `${fmt(pick(group, (r) => r.reported[key]))} (${ref(dir)})`;
     const down = (r) => r.reported.downloadMbit;
     const up = (r) => r.reported.uploadMbit;
     out(
-      `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${quantity(group[0].tool)} | ${spread(group, down)} | ${error(down, scenario.downMbit, "down")} | ${spread(group, up)} | ${error(up, scenario.upMbit, "up")} | ${fmt(pick(group, (r) => r.reported.idleLatencyMs))} (${fmt(pick(group, (r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
+      `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${quantity(group[0].tool)} | ${spread(group, down)} | ${error(down, scenario.downMbit)} | ${spread(group, up)} | ${error(up, scenario.upMbit)} | ${fmt(pick(group, (r) => r.reported.idleLatencyMs))} (${fmt(pick(group, (r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
     );
   }
   for (const run of mine.filter((r) => r.reported.outcome !== "complete"))

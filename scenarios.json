@@ -1,7 +1,7 @@
 [
   {"id": "accuracy-100", "title": "100/100 Mbit/s, 20 ms RTT, fq_codel", "downMbit": 100, "upMbit": 100, "rttMs": 20, "lossPct": 0, "queue": "fq_codel"},
   {"id": "accuracy-1000", "title": "1/1 Gbit/s, 20 ms RTT, fq_codel", "downMbit": 1000, "upMbit": 1000, "rttMs": 20, "lossPct": 0, "queue": "fq_codel"},
-  {"id": "accuracy-10000", "title": "10/10 Gbit/s, 2 ms RTT, fq_codel, offloads on", "downMbit": 10000, "upMbit": 10000, "rttMs": 2, "lossPct": 0, "queue": "fq_codel", "offloads": true},
+  {"id": "accuracy-10000", "title": "10/10 Gbit/s, 2 ms RTT, fq_codel, offloads on", "downMbit": 10000, "upMbit": 10000, "rttMs": 2, "lossPct": 0, "queue": "fq_codel", "offloads": true, "note": "On 4-vCPU runners the browser (two vCPUs) is usually the limit here, so a low reading shows how much of the link a tool can drive on that hardware, not a counting error."},
   {"id": "bufferbloat-300-30", "title": "300/30 Mbit/s, 20 ms RTT, 200 ms FIFO", "downMbit": 300, "upMbit": 30, "rttMs": 20, "lossPct": 0, "queue": "fifo", "queueMs": 200},
   {"id": "loss-100", "title": "100/100 Mbit/s, 40 ms RTT, 1 % loss each way, fq_codel", "downMbit": 100, "upMbit": 100, "rttMs": 40, "lossPct": 1, "queue": "fq_codel"},
   {"id": "loss-1000", "title": "1/1 Gbit/s, 40 ms RTT, 0.1 % loss each way, fq_codel", "downMbit": 1000, "upMbit": 1000, "rttMs": 40, "lossPct": 0.1, "queue": "fq_codel"},
