@@ -23,10 +23,11 @@ const START = `(() => {
 
 const mbit = (stage) => (stage?.reportedBytesPerSec == null ? null : (stage.reportedBytesPerSec * 8) / 1e6);
 
-export async function run(page, url, deadline) {
+export async function run(page, url, deadline, options = {}) {
   await navigate(page, url, deadline);
-  // History is only a display preference; the measurement settings stay the defaults.
-  await page.evaluate(`localStorage.setItem("graphite-meter:v1", JSON.stringify({ resultHistoryPreference: "enabled" }))`);
+  // History is a display preference; measurement settings stay the defaults unless a variant sets a documented one.
+  const stored = JSON.stringify({ resultHistoryPreference: "enabled", ...(options.config ? { config: options.config } : {}) });
+  await page.evaluate(`localStorage.setItem("graphite-meter:v1", ${JSON.stringify(stored)})`);
   await navigate(page, url, deadline);
   const startedAt = await page.evaluate("Date.now()");
   // A press before the page has checked its connection path is ignored, so press until the run leaves idle.
@@ -46,6 +47,10 @@ export async function run(page, url, deadline) {
     screen: await page.evaluate(
       `[...document.querySelectorAll(".results .card .headline")].map((h) => h.textContent.replace(/\\s+/g, " ").trim())`,
     ),
-    detail: { engineVersion: record.engine, protocol: result.multiServer?.servers?.[0]?.throughput ?? null },
+    detail: {
+      engineVersion: record.engine,
+      protocol: result.multiServer?.servers?.[0]?.throughput ?? null,
+      participants: result.multiServer?.participants ?? null,
+    },
   };
 }

@@ -1,0 +1,12 @@
+{
+  "rep": 2,
+  "position": 15,
+  "baseRttMs": 160.065,
+  "tool": "openspeedtest",
+  "browser": "chrome",
+  "scenario": "long-300",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman exec sb-client node /driver/main.js {\"adapter\":\"openspeedtest\",\"browser\":\"chrome\",\"binary\":\"/browsers/chrome-155.0.8059.84/chrome-linux64/chrome\",\"url\":\"http://10.71.2.10:3000/\",\"options\":{},\"screenshot\":\"/results/screens/long-300-2-openspeedtest-chrome.png\",\"timeoutMs\":180000}\n\n  #  node[56804]: std::unique_ptr<long unsigned int> node::WorkerThreadsTaskRunner::DelayedTaskScheduler::Start() at ../src/node_platform.cc:109\n  #  Assertion failed: (0) == (uv_thread_create(t.get(), start_thread, this))\n\n----- Native stack trace -----\n\n 1: 0x931db0  [node]\n 2: 0x932498 node::Assert(node::AssertionInfo const&) [node]\n 3: 0x9df070 node::WorkerThreadsTaskRunner::WorkerThreadsTaskRunner(int, node::PlatformDebugLogLevel) [node]\n 4: 0x9df802 node::NodePlatform::NodePlatform(int, v8::TracingController*, v8::PageAllocator*) [node]\n 5: 0x8d0c86  [node]\n 6: 0x8d0fec node::Start(int, char**) [node]\n 7: 0x7f35871e01ca  [/lib/x86_64-linux-gnu/libc.so.6]\n 8: 0x7f35871e028b __libc_start_main [/lib/x86_64-linux-gnu/libc.so.6]\n 9: 0x7ef4fe _start [node]\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at Socket.<anonymous> (node:internal/child_process:498:11)\n    at Socket.emit (node:events:514:28)\n    at Pipe.<anonymous> (node:net:362:12)"
+  }
+}

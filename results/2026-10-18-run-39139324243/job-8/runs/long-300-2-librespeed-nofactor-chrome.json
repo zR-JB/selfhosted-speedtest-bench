@@ -1,0 +1,12 @@
+{
+  "rep": 2,
+  "position": 16,
+  "baseRttMs": 160.144,
+  "tool": "librespeed-nofactor",
+  "browser": "chrome",
+  "scenario": "long-300",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman exec sb-client node /driver/main.js {\"adapter\":\"librespeed\",\"browser\":\"chrome\",\"binary\":\"/browsers/chrome-155.0.8059.84/chrome-linux64/chrome\",\"url\":\"http://10.71.2.10:8080/\",\"options\":{\"overheadCompensationFactor\":1},\"screenshot\":\"/results/screens/long-300-2-librespeed-nofactor-chrome.png\",\"timeoutMs\":180000}\nfile:///driver/browser.js:30\n    child.on(\"exit\", (code) => reject(new Error(`${binary} exited with ${code}:\\n${log}`)));\n                                      ^\n\nError: /browsers/chrome-155.0.8059.84/chrome-linux64/chrome exited with null:\n[78565:78577:1018/165441.343472:ERROR:base/threading/platform_thread_posix.cc:162] pthread_create: Resource temporarily unavailable (11)\n[78565:78577:1018/165441.343583:ERROR:base/threading/platform_thread_posix.cc:162] pthread_create: Resource temporarily unavailable (11)\n[78565:78565:1018/165441.346852:ERROR:base/threading/platform_thread_posix.cc:162] pthread_create: Resource temporarily unavailable (11)\n[78565:78565:1018/165441.346914:ERROR:base/threading/platform_thread_posix.cc:162] pthread_create: Resource temporarily unavailable (11)\n[78565:78565:1018/165441.347050:ERROR:base/threading/platform_thread_posix.cc:162] pthread_create: Resource temporarily unavailable (11)\n[78565:78565:1018/165441.347061:FATAL:content/browser/scheduler/browser_task_executor.cc:305] Failed to start BrowserThread:IO\n[1018/165441.365192:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq: No such file or directory (2)\n[1018/165441.365530:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq: No such file or directory (2)\n\n    at ChildProcess.<anonymous> (file:///driver/browser.js:30:39)\n    at ChildProcess.emit (node:events:514:28)\n    at ChildProcess._handle.onexit (node:internal/child_process:295:12)\n\nNode.js v24.21.0\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

@@ -35,6 +35,12 @@
       "watch": {
         "github": "zR-JB/graphite-meter",
         "image": "ghcr.io/zr-jb/graphite-meter:{version}"
+      },
+      "multiServer": {
+        "evidence": "docs/REFERENCE.md, Server catalog: GM_SERVER_CATALOG with defaultSelection",
+        "env": {
+          "GM_SERVER_CATALOG": "{\"defaultSelection\": [\"self\", \"second\"], \"servers\": [{\"id\": \"second\", \"name\": \"Second\", \"url\": \"http://10.71.3.10:7246\"}]}"
+        }
       }
     },
     "librespeed": {
@@ -46,8 +52,8 @@
       "source": "https://github.com/librespeed/speedtest",
       "quickStart": "docker run -p 80:8080 -d --name speedtest --rm ghcr.io/librespeed/speedtest",
       "reports": {
-        "quantity": "link",
-        "evidence": "speedtest_worker.js v6.3.0 line 63: overheadCompensationFactor 1.06 multiplies measured payload to estimate transport overhead"
+        "quantity": "payload",
+        "evidence": "speedtest_worker.js v6.3.0: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
       },
       "proxy": {
         "evidence": "doc.md v6.3.0: Nginx client_max_body_size 128m",
@@ -59,6 +65,9 @@
       "watch": {
         "github": "librespeed/speedtest",
         "image": "ghcr.io/librespeed/speedtest:latest"
+      },
+      "options": {
+        "overheadCompensationFactor": 1
       }
     },
     "librespeed-go": {
@@ -77,12 +86,15 @@
       "source": "https://github.com/librespeed/speedtest-go",
       "quickStart": "Release binary with its bundled settings.toml (the project publishes no public image)",
       "reports": {
-        "quantity": "link",
-        "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor 1.06"
+        "quantity": "payload",
+        "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
       },
       "watch": {
         "github": "librespeed/speedtest-go",
         "release": "https://github.com/librespeed/speedtest-go/releases/download/v{version}/speedtest-go_{version}_linux_amd64.tar.gz"
+      },
+      "options": {
+        "overheadCompensationFactor": 1
       }
     },
     "librespeed-rust": {
@@ -95,12 +107,15 @@
       "source": "https://github.com/librespeed/speedtest-rust",
       "quickStart": "Published image with its default configs.toml",
       "reports": {
-        "quantity": "link",
-        "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor 1.06"
+        "quantity": "payload",
+        "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
       },
       "watch": {
         "github": "librespeed/speedtest-rust",
         "image": "ghcr.io/librespeed/speedtest-rust:v{version}"
+      },
+      "options": {
+        "overheadCompensationFactor": 1
       }
     },
     "openspeedtest": {
@@ -112,8 +127,8 @@
       "source": "https://github.com/openspeedtest/Speed-Test",
       "quickStart": "docker run --restart=unless-stopped --name openspeedtest -d -p 3000:3000 -p 3001:3001 openspeedtest/latest",
       "reports": {
-        "quantity": "link",
-        "evidence": "index.html in the image: upAdjust = dlAdjust = 1.04 multiply measured payload"
+        "quantity": "payload",
+        "evidence": "assets/js/app-2.5.4.js in the image: upAdjust (default 1.04) only multiplies the displayed and averaged rate; README: the Clean URL parameter resets it to zero"
       },
       "proxy": {
         "evidence": "README: behind a reverse proxy, increase the post-body content length to 35 megabytes",
@@ -124,29 +139,238 @@
       },
       "watch": {
         "image": "docker.io/openspeedtest/latest:latest"
-      }
+      },
+      "urlSuffix": "?clean"
     },
-    "librespeed-nofactor": {
-      "variantOf": "librespeed",
-      "name": "LibreSpeed, factor 1",
-      "adapter": "librespeed",
+    "graphite-meter-h2": {
+      "variantOf": "graphite-meter",
+      "name": "Graphite Meter, HTTP/2",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000",
+        "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {
+          "GM_H2_ADDR": ":7248",
+          "GM_H3_ADDR": ":7249",
+          "GM_TLS_CERT": "/certs/cert.pem",
+          "GM_TLS_KEY": "/certs/key.pem",
+          "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+          "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+          "GM_H1_TLS_ADDR": ":7247",
+          "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+        }
+      },
       "options": {
-        "overheadCompensationFactor": 1
+        "config": {
+          "transports": {
+            "throughputTarget": "protocol:http2",
+            "latencyTarget": "transport:websocket"
+          }
+        }
       },
       "reports": {
         "quantity": "payload",
-        "evidence": "doc.md v6.3.0: setParameter(\"overheadCompensationFactor\", value); 1 disables the compensation"
-      }
+        "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+      },
+      "url": "https://{host}:7247/"
     },
-    "openspeedtest-clean": {
-      "variantOf": "openspeedtest",
-      "name": "OpenSpeedTest, ?clean",
-      "adapter": "openspeedtest",
-      "urlSuffix": "?clean",
+    "graphite-meter-h3": {
+      "variantOf": "graphite-meter",
+      "name": "Graphite Meter, HTTP/3",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000",
+        "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {
+          "GM_H2_ADDR": ":7248",
+          "GM_H3_ADDR": ":7249",
+          "GM_TLS_CERT": "/certs/cert.pem",
+          "GM_TLS_KEY": "/certs/key.pem",
+          "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+          "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+          "GM_H1_TLS_ADDR": ":7247",
+          "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+        }
+      },
+      "options": {
+        "config": {
+          "transports": {
+            "throughputTarget": "protocol:http3",
+            "latencyTarget": "transport:websocket"
+          }
+        }
+      },
       "reports": {
         "quantity": "payload",
-        "evidence": "README: pass Clean as a URL parameter to reset Overhead Compensation factor to zero"
-      }
+        "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+      },
+      "url": "https://{host}:7247/"
+    },
+    "graphite-meter-wt": {
+      "variantOf": "graphite-meter",
+      "name": "Graphite Meter, WebTransport",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000",
+        "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {
+          "GM_H2_ADDR": ":7248",
+          "GM_H3_ADDR": ":7249",
+          "GM_TLS_CERT": "/certs/cert.pem",
+          "GM_TLS_KEY": "/certs/key.pem",
+          "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+          "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+          "GM_H1_TLS_ADDR": ":7247",
+          "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+        }
+      },
+      "options": {
+        "config": {
+          "transports": {
+            "throughputTarget": "transport:webtransport",
+            "latencyTarget": "transport:webtransport"
+          }
+        }
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+      },
+      "url": "https://{host}:7247/"
+    },
+    "librespeed-go-h2": {
+      "variantOf": "librespeed-go",
+      "name": "LibreSpeed Go backend, HTTP/2",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000",
+        "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000"
+      ],
+      "tls": {
+        "mount": "/certs",
+        "env": {}
+      },
+      "url": "https://{host}:8989/",
+      "configFile": {
+        "source": "release:settings.toml",
+        "target": "/config/settings.toml",
+        "edits": [
+          [
+            "enable_tls=false",
+            "enable_tls=true"
+          ],
+          [
+            "enable_http2=false",
+            "enable_http2=true"
+          ],
+          [
+            "# tls_cert_file=\"cert.pem\"",
+            "tls_cert_file=\"/certs/cert.pem\""
+          ],
+          [
+            "# tls_key_file=\"privkey.pem\"",
+            "tls_key_file=\"/certs/key.pem\""
+          ]
+        ]
+      },
+      "command": [
+        "./speedtest-backend",
+        "-c",
+        "/config/settings.toml"
+      ],
+      "reports": {
+        "quantity": "payload",
+        "evidence": "settings.toml v1.1.6: TLS and HTTP/2 settings, TLS is required for HTTP/2"
+      },
+      "expectProtocol": "2"
+    },
+    "openspeedtest-h2": {
+      "variantOf": "openspeedtest",
+      "name": "OpenSpeedTest, HTTP/2",
+      "browsers": [
+        "chrome"
+      ],
+      "onlyScenarios": [
+        "accuracy-1000",
+        "loss-1000",
+        "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000"
+      ],
+      "tls": {
+        "mount": "/etc/ssl",
+        "env": {}
+      },
+      "url": "https://{host}:3001/",
+      "port": 3001,
+      "configFile": {
+        "source": "image:/etc/nginx/conf.d/OpenSpeedTest-Server.conf",
+        "target": "/etc/nginx/conf.d/OpenSpeedTest-Server.conf",
+        "edits": [
+          [
+            "listen 3001 ssl reuseport;",
+            "listen 3001 ssl http2 reuseport;"
+          ],
+          [
+            "listen [::]:3001 ssl reuseport;",
+            "listen [::]:3001 ssl http2 reuseport;"
+          ],
+          [
+            "       #location = /upload {",
+            "       location = /upload {"
+          ],
+          [
+            "       #    proxy_pass http://127.0.0.1:3000/dev-null;",
+            "           proxy_pass http://127.0.0.1:3000/dev-null;"
+          ],
+          [
+            "       #location = /dev-null {",
+            "       location = /dev-null {"
+          ],
+          [
+            "       #    return 200;",
+            "           return 200;"
+          ],
+          [
+            "       #}",
+            "       }"
+          ]
+        ]
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "OpenSpeedTest-Server.conf in the image: add http2 to the TLS listen line and enable the HTTP2 & HTTP3 upload fix"
+      },
+      "expectProtocol": "2"
     }
   },
   "browsers": {
@@ -238,5 +462,8 @@
     "version": "1.30.6",
     "image": "docker.io/library/nginx:1.30.6-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5",
     "port": 80
-  }
+  },
+  "quicOrigins": [
+    "10.71.2.10:7249"
+  ]
 }

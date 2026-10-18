@@ -1,0 +1,12 @@
+{
+  "rep": 2,
+  "position": 11,
+  "baseRttMs": 160.147,
+  "tool": "openspeedtest",
+  "browser": "firefox",
+  "scenario": "long-300",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman exec sb-client node /driver/main.js {\"adapter\":\"openspeedtest\",\"browser\":\"firefox\",\"binary\":\"/browsers/firefox-158.0/firefox/firefox\",\"url\":\"http://10.71.2.10:3000/\",\"options\":{},\"screenshot\":\"/results/screens/long-300-2-openspeedtest-firefox.png\",\"timeoutMs\":180000}\nWarning: Detected unsettled top-level await at file:///driver/main.js:8\nconst page = await launch(browser, binary, profile);\n             ^\n\n\n\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

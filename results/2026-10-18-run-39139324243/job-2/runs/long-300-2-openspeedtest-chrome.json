@@ -1,0 +1,12 @@
+{
+  "rep": 2,
+  "position": 16,
+  "baseRttMs": 160.128,
+  "tool": "openspeedtest",
+  "browser": "chrome",
+  "scenario": "long-300",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman exec sb-client node /driver/main.js {\"adapter\":\"openspeedtest\",\"browser\":\"chrome\",\"binary\":\"/browsers/chrome-155.0.8059.84/chrome-linux64/chrome\",\"url\":\"http://10.71.2.10:3000/\",\"options\":{},\"screenshot\":\"/results/screens/long-300-2-openspeedtest-chrome.png\",\"timeoutMs\":180000}\nnode:events:505\n    throw er; // Unhandled 'error' event\n    ^\n\nError: spawn /browsers/chrome-155.0.8059.84/chrome-linux64/chrome EAGAIN\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\nEmitted 'error' event on ChildProcess instance at:\n    at ChildProcess._handle.onexit (node:internal/child_process:293:12)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -11,\n  code: 'EAGAIN',\n  syscall: 'spawn /browsers/chrome-155.0.8059.84/chrome-linux64/chrome',\n  path: '/browsers/chrome-155.0.8059.84/chrome-linux64/chrome',\n  spawnargs: [\n    '--user-data-dir=/tmp/profile-55582',\n    '--remote-debugging-port=9222',\n    '--no-first-run',\n    '--no-default-browser-check',\n    '--no-sandbox',\n    '--window-size=1280,900',\n    'about:blank'\n  ]\n}\n\nNode.js v24.21.0\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

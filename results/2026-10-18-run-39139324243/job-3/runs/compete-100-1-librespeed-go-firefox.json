@@ -1,0 +1,12 @@
+{
+  "rep": 1,
+  "position": 11,
+  "baseRttMs": 20.075,
+  "tool": "librespeed-go",
+  "browser": "firefox",
+  "scenario": "compete-100",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman run -d --rm --name sb-server --network none --cpuset-cpus 1 -v /home/runner/work/selfhosted-speedtest-bench/selfhosted-speedtest-bench/.cache/releases/librespeed-go-1.1.6:/opt/tool:ro -w /opt/tool localhost/sb-tools:latest ./speedtest-backend\nError: creating container storage: the container name \"sb-server\" is already in use by 05f4cb7dbc0c613cb91fb0a2fd954f9b814ef6876cc79cd6272f77a35476c4e4. You have to remove that container to be able to reuse that name: that name is already in use, or use --replace to instruct Podman to do so.\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

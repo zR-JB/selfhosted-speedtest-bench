@@ -1,0 +1,12 @@
+{
+  "rep": 2,
+  "position": 16,
+  "baseRttMs": 160.17,
+  "tool": "librespeed",
+  "browser": "firefox",
+  "scenario": "long-300",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman exec sb-client node /driver/main.js {\"adapter\":\"librespeed\",\"browser\":\"firefox\",\"binary\":\"/browsers/firefox-158.0/firefox/firefox\",\"url\":\"http://10.71.2.10:8080/\",\"options\":{},\"screenshot\":\"/results/screens/long-300-2-librespeed-firefox.png\",\"timeoutMs\":180000}\nfile:///driver/browser.js:30\n    child.on(\"exit\", (code) => reject(new Error(`${binary} exited with ${code}:\\n${log}`)));\n                                      ^\n\nError: /browsers/firefox-158.0/firefox/firefox exited with null:\n\u0007[Parent 77635, Main Thread] ###!!! ASSERTION: creating thread '[pango] fontconfig': Error creating thread: Resource temporarily unavailable: 'glib assertion', file checkouts/gecko/toolkit/xre/nsSigHandlers.cpp:233\n\n(firefox:77635): GLib-ERROR **: 16:51:25.942: creating thread '[pango] fontconfig': Error creating thread: Resource temporarily unavailable\nExceptionHandler::GenerateDump attempting to generate:\u0000/tmp/profile-77628/minidumps/5394e939-85df-789a-3eac-d10ad31f934d.dmp\n\n    at ChildProcess.<anonymous> (file:///driver/browser.js:30:39)\n    at ChildProcess.emit (node:events:514:28)\n    at ChildProcess._handle.onexit (node:internal/child_process:295:12)\n\nNode.js v24.21.0\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:306:5)"
+  }
+}

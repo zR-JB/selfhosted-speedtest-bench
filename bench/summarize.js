@@ -57,7 +57,7 @@ out(
   `Tools: ${Object.values({ ...pins.tools, ...pins.clients }).filter((t) => !t.variantOf).map((t) => `${t.name} ${t.version}`).join(", ")}. Browsers: ${Object.entries(pins.browsers).map(([name, b]) => `${name} ${b.version}`).join(", ")}.`,
 );
 
-for (const scenario of scenarios) {
+for (let scenario of scenarios) {
   const mine = runs.filter((run) => run.scenario === scenario.id);
   if (!mine.length) continue;
   const groups = Map.groupBy(mine, (run) => `${run.tool}|${run.browser}`);
@@ -73,18 +73,21 @@ for (const scenario of scenarios) {
     return v.length ? `${fmt(median(v))} [${fmt(quantile(v, 0.25))}, ${fmt(quantile(v, 0.75))}]` : "n/a";
   };
   if (!shaped) {
-    out("No shaping: rates measure the host, not a network, so only CPU cost is compared.");
+    out("No shaping: the host's CPU is the limit, so rates show how far each tool gets on it, not a network's capacity. Rates show median [25th, 75th percentile].");
     out();
-    out("| Tool | Runs ok | Server CPU s/GB | Server peak MB | Browser CPU s/GB |");
-    out("| --- | --- | --- | --- | --- |");
+    out("| Tool | Runs ok | Download Mbit/s | Upload Mbit/s | Server CPU s/GB | Server peak MB | Browser CPU s/GB |");
+    out("| --- | --- | --- | --- | --- | --- | --- |");
     const gb = (run) => (run.linkBytes.down + run.linkBytes.up) / 1e9;
     for (const group of groups.values())
       out(
-        `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${fmt(pick(group, (r) => r.serverCpuSeconds / gb(r)), 2)} | ${fmt(pick(group, (r) => r.serverMemoryPeakBytes / 1e6), 0)} | ${fmt(pick(group, (r) => (r.reported.browserCpuSeconds ?? NaN) / gb(r)), 2)} |`,
+        `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${spread(group, (r) => r.reported.downloadMbit)} | ${spread(group, (r) => r.reported.uploadMbit)} | ${fmt(pick(group, (r) => r.serverCpuSeconds / gb(r)), 2)} | ${fmt(pick(group, (r) => r.serverMemoryPeakBytes / 1e6), 0)} | ${fmt(pick(group, (r) => (r.reported.browserCpuSeconds ?? NaN) / gb(r)), 2)} |`,
       );
     continue;
   }
   const reference = [...groups.values()].find((group) => group[0].tool === "iperf3") ?? [];
+  // Rates and references are for the whole run: with two servers, both paths together.
+  const paths = scenario.servers ?? 1;
+  scenario = { ...scenario, downMbit: scenario.downMbit * paths, upMbit: scenario.upMbit * paths };
   const fillable =
     pick(reference, (r) => r.reported.downloadMbit) >= scenario.downMbit * PAYLOAD_SHARE * FILLABLE &&
     pick(reference, (r) => r.reported.uploadMbit) >= scenario.upMbit * PAYLOAD_SHARE * FILLABLE;
@@ -93,11 +96,12 @@ for (const scenario of scenarios) {
     [
       `Link rate ${scenario.downMbit} / ${scenario.upMbit} Mbit/s; payload rate ${fmt(scenario.downMbit * PAYLOAD_SHARE)} / ${fmt(scenario.upMbit * PAYLOAD_SHARE)} Mbit/s.`,
       scenario.competing
-        ? "One bulk TCP flow each way shares the link, so each run is scored against its own share of it, measured on the shaper as link bytes minus the competing flow's."
+        ? "One bulk TCP flow each way shares the link. A tool's share grows over its run as its flows take their part, and each tool averages a different window, so there is no single reference: compare the tools with each other and with iperf3 (4 TCP streams). Each run's median share, measured on the shaper, is in the raw data."
         : fillable
           ? "Error is against the quantity each tool says it reports."
           : "iperf3 does not fill this link, so it has no accuracy reference: compare the tools with each other and with iperf3 (4 TCP streams).",
       fifo ? "" : "Under fq_codel a latency probe skips the bulk queue, so loaded latency has no reference.",
+      scenario.note ?? "",
       "Rates show median [25th, 75th percentile].",
     ]
       .filter(Boolean)
@@ -108,18 +112,16 @@ for (const scenario of scenarios) {
   out("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const group of groups.values()) {
     const share = quantity(group[0].tool) === "payload" ? PAYLOAD_SHARE : 1;
-    const error = (fn, rate, dir) => {
-      if (scenario.competing)
-        return pct(pick(group, (r) => fn(r) / ((r.queues?.[dir].medianOwnLinkMbit ?? NaN) * share) - 1));
+    const error = (fn, rate) => {
       const value = pick(group, fn);
-      return fillable && value != null ? pct(value / (rate * share) - 1) : "n/a";
+      return fillable && !scenario.competing && value != null ? pct(value / (rate * share) - 1) : "n/a";
     };
     const ref = (dir) => (fifo ? fmt(pick(group, (r) => r.baseRttMs + (r.queues?.[dir].medianQueueMs ?? NaN))) : "n/a");
     const loaded = (key, dir) => `${fmt(pick(group, (r) => r.reported[key]))} (${ref(dir)})`;
     const down = (r) => r.reported.downloadMbit;
     const up = (r) => r.reported.uploadMbit;
     out(
-      `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${quantity(group[0].tool)} | ${spread(group, down)} | ${error(down, scenario.downMbit, "down")} | ${spread(group, up)} | ${error(up, scenario.upMbit, "up")} | ${fmt(pick(group, (r) => r.reported.idleLatencyMs))} (${fmt(pick(group, (r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
+      `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${quantity(group[0].tool)} | ${spread(group, down)} | ${error(down, scenario.downMbit)} | ${spread(group, up)} | ${error(up, scenario.upMbit)} | ${fmt(pick(group, (r) => r.reported.idleLatencyMs))} (${fmt(pick(group, (r) => r.baseRttMs))}) | ${loaded("loadedLatencyDownMs", "down")} | ${loaded("loadedLatencyUpMs", "up")} |`,
     );
   }
   for (const run of mine.filter((r) => r.reported.outcome !== "complete"))

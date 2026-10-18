@@ -1,7 +1,7 @@
 // Runs every tool in every browser through each scenario, interleaved, and writes one JSON file per run.
 // node bench/run.js [--scenarios a,b] [--tools a,b] [--browsers chrome,firefox] [--reps 3] [--out dir] [--seed n]
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, X509Certificate } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { parseArgs } from "node:util";
@@ -21,12 +21,26 @@ const { values: opts } = parseArgs({
     out: { type: "string", default: `${root}/results/local-${new Date().toISOString().replace(/[:.]/g, "-")}` },
     seed: { type: "string", default: String(Date.now() % 1e9) },
     "timeout-ms": { type: "string", default: "180000" },
+    // Any harness error fails the job: for the preflight that gates a full bench.
+    strict: { type: "boolean", default: false },
   },
 });
+// A local experiment can swap pins (a locally built image, a fix branch) without editing pins.json, e.g.
+// SB_PIN_OVERRIDES='{"tools":{"graphite-meter":{"image":"localhost/graphite-meter:fix","version":"fix"}}}'.
+// Each run's manifest records the pins that actually ran.
+const merge = (into, from) => {
+  for (const [key, value] of Object.entries(from))
+    into[key] = value && typeof value === "object" && !Array.isArray(value) ? merge(into[key] ?? {}, value) : value;
+  return into;
+};
+if (process.env.SB_PIN_OVERRIDES) merge(pins, JSON.parse(process.env.SB_PIN_OVERRIDES));
 // A variant is its base tool with a documented option set; it inherits everything it does not override.
 for (const tool of Object.values(pins.tools))
   if (tool.variantOf) Object.assign(tool, { ...pins.tools[tool.variantOf], ...tool });
-const scenarios = opts.scenarios.split(",").map((id) => allScenarios.find((s) => s.id === id) ?? fail(`no scenario ${id}`));
+const requested = opts.scenarios.split(",").map((id) => allScenarios.find((s) => s.id === id) ?? fail(`no scenario ${id}`));
+// Scenarios beyond what a small host can carry (multi-gigabit shaping) are skipped there and listed in the manifest.
+const scenarios = requested.filter((s) => (s.minHostCpus ?? 0) <= os.availableParallelism());
+const skipped = requested.filter((s) => !scenarios.includes(s)).map((s) => s.id);
 const tools = opts.tools.split(",");
 const browsers = opts.browsers.split(",");
 const reps = Number(opts.reps);
@@ -79,13 +93,64 @@ function fetchArchives() {
   }
 }
 
-// A tool ships as an image, or as a release archive run unchanged in the small tools image.
-function serveTool(name, proxied) {
+// One self-signed certificate for every server address, made per job. Chrome trusts its key by hash and Firefox
+// accepts it through WebDriver, so no tool's TLS setup differs from what its documentation describes.
+async function tlsMaterial() {
+  const dir = `${out}/config/tls`;
+  mkdirSync(dir, { recursive: true });
+  await bed.podman("run", "--rm", "--network", "none", "-v", `${dir}:/tls`, bed.TOOLS_IMAGE, "sh", "-ec", `
+    openssl req -x509 -newkey rsa:2048 -nodes -days 7 -subj /CN=${bed.NET.server} \
+      -addext subjectAltName=IP:${bed.NET.server},IP:${bed.NET.server2} -keyout /tls/key.pem -out /tls/cert.pem 2>/dev/null
+    cp /tls/cert.pem /tls/nginx.crt && cp /tls/key.pem /tls/nginx.key && chmod 644 /tls/*`);
+  const spki = createHash("sha256")
+    .update(new X509Certificate(readFileSync(`${dir}/cert.pem`)).publicKey.export({ type: "spki", format: "der" }))
+    .digest("base64");
+  return { dir, spki };
+}
+
+// A documented option that lives in a config file: the tool's own file with exact edits, each of which must match.
+async function configFile(name) {
+  const { source, target, edits } = pins.tools[name].configFile;
   const tool = pins.tools[name];
-  const env = { ...tool.env, ...(proxied ? tool.proxy.env : {}) };
-  if (!tool.release) return bed.serve(tool.image, env);
+  let text = source.startsWith("release:")
+    ? readFileSync(`${releaseDir}/${tool.variantOf ?? name}-${tool.version}/${source.slice(8)}`, "utf8")
+    : await bed.podman("run", "--rm", "--network", "none", "--entrypoint", "cat", tool.image, source.slice(6));
+  for (const [from, to] of edits) {
+    if (!text.includes(from)) fail(`${name}: ${source} no longer contains ${JSON.stringify(from)}`);
+    text = text.replaceAll(from, to);
+  }
+  const file = `${out}/config/${name}-${target.split("/").pop()}`;
+  writeFileSync(file, text);
+  return ["-v", `${file}:${target}:ro`];
+}
+
+// A tool ships as an image, or as a release archive run unchanged in the small tools image.
+async function serveTool(name, proxied, multi) {
+  const tool = pins.tools[name];
+  const env = Object.fromEntries(
+    Object.entries({
+      ...tool.env,
+      ...(proxied ? tool.proxy.env : {}),
+      ...tool.tls?.env,
+      ...(multi ? tool.multiServer.env : {}),
+    }).map(([key, value]) => [
+      key,
+      value.replaceAll("{host}", bed.NET.server),
+    ]),
+  );
+  const mounts = [
+    ...(tool.tls ? ["-v", `${tls.dir}:${tool.tls.mount}:ro`] : []),
+    ...(tool.configFile ? await configFile(name) : []),
+  ];
+  if (!tool.release) return bed.serve(tool.image, env, [], mounts);
   const dir = `${releaseDir}/${tool.variantOf ?? name}-${tool.version}`;
-  return bed.serve(bed.TOOLS_IMAGE, env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
+  return bed.serve(bed.TOOLS_IMAGE, env, tool.command ?? tool.release.command, [
+    "-v",
+    `${dir}:/opt/tool:ro`,
+    "-w",
+    "/opt/tool",
+    ...mounts,
+  ]);
 }
 
 // The same nginx for every tool, with only the directives that tool's own documentation asks for.
@@ -177,86 +242,126 @@ async function baseRtt() {
   return min ? Number(min[1]) : null;
 }
 
-async function iperf(reverse) {
+async function iperf(reverse, host = bed.NET.server) {
   const json = JSON.parse(
-    await bed.clientTool("iperf3", "-c", bed.NET.server, "-P", "4", "-t", "10", "-O", "2", "-J", ...(reverse ? ["-R"] : [])),
+    await bed.clientTool("iperf3", "-c", host, "-P", "4", "-t", "10", "-O", "2", "-J", ...(reverse ? ["-R"] : [])),
   );
   return json.end.sum_received.bits_per_second / 1e6;
 }
+
+// With two servers the reference measures both paths at once, as the tools do.
+const iperfAll = async (reverse, hosts) =>
+  (await Promise.all(hosts.map((host) => iperf(reverse, host)))).reduce((sum, mbit) => sum + mbit, 0);
+
+const toolUrl = (name, proxied) =>
+  proxied
+    ? `http://${bed.NET.server}:${pins.proxy.port}/`
+    : (pins.tools[name].url ?? `http://${bed.NET.server}:${pins.tools[name].port}/`).replaceAll("{host}", bed.NET.server);
 
 async function measure(unit, scenario, file) {
   const isReference = unit.tool === "iperf3";
   const client = pins.clients[unit.tool];
   const server = client?.server ?? unit.tool;
   const proxied = Boolean(scenario.proxy && !isReference);
-  if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
-  else await serveTool(server, proxied);
-  await bed.shape(scenario);
-  await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
-  if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
-  const cgroups = async () => {
-    const own = await bed.serverCgroup();
-    if (!proxied) return own;
-    const proxy = await bed.serverCgroup("sb-proxy");
-    return { cpuUsec: own.cpuUsec + proxy.cpuUsec, memoryPeakBytes: own.memoryPeakBytes + proxy.memoryPeakBytes };
-  };
-  if (scenario.competing) await bed.startCompetitor();
-  const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
-  await bed.startSampler();
-  let reported;
-  if (isReference) {
-    const startedAt = Date.now();
-    const downloadMbit = await iperf(true);
-    const uploadMbit = await iperf(false);
-    reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
-  } else if (client) {
-    reported = await runClient(unit.tool);
-  } else {
-    const pin = pins.browsers[unit.browser];
-    reported = JSON.parse(
-      await bed.driver({
-        adapter: pins.tools[unit.tool].adapter ?? unit.tool,
-        browser: unit.browser,
-        binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
-        url: `http://${bed.NET.server}:${proxied ? pins.proxy.port : pins.tools[unit.tool].port}/${pins.tools[unit.tool].urlSuffix ?? ""}`,
-        options: pins.tools[unit.tool].options ?? {},
-        screenshot: `/results/screens/${file}.png`,
-        timeoutMs: Number(opts["timeout-ms"]),
-      }),
-    );
+  let sampling = false;
+  // Whatever fails, the next run must start from a clean server side: no sampler, competitor, proxy or server left.
+  try {
+    const multi = scenario.servers === 2;
+    const hosts = multi ? [bed.NET.server, bed.NET.server2] : [bed.NET.server];
+    if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
+    else await serveTool(server, proxied, multi);
+    if (multi && isReference) await bed.serveSecond(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
+    else if (multi) await bed.serveSecond(pins.tools[server].image, pins.tools[server].env);
+    await bed.shape(scenario);
+    for (const host of hosts) await bed.waitForPort(isReference ? 5201 : pins.tools[server].port, host);
+    if (proxied) await bed.startProxy(pins.proxy.image, pins.proxy.port, proxyConfig(server));
+    // A variant named for a protocol must really serve it; a server that falls back would be reported under a false name.
+    const expected = pins.tools[server]?.expectProtocol;
+    const served = expected
+      ? await bed.clientTool("curl", "-sk", "--http2", "-o", "/dev/null", "-w", "%{http_version}", toolUrl(server, false))
+      : null;
+    if (expected && served !== expected) throw new Error(`${server} served HTTP/${served}, expected HTTP/${expected}`);
+    // Everything on the server side counts: a proxy in front, or the second server.
+    const cgroups = async () => {
+      const parts = await Promise.all(
+        [bed.C.server, ...(proxied ? [bed.C.proxy] : []), ...(multi ? [bed.C.server2] : [])].map((n) => bed.serverCgroup(n)),
+      );
+      return {
+        cpuUsec: parts.reduce((sum, p) => sum + p.cpuUsec, 0),
+        memoryPeakBytes: parts.reduce((sum, p) => sum + p.memoryPeakBytes, 0),
+      };
+    };
+    if (scenario.competing) await bed.startCompetitor();
+    const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
+    await bed.startSampler();
+    sampling = true;
+    let reported;
+    if (isReference) {
+      const startedAt = Date.now();
+      const downloadMbit = await iperfAll(true, hosts);
+      const uploadMbit = await iperfAll(false, hosts);
+      reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
+    } else if (client) {
+      reported = await runClient(unit.tool);
+    } else {
+      const pin = pins.browsers[unit.browser];
+      reported = JSON.parse(
+        await bed.driver({
+          adapter: pins.tools[unit.tool].adapter ?? pins.tools[unit.tool].variantOf ?? unit.tool,
+          browser: unit.browser,
+          binary: `/browsers/${unit.browser}-${pin.version}/${pin.binary}`,
+          url: `${toolUrl(unit.tool, proxied)}${pins.tools[unit.tool].urlSuffix ?? ""}`,
+          options: pins.tools[unit.tool].options ?? {},
+          chromeArgs: [
+            `--ignore-certificate-errors-spki-list=${tls.spki}`,
+            `--origin-to-force-quic-on=${pins.quicOrigins.join(",")}`,
+          ],
+          screenshot: `/results/screens/${file}.png`,
+          timeoutMs: Number(opts["timeout-ms"]),
+        }),
+      );
+    }
+    const samples = await bed.stopSampler();
+    sampling = false;
+    const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
+    return {
+      ...unit,
+      scenario: scenario.id,
+      reported,
+      ...(served ? { serverProtocol: `HTTP/${served}` } : {}),
+      linkBytes: { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up },
+      serverCpuSeconds: after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6,
+      serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
+      queues: analyse(samples, scenario),
+    };
+  } finally {
+    await bed.sweepClient();
+    if (sampling) await bed.stopSampler().catch(() => {});
+    await bed.stopCompetitor();
+    await bed.unserve();
   }
-  const samples = await bed.stopSampler();
-  const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
-  await bed.stopCompetitor();
-  await bed.unserve();
-  const bytes = { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up };
-  const serverCpuSeconds =
-    after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6;
-  return {
-    ...unit,
-    scenario: scenario.id,
-    reported,
-    linkBytes: bytes,
-    serverCpuSeconds,
-    serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
-    queues: analyse(samples, scenario),
-  };
 }
 
 const units = [
   { tool: "iperf3", browser: null },
-  ...tools.flatMap((tool) => (pins.clients[tool] ? [{ tool, browser: null }] : browsers.map((browser) => ({ tool, browser })))),
+  ...tools.flatMap((tool) =>
+    pins.clients[tool]
+      ? [{ tool, browser: null }]
+      : browsers.filter((b) => pins.tools[tool].browsers?.includes(b) ?? true).map((browser) => ({ tool, browser })),
+  ),
 ];
 
 mkdirSync(`${out}/runs`, { recursive: true });
 mkdirSync(`${out}/screens`, { recursive: true });
 fetchArchives();
 const host = await bed.prepare(pins, root);
+const tls = await tlsMaterial();
 const manifest = {
   startedAt: new Date().toISOString(),
   seed: Number(opts.seed),
   reps,
   scenarios: scenarios.map((s) => s.id),
+  skipped,
   units,
   pins,
   host: {
@@ -281,20 +386,42 @@ const manifest = {
 const writeManifest = () => writeFileSync(`${out}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 writeManifest();
 
+// Consecutive harness errors (not tool failures) that end a job early.
+const FAIL_FAST = 3;
+let failures = 0;
+let harnessErrors = 0;
 await bed.down();
 try {
   await bed.up(pins, { browsers: browserDir, driver: `${root}/bench/driver`, results: out });
-  for (const scenario of scenarios) {
-    // Balanced order: each new random order is followed by its reverse, so slow stretches hit every unit alike.
-    let order = [];
-    for (let rep = 1; rep <= reps; rep++) {
-      // A proxy scenario runs the reference and the tools whose projects document a proxy setup.
-      const eligible = units.filter((u) => !scenario.proxy || u.tool === "iperf3" || pins.tools[u.tool]?.proxy);
-      order = rep % 2 ? shuffle(eligible) : [...order].reverse();
-      await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
-      await bed.shape(scenario);
-      const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise(), baseRttMs: await baseRtt() };
-      await bed.unserve();
+  // Each repetition passes through every scenario, so a run cut short still covers all of them and a scenario's runs
+  // spread over the whole job. Per scenario, each new random order is followed by its reverse (balanced A B B A).
+  const orders = new Map();
+  for (let rep = 1; rep <= reps; rep++) {
+    for (const scenario of scenarios) {
+      // Scenarios and variants can narrow who runs: a proxy scenario only tools whose projects document a proxy, a
+      // multi-server scenario only tools that measure several servers at once, a transport variant only its scenarios.
+      const eligible = units.filter((u) => {
+        if (u.tool === "iperf3") return true;
+        const entry = pins.tools[u.tool] ?? pins.clients[u.tool];
+        if (scenario.tools && !scenario.tools.includes(u.tool)) return false;
+        if (entry.onlyScenarios && !entry.onlyScenarios.includes(scenario.id)) return false;
+        return !scenario.proxy || Boolean(pins.tools[u.tool]?.proxy && !entry.tls);
+      });
+      const order = rep % 2 ? shuffle(eligible) : [...orders.get(scenario.id)].reverse();
+      orders.set(scenario.id, order);
+      const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise() };
+      // A block whose base RTT cannot be measured still runs; its runs carry no base RTT instead of ending the job.
+      try {
+        await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
+        if (scenario.servers === 2) await bed.serveSecond(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
+        await bed.shape(scenario);
+        block.baseRttMs = await baseRtt();
+      } catch (error) {
+        block.baseRttMs = null;
+        block.error = String(error.message ?? error).split("\n")[0];
+      } finally {
+        await bed.unserve();
+      }
       manifest.blocks.push(block);
       writeManifest();
       for (const [position, unit] of order.entries()) {
@@ -306,6 +433,12 @@ try {
           reported: { outcome: "harness-error", error: String(error.stack ?? error) },
         }));
         writeFileSync(`${out}/runs/${file}.json`, `${JSON.stringify({ rep, position, baseRttMs: block.baseRttMs, ...result }, null, 2)}\n`);
+        // A run that leaves anything behind poisons every run after it, so the job stops instead of measuring on.
+        const problems = await bed.residue();
+        if (problems.length) throw new Error(`harness left state behind after ${file}: ${problems.join("; ")}`);
+        if (result.reported.outcome === "harness-error") harnessErrors++;
+        failures = result.reported.outcome === "harness-error" ? failures + 1 : 0;
+        if (failures >= FAIL_FAST) throw new Error(`${FAIL_FAST} harness errors in a row, last in ${file}`);
       }
     }
   }
@@ -315,3 +448,7 @@ try {
   await bed.down();
 }
 console.error(`results in ${out}`);
+if (opts.strict && harnessErrors) {
+  console.error(`${harnessErrors} harness error(s); see the runs marked harness-error`);
+  process.exitCode = 1;
+}

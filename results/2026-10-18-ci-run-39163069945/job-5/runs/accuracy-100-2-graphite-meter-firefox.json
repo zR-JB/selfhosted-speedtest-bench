@@ -1,0 +1,55 @@
+{
+  "rep": 2,
+  "position": 6,
+  "baseRttMs": 20.145,
+  "tool": "graphite-meter",
+  "browser": "firefox",
+  "scenario": "accuracy-100",
+  "reported": {
+    "startedAt": 1792362509609,
+    "outcome": "complete",
+    "downloadMbit": 96.38756830779263,
+    "uploadMbit": 92.43389979509878,
+    "idleLatencyMs": 21,
+    "loadedLatencyDownMs": 31,
+    "loadedLatencyUpMs": 22,
+    "screen": [
+      "21.0ms",
+      "96.39Mbit/s",
+      "92.43Mbit/s"
+    ],
+    "detail": {
+      "protocol": {
+        "origin": "http://10.71.2.10:7246",
+        "transport": "fetch-stream",
+        "protocol": "http1",
+        "browserProtocol": "http/1.1",
+        "clientIpVersion": 4
+      },
+      "participants": [
+        "self"
+      ]
+    },
+    "browserCpuSeconds": 27.91,
+    "endedAt": 1792362530545
+  },
+  "linkBytes": {
+    "down": 94661102,
+    "up": 90822206
+  },
+  "serverCpuSeconds": 0.860845,
+  "serverMemoryPeakBytes": 13049856,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 70,
+      "medianQueueMs": 4.2392,
+      "medianOwnLinkMbit": 100.72229090904422
+    },
+    "up": {
+      "loadedSamples": 70,
+      "medianQueueMs": 3.14912,
+      "medianOwnLinkMbit": 96.46327272755985
+    }
+  }
+}

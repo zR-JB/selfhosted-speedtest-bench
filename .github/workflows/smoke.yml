@@ -1,10 +1,12 @@
 name: Smoke
 
-# Proves every adapter still starts and finishes; one repetition on a shared runner, never published.
+# Every tool, variant and client once, and every scenario once, rootful as in the bench. Any harness error fails it.
+# The Bench workflow runs this first and starts its matrix only when it passes.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
@@ -12,7 +14,16 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: every-tool
+            args: --scenarios accuracy-1000
+          - name: every-scenario
+            args: --tools graphite-meter,graphite-meter-client,librespeed,openspeedtest
+    name: smoke (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -23,12 +34,12 @@ jobs:
       - name: Run
         env:
           SB_ROOTFUL: "1"
-        run: node bench/run.js --scenarios accuracy-100 --reps 1 --out "$PWD/results/smoke"
+        run: node bench/run.js ${{ matrix.args }} --reps 1 --strict --out "$PWD/results/smoke-${{ matrix.name }}"
       - name: Summary
         if: always()
-        run: node bench/summarize.js results/smoke | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+        run: node bench/summarize.js "results/smoke-${{ matrix.name }}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: smoke
-          path: results/smoke
+          name: smoke-${{ matrix.name }}
+          path: results/smoke-${{ matrix.name }}

@@ -2,10 +2,10 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { launch } from "./browser.js";
 
-const { adapter, browser, binary, url, options, screenshot, timeoutMs } = JSON.parse(process.argv[2]);
+const { adapter, browser, binary, url, options, chromeArgs, screenshot, timeoutMs } = JSON.parse(process.argv[2]);
 const { run } = await import(`./adapters/${adapter}.js`);
 const profile = `/tmp/profile-${process.pid}`;
-const page = await launch(browser, binary, profile);
+const page = await launch(browser, binary, profile, chromeArgs);
 const output = { startedAt: Date.now() };
 try {
   const cpuBefore = page.cpuSeconds();

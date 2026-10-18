@@ -23,7 +23,12 @@ permissions:
   contents: read
 
 jobs:
+  # A full matrix only starts once every tool and every scenario has run cleanly on this commit.
+  preflight:
+    uses: ./.github/workflows/smoke.yml
+
   plan:
+    needs: preflight
     runs-on: ubuntu-24.04
     outputs:
       jobs: ${{ steps.plan.outputs.jobs }}
@@ -57,7 +62,7 @@ jobs:
           node bench/run.js --reps "$REPS" ${SCENARIOS:+--scenarios "$SCENARIOS"}
           --seed "$(( (GITHUB_RUN_ID * 100 + ${{ matrix.job }}) % 1000000000 ))"
           --out "$PWD/results/job-${{ matrix.job }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: job-${{ matrix.job }}
@@ -76,7 +81,7 @@ jobs:
         with:
           path: results
       - run: node bench/summarize.js results/job-* | tee summary.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: summary
           path: summary.md

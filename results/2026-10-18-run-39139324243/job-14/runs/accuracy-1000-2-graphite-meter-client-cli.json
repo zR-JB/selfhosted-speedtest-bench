@@ -1,0 +1,38 @@
+{
+  "rep": 2,
+  "position": 6,
+  "baseRttMs": 20.144,
+  "tool": "graphite-meter-client",
+  "browser": null,
+  "scenario": "accuracy-1000",
+  "reported": {
+    "outcome": "complete",
+    "downloadMbit": 955.8,
+    "uploadMbit": 957.1,
+    "idleLatencyMs": 20.2,
+    "loadedLatencyDownMs": 20.3,
+    "loadedLatencyUpMs": 20.3,
+    "report": "Graphite Meter  Complete  graphite-meter · 28.5 s · 2.4 GB\n\n↓ Download  955.8 Mbit/s   peak 956.6 · 1.2 GB · 10.0 s\n↑ Upload    957.1 Mbit/s   peak 966.4 · 1.2 GB · 10.0 s · receiver-timed\n\nLatency          Median   Added    P95      Jitter    Timeouts\nIdle             20.2 ms           20.3 ms  < 0.1 ms  0 / 198\nLoaded download  20.3 ms  +0.1 ms  20.4 ms  < 0.1 ms  0 / 40\nLoaded upload    20.3 ms  +0.1 ms  20.5 ms  0.1 ms    0 / 40\n\nServer handling of the mean round trip: Idle < 0.1 ms of 20.2 ms\n  Loaded download < 0.1 ms of 20.3 ms · Loaded upload < 0.1 ms of 20.3 ms\nAdded: loaded median minus idle median, same server.",
+    "startedAt": 1792337920189,
+    "endedAt": 1792337948902
+  },
+  "linkBytes": {
+    "down": 1406880865,
+    "up": 1436092382
+  },
+  "serverCpuSeconds": 7.246107,
+  "serverMemoryPeakBytes": 32976896,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 106,
+      "medianQueueMs": 2.93716,
+      "medianOwnLinkMbit": 997.3600072736343
+    },
+    "up": {
+      "loadedSamples": 106,
+      "medianQueueMs": 2.84632,
+      "medianOwnLinkMbit": 969.5262181816979
+    }
+  }
+}

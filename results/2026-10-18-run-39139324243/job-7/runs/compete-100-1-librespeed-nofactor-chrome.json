@@ -1,0 +1,12 @@
+{
+  "rep": 1,
+  "position": 0,
+  "baseRttMs": 20.088,
+  "tool": "librespeed-nofactor",
+  "browser": "chrome",
+  "scenario": "compete-100",
+  "reported": {
+    "outcome": "harness-error",
+    "error": "Error: Command failed: sudo podman exec sb-client node /driver/main.js {\"adapter\":\"librespeed\",\"browser\":\"chrome\",\"binary\":\"/browsers/chrome-155.0.8059.84/chrome-linux64/chrome\",\"url\":\"http://10.71.2.10:8080/\",\"options\":{\"overheadCompensationFactor\":1},\"screenshot\":\"/results/screens/compete-100-1-librespeed-nofactor-chrome.png\",\"timeoutMs\":180000}\nfile:///driver/browser.js:30\n    child.on(\"exit\", (code) => reject(new Error(`${binary} exited with ${code}:\\n${log}`)));\n                                      ^\n\nError: /browsers/chrome-155.0.8059.84/chrome-linux64/chrome exited with null:\n[57206:57206:1018/165247.753337:FATAL:third_party/crashpad/crashpad/util/posix/spawn_subprocess.cc:231] posix_spawn /browsers/chrome-155.0.8059.84/chrome-linux64/chrome_crashpad_handler: Resource temporarily unavailable (11)\n\n    at ChildProcess.<anonymous> (file:///driver/browser.js:30:39)\n    at ChildProcess.emit (node:events:514:28)\n    at ChildProcess._handle.onexit (node:internal/child_process:295:12)\n\nNode.js v24.21.0\n\n    at genericNodeError (node:internal/errors:986:15)\n    at wrappedFn (node:internal/errors:540:14)\n    at ChildProcess.exithandler (node:child_process:417:12)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1141:16)\n    at Socket.<anonymous> (node:internal/child_process:498:11)\n    at Socket.emit (node:events:514:28)\n    at Pipe.<anonymous> (node:net:362:12)"
+  }
+}
