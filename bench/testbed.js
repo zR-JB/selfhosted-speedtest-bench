@@ -153,8 +153,10 @@ export async function stopCompetitor() {
 }
 
 // Tools that run on the client side (iperf3, ping) share the client's namespace and CPU set.
-export const clientTool = (...command) =>
-  podman("run", "--rm", "--network", "container:sb-client", ...cpuArgs("client"), TOOLS_IMAGE, ...command);
+export const clientTool = (...command) => clientRun([], command);
+
+export const clientRun = (args, command) =>
+  podman("run", "--rm", "--network", "container:sb-client", ...cpuArgs("client"), ...args, TOOLS_IMAGE, ...command);
 
 const queue = (s, rateMbit) => {
   const bytesPerMs = (rateMbit * 1e6) / 8 / 1000;

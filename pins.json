@@ -110,5 +110,60 @@
       "binary": "firefox/firefox"
     }
   },
-  "client": "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf"
+  "client": "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf",
+  "clients": {
+    "graphite-meter-client": {
+      "name": "Graphite Meter terminal client",
+      "version": "0.13.1",
+      "server": "graphite-meter",
+      "release": {
+        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.13.1/graphite-meter-client_0.13.1_linux_amd64.tar.gz",
+        "sha256": "345744b2c2bf47a214907f2ab770d82d7912abf06d689e1170f327bfaf27b746",
+        "command": [
+          "graphite-meter-client_0.13.1_linux_amd64/graphite-meter-client",
+          "--url",
+          "http://10.71.2.10:7246",
+          "--report"
+        ]
+      },
+      "parse": "graphite-meter-report",
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/MEASUREMENTS.md: payload bytes per second, uploads timed at the receiver"
+      }
+    },
+    "librespeed-cli": {
+      "name": "LibreSpeed CLI",
+      "version": "1.0.14",
+      "server": "librespeed",
+      "release": {
+        "url": "https://github.com/librespeed/speedtest-cli/releases/download/v1.0.14/librespeed-cli_1.0.14_linux_amd64.tar.gz",
+        "sha256": "89800767ac14085c78a20847ebea23340f6c14a78de0a15c2ac7db8b565c961f",
+        "command": [
+          "./librespeed-cli",
+          "--local-json",
+          "/config/librespeed-servers.json",
+          "--json"
+        ]
+      },
+      "parse": "librespeed-json",
+      "config": {
+        "librespeed-servers.json": [
+          {
+            "id": 1,
+            "name": "bench",
+            "server": "http://10.71.2.10:8080/",
+            "dlURL": "backend/garbage.php",
+            "ulURL": "backend/empty.php",
+            "pingURL": "backend/empty.php",
+            "getIpURL": "backend/getIP.php"
+          }
+        ]
+      },
+      "reports": {
+        "quantity": "payload",
+        "evidence": "defs/bytes_counter.go v1.0.14: AvgMbps of counted payload bytes, no compensation factor"
+      }
+    }
+  }
 }

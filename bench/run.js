@@ -15,7 +15,7 @@ const allScenarios = JSON.parse(readFileSync(`${root}/scenarios.json`, "utf8"));
 const { values: opts } = parseArgs({
   options: {
     scenarios: { type: "string", default: allScenarios.map((s) => s.id).join(",") },
-    tools: { type: "string", default: Object.keys(pins.tools).join(",") },
+    tools: { type: "string", default: [...Object.keys(pins.tools), ...Object.keys(pins.clients)].join(",") },
     browsers: { type: "string", default: Object.keys(pins.browsers).join(",") },
     reps: { type: "string", default: "3" },
     out: { type: "string", default: `${root}/results/local-${new Date().toISOString().replace(/[:.]/g, "-")}` },
@@ -61,7 +61,7 @@ const releaseDir = `${root}/.cache/releases`;
 function fetchArchives() {
   const archives = [
     ...Object.entries(pins.browsers).map(([name, pin]) => [`${browserDir}/${name}-${pin.version}`, pin]),
-    ...Object.entries(pins.tools)
+    ...Object.entries({ ...pins.tools, ...pins.clients })
       .filter(([, tool]) => tool.release && !tool.variantOf)
       .map(([name, tool]) => [`${releaseDir}/${name}-${tool.version}`, tool.release]),
   ];
@@ -85,6 +85,54 @@ function serveTool(name) {
   if (!tool.release) return bed.serve(tool.image, tool.env);
   const dir = `${releaseDir}/${tool.variantOf ?? name}-${tool.version}`;
   return bed.serve(bed.TOOLS_IMAGE, tool.env, tool.release.command, ["-v", `${dir}:/opt/tool:ro`, "-w", "/opt/tool"]);
+}
+
+// Terminal clients print a report; each parser turns one into the fields the browser adapters return.
+const rate = (text, label) => {
+  const m = new RegExp(`${label}\\s+([\\d.]+) (k|M|G)bit/s`).exec(text);
+  return m ? Number(m[1]) * { k: 1e-3, M: 1, G: 1e3 }[m[2]] : null;
+};
+const ms = (text, label) => {
+  const m = new RegExp(`^${label}\\s+([\\d.]+) ms`, "m").exec(text);
+  return m ? Number(m[1]) : null;
+};
+const PARSERS = {
+  "graphite-meter-report": (text) => ({
+    outcome: /^Graphite Meter\s+Complete/m.test(text) ? "complete" : "incomplete",
+    downloadMbit: rate(text, "Download"),
+    uploadMbit: rate(text, "Upload"),
+    idleLatencyMs: ms(text, "Idle"),
+    loadedLatencyDownMs: ms(text, "Loaded download"),
+    loadedLatencyUpMs: ms(text, "Loaded upload"),
+  }),
+  "librespeed-json": (text) => {
+    const [result] = JSON.parse(text);
+    return {
+      outcome: "complete",
+      downloadMbit: result.download,
+      uploadMbit: result.upload,
+      idleLatencyMs: result.ping,
+      loadedLatencyDownMs: null,
+      loadedLatencyUpMs: null,
+    };
+  },
+};
+
+async function runClient(name) {
+  const client = pins.clients[name];
+  const config = `${out}/config`;
+  mkdirSync(config, { recursive: true });
+  for (const [file, content] of Object.entries(client.config ?? {}))
+    writeFileSync(`${config}/${file}`, JSON.stringify(content));
+  const startedAt = Date.now();
+  // A non-zero exit still prints a report (a partial run); the parser decides what it means.
+  const text = await bed
+    .clientRun(
+      ["-v", `${releaseDir}/${name}-${client.version}:/opt/tool:ro`, "-v", `${config}:/config:ro`, "-w", "/opt/tool"],
+      client.release.command,
+    )
+    .catch((error) => error.stdout ?? "");
+  return { ...PARSERS[client.parse](text), report: text, startedAt, endedAt: Date.now() };
 }
 
 // A fixed amount of hashing; a block that takes much longer than the job's median ran on a busy host.
@@ -112,10 +160,12 @@ async function iperf(reverse) {
 
 async function measure(unit, scenario, file) {
   const isReference = unit.tool === "iperf3";
+  const client = pins.clients[unit.tool];
+  const server = client?.server ?? unit.tool;
   if (isReference) await bed.serve(bed.TOOLS_IMAGE, {}, ["iperf3", "-s"]);
-  else await serveTool(unit.tool);
+  else await serveTool(server);
   await bed.shape(scenario);
-  await bed.waitForPort(isReference ? 5201 : pins.tools[unit.tool].port);
+  await bed.waitForPort(isReference ? 5201 : pins.tools[server].port);
   if (scenario.competing) await bed.startCompetitor();
   const before = { bytes: await bed.linkBytes(), cgroup: await bed.serverCgroup() };
   await bed.startSampler();
@@ -125,6 +175,8 @@ async function measure(unit, scenario, file) {
     const downloadMbit = await iperf(true);
     const uploadMbit = await iperf(false);
     reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
+  } else if (client) {
+    reported = await runClient(unit.tool);
   } else {
     const pin = pins.browsers[unit.browser];
     reported = JSON.parse(
@@ -159,7 +211,7 @@ async function measure(unit, scenario, file) {
 
 const units = [
   { tool: "iperf3", browser: null },
-  ...tools.flatMap((tool) => browsers.map((browser) => ({ tool, browser }))),
+  ...tools.flatMap((tool) => (pins.clients[tool] ? [{ tool, browser: null }] : browsers.map((browser) => ({ tool, browser })))),
 ];
 
 mkdirSync(`${out}/runs`, { recursive: true });

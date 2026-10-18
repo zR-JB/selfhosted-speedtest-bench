@@ -41,9 +41,10 @@ const pins = manifests[0].pins;
 
 const fmt = (value, digits = 1) => (value == null || Number.isNaN(value) ? "n/a" : value.toFixed(digits));
 const pct = (value) => (value == null ? "n/a" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)} %`);
-const quantity = (tool) => (tool === "iperf3" ? "payload" : pins.tools[tool].reports.quantity);
+const entry = (tool) => pins.tools[tool] ?? pins.clients?.[tool];
+const quantity = (tool) => (tool === "iperf3" ? "payload" : entry(tool).reports.quantity);
 const label = (run) =>
-  `${run.tool === "iperf3" ? "iperf3 (reference)" : pins.tools[run.tool].name}${run.browser ? `, ${run.browser}` : ""}`;
+  `${run.tool === "iperf3" ? "iperf3 (reference)" : entry(run.tool).name}${run.browser ? `, ${run.browser}` : ""}`;
 
 const lines = [];
 const out = (line = "") => lines.push(line);
@@ -53,7 +54,7 @@ const hosts = new Set(
 );
 out(`Jobs: ${manifests.length}. Runs: ${runs.length + noisy}, of which ${noisy} left out from blocks on a busy host. Hosts: ${[...hosts].join("; ")}.`);
 out(
-  `Tools: ${Object.values(pins.tools).map((t) => `${t.name} ${t.version}`).join(", ")}. Browsers: ${Object.entries(pins.browsers).map(([name, b]) => `${name} ${b.version}`).join(", ")}.`,
+  `Tools: ${Object.values({ ...pins.tools, ...pins.clients }).filter((t) => !t.variantOf).map((t) => `${t.name} ${t.version}`).join(", ")}. Browsers: ${Object.entries(pins.browsers).map(([name, b]) => `${name} ${b.version}`).join(", ")}.`,
 );
 
 for (const scenario of scenarios) {
