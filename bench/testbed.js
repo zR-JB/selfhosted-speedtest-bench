@@ -2,6 +2,7 @@
 // Podman's bridges are not used: they hand the shaper 64 KB GSO packets, which tbf drops and netem loses whole.
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import os from "node:os";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
@@ -57,10 +58,13 @@ export async function prepare(pins, root) {
   await podman("build", "-q", "-t", TOOLS_IMAGE, `${root}/images/tools`);
   for (const image of [pins.client, ...Object.values(pins.tools).map((tool) => tool.image)])
     await podman("pull", "-q", image);
-  cpusets = await podman("run", "--rm", "--network", "none", "--cpuset-cpus", "0", TOOLS_IMAGE, "true").then(
-    () => true,
-    () => false,
-  );
+  // Pinning needs one CPU each for shaper and server and two for the browser; smaller hosts run unpinned.
+  cpusets =
+    os.availableParallelism() >= 4 &&
+    (await podman("run", "--rm", "--network", "none", "--cpuset-cpus", "0", TOOLS_IMAGE, "true").then(
+      () => true,
+      () => false,
+    ));
   return { cpusets: cpusets ? CPUS : null, rootful: ROOTFUL };
 }
 
