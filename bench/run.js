@@ -25,6 +25,15 @@ const { values: opts } = parseArgs({
     strict: { type: "boolean", default: false },
   },
 });
+// A local experiment can swap pins (a locally built image, a fix branch) without editing pins.json, e.g.
+// SB_PIN_OVERRIDES='{"tools":{"graphite-meter":{"image":"localhost/graphite-meter:fix","version":"fix"}}}'.
+// Each run's manifest records the pins that actually ran.
+const merge = (into, from) => {
+  for (const [key, value] of Object.entries(from))
+    into[key] = value && typeof value === "object" && !Array.isArray(value) ? merge(into[key] ?? {}, value) : value;
+  return into;
+};
+if (process.env.SB_PIN_OVERRIDES) merge(pins, JSON.parse(process.env.SB_PIN_OVERRIDES));
 // A variant is its base tool with a documented option set; it inherits everything it does not override.
 for (const tool of Object.values(pins.tools))
   if (tool.variantOf) Object.assign(tool, { ...pins.tools[tool.variantOf], ...tool });

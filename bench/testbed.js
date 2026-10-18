@@ -83,8 +83,9 @@ async function start(name, role, image, args = [], command = []) {
 
 export async function prepare(pins, root) {
   await podman("build", "-q", "-t", TOOLS_IMAGE, `${root}/images/tools`);
+  // Locally built images (localhost/...) are used as they are; everything else is pulled by its pinned digest.
   for (const image of [pins.client, pins.proxy.image, ...Object.values(pins.tools).flatMap((tool) => tool.image ?? [])])
-    await podman("pull", "-q", image);
+    if (!image.startsWith("localhost/")) await podman("pull", "-q", image);
   // Pinning needs one CPU each for shaper and server and two for the browser; smaller hosts run unpinned.
   cpusets =
     os.availableParallelism() >= 4 &&

@@ -176,7 +176,10 @@ job's manifest. Screenshots of every run's final screen are in the run's artifac
 ## Run it
 
 Needs Linux with cgroup v2, Podman, Node 22 or later, `nsenter`, `ethtool`, `curl`, `unzip` and `xz`. Rootless Podman
-works; set `SB_ROOTFUL=1` to use `sudo podman` instead.
+works; set `SB_ROOTFUL=1` to use `sudo podman` instead. Several instances can share a machine: `SB_PREFIX` names their
+containers and `SB_CPUSETS` (for example `{"shaper":"6","server":"14","client":"7,15"}`) gives each its own cores.
+`SB_PIN_OVERRIDES` swaps pins for a local experiment, such as a locally built image (`localhost/...`) of a fix branch;
+the run's manifest records what ran.
 
 ```sh
 node bench/run.js --scenarios accuracy-100 --reps 1
