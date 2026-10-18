@@ -55,7 +55,7 @@ async function link(shaperPid, peerPid, dev, address, gateway) {
 }
 
 async function start(name, role, image, args = [], command = []) {
-  await podman("rm", "-f", "-t", "0", name).catch(() => {});
+  await remove([name], 0);
   await podman("run", "-d", "--rm", "--name", name, "--network", "none", ...cpuArgs(role), ...args, image, ...command);
 }
 
@@ -115,7 +115,7 @@ EOF`);
 }
 
 export async function down() {
-  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2", "sb-client", "sb-shaper").catch(() => {});
+  await remove(["sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2", "sb-client", "sb-shaper"], 0);
 }
 
 // The server is replaced for every run, so no tool carries state or memory from an earlier one.
@@ -133,9 +133,20 @@ export async function sweepClient() {
   await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
-export async function unserve() {
-  await podman("rm", "-f", "-t", "2", "sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2").catch(() => {});
+// Removes containers one by one and waits until each is gone: older Podman returns before a --rm container's own
+// cleanup ends, and fails a whole removal over one missing name.
+async function remove(names, graceSeconds) {
+  for (const name of names) await podman("rm", "-f", "-t", String(graceSeconds), name).catch(() => {});
+  const until = Date.now() + 30_000;
+  for (;;) {
+    const left = (await podman("ps", "-a", "--format", "{{.Names}}")).split("\n").filter((n) => names.includes(n));
+    if (!left.length) return;
+    if (Date.now() > until) throw new Error(`containers did not go away: ${left.join(", ")}`);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
 }
+
+export const unserve = () => remove(["sb-compete-cl", "sb-compete-srv", "sb-proxy", "sb-server", "sb-server2"], 2);
 
 // The second server of a multi-server scenario, on its own link and subnet.
 export async function serveSecond(image, env = {}, command = [], args = []) {
@@ -176,9 +187,7 @@ export async function startCompetitor() {
   await new Promise((resolve) => setTimeout(resolve, 3000));
 }
 
-export async function stopCompetitor() {
-  await podman("rm", "-f", "-t", "0", "sb-compete-cl", "sb-compete-srv").catch(() => {});
-}
+export const stopCompetitor = () => remove(["sb-compete-cl", "sb-compete-srv"], 0);
 
 // What a finished run must not leave behind; anything listed here would distort or break the runs after it.
 export async function residue() {
