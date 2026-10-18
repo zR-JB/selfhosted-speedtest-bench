@@ -1,0 +1,34 @@
+name: Smoke
+
+# Proves every adapter still starts and finishes; one repetition on a shared runner, never published.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Host tools
+        run: sudo apt-get install -y --no-install-recommends ethtool
+      - name: Run
+        env:
+          SB_ROOTFUL: "1"
+        run: node bench/run.js --scenarios accuracy-100 --reps 1 --out "$PWD/results/smoke"
+      - name: Summary
+        if: always()
+        run: node bench/summarize.js results/smoke | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke
+          path: results/smoke

@@ -1,0 +1,79 @@
+name: Bench
+
+# Independent jobs, each running every tool interleaved on its own VM; tools are compared within a job first.
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: Independent jobs (VMs)
+        default: "6"
+      reps:
+        description: Repetitions per scenario in each job
+        default: "3"
+      scenarios:
+        description: Comma-separated scenario ids, empty for all
+        default: ""
+  schedule:
+    - cron: "0 3 1 * *"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      jobs: ${{ steps.plan.outputs.jobs }}
+    steps:
+      - id: plan
+        run: echo "jobs=$(seq -s, 1 "${JOBS:-6}" | sed 's/.*/[&]/')" >> "$GITHUB_OUTPUT"
+        env:
+          JOBS: ${{ inputs.jobs }}
+
+  bench:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Host tools
+        run: sudo apt-get install -y --no-install-recommends ethtool
+      - name: Run
+        env:
+          SB_ROOTFUL: "1"
+          REPS: ${{ inputs.reps || '3' }}
+          SCENARIOS: ${{ inputs.scenarios }}
+        run: >-
+          node bench/run.js --reps "$REPS" ${SCENARIOS:+--scenarios "$SCENARIOS"}
+          --seed "$(( (GITHUB_RUN_ID * 100 + ${{ matrix.job }}) % 1000000000 ))"
+          --out "$PWD/results/job-${{ matrix.job }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: job-${{ matrix.job }}
+          path: results/job-${{ matrix.job }}
+
+  summary:
+    needs: bench
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v5
+        with:
+          path: results
+      - run: node bench/summarize.js results/job-* | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: summary
+          path: summary.md
