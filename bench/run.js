@@ -96,7 +96,8 @@ function fetchArchives() {
 // One self-signed certificate for every server address, made per job. Chrome trusts its key by hash and Firefox
 // accepts it through WebDriver, so no tool's TLS setup differs from what its documentation describes.
 async function tlsMaterial() {
-  const dir = `${out}/config/tls`;
+  // Kept out of the results folder, so private keys never reach artifacts or commits.
+  const dir = `${root}/.cache/tls/${process.env.SB_PREFIX ?? "sb"}`;
   mkdirSync(dir, { recursive: true });
   await bed.podman("run", "--rm", "--network", "none", "-v", `${dir}:/tls`, bed.TOOLS_IMAGE, "sh", "-ec", `
     openssl req -x509 -newkey rsa:2048 -nodes -days 7 -subj /CN=${bed.NET.server} \
