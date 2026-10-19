@@ -4,8 +4,10 @@ name: Smoke
 # The Bench workflow runs this first and starts its matrix only when it passes.
 on:
   pull_request:
+    paths-ignore: [README.md, "results/**"]
   push:
     branches: [main]
+    paths-ignore: [README.md, "results/**"]
   workflow_call:
 
 permissions:
