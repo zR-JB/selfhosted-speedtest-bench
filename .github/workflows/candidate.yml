@@ -1,8 +1,8 @@
 name: Candidate
 
 # Measures unreleased Graphite Meter commits on the runners without publishing anything: each candidate and a base ref
-# are built here with the same profile, then run interleaved with the pinned release and OpenSpeedTest. Results stay in
-# this run's summary and artifacts.
+# are built here with the same profile, then run interleaved with the pinned release and OpenSpeedTest, plus their
+# transport variants when asked. Results stay in this run's summary and artifacts.
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +17,9 @@ on:
         default: ci
       scenarios:
         default: accuracy-100,accuracy-1000,bufferbloat-300-30,proxy-1000
+      variants:
+        description: Comma-separated transport variants (e.g. h2) to also run every build in, like graphite-meter-<variant>
+        default: ""
       jobs:
         default: "15"
       reps:
@@ -98,9 +101,16 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/image
       - name: Load the builds and name them as variants of the release
+        env:
+          VARIANTS: ${{ inputs.variants }}
         run: |
           overrides='{"tools":{}}'
           tools=graphite-meter
+          for v in ${VARIANTS//,/ }; do
+            jq -e --arg v "$v" '.tools["graphite-meter-\($v)"]' pins.json > /dev/null \
+              || { echo "::error::pins.json has no graphite-meter-$v"; exit 1; }
+            tools="$tools,graphite-meter-$v"
+          done
           for meta in "$RUNNER_TEMP"/image/*.json; do
             id=$(jq -r .id "$meta")
             sudo podman load -q -i "${meta%.json}.tar"
@@ -110,9 +120,22 @@ jobs:
               image: "localhost/graphite-meter:\($m[0].id)",
               version: $m[0].sha}' <<<"$overrides")
             tools="$tools,graphite-meter-$id"
+            for v in ${VARIANTS//,/ }; do
+              overrides=$(jq -c --slurpfile m "$meta" --slurpfile pins pins.json --arg v "$v" '
+                $pins[0].tools["graphite-meter-\($v)"] as $variant | .tools["graphite-meter-\($m[0].id)"] as $build
+                | .tools["graphite-meter-\($v)-\($m[0].id)"] = $variant + {
+                    name: "\($build.name), \($variant.name | sub("^Graphite Meter, "; ""))",
+                    image: $build.image,
+                    version: $build.version}' <<<"$overrides")
+              tools="$tools,graphite-meter-$v-$id"
+            done
+          done
+          tools="$tools,openspeedtest"
+          for v in ${VARIANTS//,/ }; do
+            if jq -e --arg v "$v" '.tools["openspeedtest-\($v)"]' pins.json > /dev/null; then tools="$tools,openspeedtest-$v"; fi
           done
           echo "SB_PIN_OVERRIDES=$overrides" >> "$GITHUB_ENV"
-          echo "TOOLS=$tools,openspeedtest" >> "$GITHUB_ENV"
+          echo "TOOLS=$tools" >> "$GITHUB_ENV"
       - name: Run
         env:
           SB_ROOTFUL: "1"
