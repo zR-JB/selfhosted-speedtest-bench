@@ -1,0 +1,148 @@
+name: Candidate
+
+# Measures unreleased Graphite Meter commits on the runners without publishing anything: each candidate and a base ref
+# are built here with the same profile, then run interleaved with the pinned release and OpenSpeedTest. Results stay in
+# this run's summary and artifacts.
+on:
+  workflow_dispatch:
+    inputs:
+      candidates:
+        description: Comma-separated zR-JB/graphite-meter commits or branches to measure
+        required: true
+      base:
+        description: Commit or tag built the same way, for a like-for-like baseline
+        default: v0.13.2
+      profile:
+        description: Graphite Meter build profile (ci skips LTO and PGO, release builds both)
+        default: ci
+      scenarios:
+        default: accuracy-100,accuracy-1000,bufferbloat-300-30,proxy-1000
+      jobs:
+        default: "15"
+      reps:
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+      jobs: ${{ steps.plan.outputs.jobs }}
+    steps:
+      - id: plan
+        env:
+          CANDIDATES: ${{ inputs.candidates }}
+          BASE: ${{ inputs.base }}
+          JOBS: ${{ inputs.jobs }}
+        run: |
+          builds=$(jq -cn --arg base "$BASE" --arg list "$CANDIDATES" \
+            '[{id: "base", ref: $base}] + ($list | split(",") | map(gsub("^ +| +$"; "")) | map(select(length > 0))
+              | to_entries | map({id: "c\(.key + 1)", ref: .value}))')
+          echo "builds=$builds" >> "$GITHUB_OUTPUT"
+          echo "jobs=$(seq -s, 1 "$JOBS" | sed 's/.*/[&]/')" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        build: ${{ fromJSON(needs.plan.outputs.builds) }}
+    name: build (${{ matrix.build.id }}, ${{ matrix.build.ref }})
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: zR-JB/graphite-meter
+          ref: ${{ matrix.build.ref }}
+          persist-credentials: false
+      - name: Build the server image
+        env:
+          ID: ${{ matrix.build.id }}
+          REF: ${{ matrix.build.ref }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          docker build --file container/Dockerfile --target server --platform linux/amd64 \
+            --build-arg VERSION="0.0.0-$ID" --build-arg PROFILE="$PROFILE" --build-arg GM_CLIENT_VALIDATE=0 \
+            --build-arg GM_CLIENT_REVISION="${sha:0:8}" -t "localhost/graphite-meter:$ID" .
+          mkdir -p "$RUNNER_TEMP/image"
+          docker save "localhost/graphite-meter:$ID" -o "$RUNNER_TEMP/image/$ID.tar"
+          jq -n --arg id "$ID" --arg ref "$REF" --arg sha "$sha" --arg profile "$PROFILE" \
+            '{id: $id, ref: $ref, sha: $sha, profile: $profile}' > "$RUNNER_TEMP/image/$ID.json"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: image-${{ matrix.build.id }}
+          path: ${{ runner.temp }}/image
+
+  compare:
+    needs: [plan, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Host tools
+        run: sudo apt-get install -y --no-install-recommends ethtool
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: image-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/image
+      - name: Load the builds and name them as variants of the release
+        run: |
+          overrides='{"tools":{}}'
+          tools=graphite-meter
+          for meta in "$RUNNER_TEMP"/image/*.json; do
+            id=$(jq -r .id "$meta")
+            sudo podman load -q -i "${meta%.json}.tar"
+            overrides=$(jq -c --slurpfile m "$meta" '.tools["graphite-meter-\($m[0].id)"] = {
+              variantOf: "graphite-meter",
+              name: "Graphite Meter \($m[0].id) \($m[0].ref) (\($m[0].sha[0:8]), \($m[0].profile) build)",
+              image: "localhost/graphite-meter:\($m[0].id)",
+              version: $m[0].sha}' <<<"$overrides")
+            tools="$tools,graphite-meter-$id"
+          done
+          echo "SB_PIN_OVERRIDES=$overrides" >> "$GITHUB_ENV"
+          echo "TOOLS=$tools,openspeedtest" >> "$GITHUB_ENV"
+      - name: Run
+        env:
+          SB_ROOTFUL: "1"
+          SCENARIOS: ${{ inputs.scenarios }}
+          REPS: ${{ inputs.reps }}
+        run: >-
+          node bench/run.js --scenarios "$SCENARIOS" --tools "$TOOLS" --reps "$REPS" --strict
+          --seed "$(( (GITHUB_RUN_ID * 100 + ${{ matrix.job }}) % 1000000000 ))"
+          --out "$PWD/results/job-${{ matrix.job }}"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: job-${{ matrix.job }}
+          path: results/job-${{ matrix.job }}
+
+  summary:
+    needs: compare
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: job-*
+          path: results
+      - run: node bench/summarize.js results/job-* | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: summary
+          path: summary.md
