@@ -113,6 +113,12 @@ latency references are in brackets.
 
 ### What the numbers say
 
+- **Reproducibility:** a second complete run four hours later, on a different mix of runner CPUs
+  ([run 39181262815](https://github.com/zR-JB/selfhosted-speedtest-bench/actions/runs/39181262815), Graphite Meter
+  0.13.2, everything else identical, raw data in [`results/2026-10-19-ci-run-39181262815`](results/2026-10-19-ci-run-39181262815)),
+  reproduced the other tools' medians within 0.1 % (median difference, at most 3.0 %) on links without loss, within
+  0.8 % (at most 3.6 %) at 10 Gbit/s and unshaped, and within 1.2 % (at most 25 %) with loss or the 160 ms path, where
+  single runs vary most. Graphite Meter 0.13.2 reads like 0.13.1 within the same margins in every HTTP/1.1 cell.
 - **Plain links, download:** over HTTP/1.1, every browser tool reads within 0.6 % of the payload rate at 100 Mbit/s and
   1 Gbit/s. Graphite Meter reads 0.3 to 0.4 % above it in Chrome, and in Firefox at 100 Mbit/s: slightly more than the
   link can carry.

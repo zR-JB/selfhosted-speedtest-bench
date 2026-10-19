@@ -1,0 +1,49 @@
+{
+  "rep": 1,
+  "position": 5,
+  "baseRttMs": 20.048,
+  "tool": "librespeed-go-h2",
+  "browser": "chrome",
+  "scenario": "accuracy-1000",
+  "reported": {
+    "startedAt": 1792373448073,
+    "outcome": "complete",
+    "downloadMbit": 942,
+    "uploadMbit": 420,
+    "idleLatencyMs": 20.1,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "screen": [
+      "942",
+      "420",
+      "20.1",
+      "0.10"
+    ],
+    "detail": {
+      "page": "/index-classic.html",
+      "jitterMs": 0.1
+    },
+    "browserCpuSeconds": 10.33,
+    "endedAt": 1792373466115
+  },
+  "serverProtocol": "HTTP/2",
+  "linkBytes": {
+    "down": 842246378,
+    "up": 459225670
+  },
+  "serverCpuSeconds": 5.405359,
+  "serverMemoryPeakBytes": 54411264,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 63,
+      "medianQueueMs": 5.239392,
+      "medianOwnLinkMbit": 960.4225454544263
+    },
+    "up": {
+      "loadedSamples": 2,
+      "medianQueueMs": 0,
+      "medianOwnLinkMbit": 502.22032000045675
+    }
+  }
+}

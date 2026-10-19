@@ -1,0 +1,48 @@
+{
+  "rep": 1,
+  "position": 7,
+  "baseRttMs": 40.078,
+  "tool": "librespeed",
+  "browser": "firefox",
+  "scenario": "loss-1000",
+  "reported": {
+    "startedAt": 1792375366585,
+    "outcome": "complete",
+    "downloadMbit": 170,
+    "uploadMbit": 36.2,
+    "idleLatencyMs": 42,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "screen": [
+      "170",
+      "36.2",
+      "42.0",
+      "0.93"
+    ],
+    "detail": {
+      "page": "/index-classic.html",
+      "jitterMs": 0.93
+    },
+    "browserCpuSeconds": 5.6899999999999995,
+    "endedAt": 1792375386735
+  },
+  "linkBytes": {
+    "down": 155668510,
+    "up": 82506167
+  },
+  "serverCpuSeconds": 0.232634,
+  "serverMemoryPeakBytes": 82714624,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 6,
+      "medianQueueMs": 0,
+      "medianOwnLinkMbit": 582.6490400005299
+    },
+    "up": {
+      "loadedSamples": 0,
+      "medianQueueMs": null,
+      "medianOwnLinkMbit": null
+    }
+  }
+}

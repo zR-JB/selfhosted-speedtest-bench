@@ -1,0 +1,56 @@
+{
+  "rep": 1,
+  "position": 1,
+  "baseRttMs": 20.174,
+  "tool": "graphite-meter",
+  "browser": "chrome",
+  "scenario": "multi-200",
+  "reported": {
+    "startedAt": 1792376949678,
+    "outcome": "complete",
+    "downloadMbit": 384.3556509033216,
+    "uploadMbit": 373.47564256744175,
+    "idleLatencyMs": 20.5,
+    "loadedLatencyDownMs": 20.85,
+    "loadedLatencyUpMs": 20.5,
+    "screen": [
+      "20.5ms",
+      "384.4Mbit/s",
+      "373.5Mbit/s"
+    ],
+    "detail": {
+      "protocol": {
+        "origin": "http://10.71.2.10:7246",
+        "transport": "fetch-stream",
+        "protocol": "http1",
+        "browserProtocol": "http/1.1",
+        "clientIpVersion": 4
+      },
+      "participants": [
+        "self",
+        "second"
+      ]
+    },
+    "browserCpuSeconds": 20.64,
+    "endedAt": 1792376970916
+  },
+  "linkBytes": {
+    "down": 374023256,
+    "up": 363678282
+  },
+  "serverCpuSeconds": 2.961619,
+  "serverMemoryPeakBytes": 44244992,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 0,
+      "medianQueueMs": null,
+      "medianOwnLinkMbit": null
+    },
+    "up": {
+      "loadedSamples": 68,
+      "medianQueueMs": 2.75548,
+      "medianOwnLinkMbit": 194.34734545512393
+    }
+  }
+}

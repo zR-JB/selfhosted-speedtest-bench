@@ -1,0 +1,1256 @@
+{
+  "startedAt": "2026-10-19T01:22:09.699Z",
+  "seed": 126281512,
+  "reps": 2,
+  "scenarios": [
+    "accuracy-100",
+    "accuracy-1000",
+    "accuracy-10000",
+    "bufferbloat-300-30",
+    "loss-100",
+    "loss-1000",
+    "long-300",
+    "compete-100",
+    "proxy-1000",
+    "multi-200",
+    "unshaped"
+  ],
+  "skipped": [
+    "accuracy-25000",
+    "accuracy-40000"
+  ],
+  "units": [
+    {
+      "tool": "iperf3",
+      "browser": null
+    },
+    {
+      "tool": "graphite-meter",
+      "browser": "chrome"
+    },
+    {
+      "tool": "graphite-meter",
+      "browser": "firefox"
+    },
+    {
+      "tool": "librespeed",
+      "browser": "chrome"
+    },
+    {
+      "tool": "librespeed",
+      "browser": "firefox"
+    },
+    {
+      "tool": "librespeed-go",
+      "browser": "chrome"
+    },
+    {
+      "tool": "librespeed-go",
+      "browser": "firefox"
+    },
+    {
+      "tool": "librespeed-rust",
+      "browser": "chrome"
+    },
+    {
+      "tool": "librespeed-rust",
+      "browser": "firefox"
+    },
+    {
+      "tool": "openspeedtest",
+      "browser": "chrome"
+    },
+    {
+      "tool": "openspeedtest",
+      "browser": "firefox"
+    },
+    {
+      "tool": "graphite-meter-h2",
+      "browser": "chrome"
+    },
+    {
+      "tool": "graphite-meter-h3",
+      "browser": "chrome"
+    },
+    {
+      "tool": "graphite-meter-wt",
+      "browser": "chrome"
+    },
+    {
+      "tool": "librespeed-go-h2",
+      "browser": "chrome"
+    },
+    {
+      "tool": "openspeedtest-h2",
+      "browser": "chrome"
+    },
+    {
+      "tool": "graphite-meter-client",
+      "browser": null
+    },
+    {
+      "tool": "librespeed-cli",
+      "browser": null
+    }
+  ],
+  "pins": {
+    "tools": {
+      "graphite-meter": {
+        "name": "Graphite Meter",
+        "version": "0.13.2",
+        "image": "ghcr.io/zr-jb/graphite-meter:0.13.2@sha256:a37303eef23bc2de5889f86e039ec5f5025dd4d676831cd93ed7f07de260f259",
+        "port": 7246,
+        "env": {},
+        "source": "https://github.com/zR-JB/graphite-meter",
+        "quickStart": "docker run -d --name graphite-meter --restart unless-stopped -p 7246:7246 ghcr.io/zr-jb/graphite-meter:latest",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "docs/MEASUREMENTS.md: payload bytes per second; the wire-rate estimate is shown separately"
+        },
+        "proxy": {
+          "evidence": "docs/DEPLOYMENT.md, Reverse proxies and nginx",
+          "env": {
+            "GM_ADVERTISED_NATIVE_ENDPOINTS": "none",
+            "GM_PUBLIC_ORIGINS": "self",
+            "GM_TRUSTED_PROXIES": "127.0.0.1/32"
+          },
+          "location": [
+            "proxy_set_header Upgrade $http_upgrade;",
+            "proxy_set_header Connection $connection_upgrade;",
+            "proxy_set_header X-Real-IP $remote_addr;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "proxy_set_header X-Forwarded-Host $http_host;",
+            "proxy_buffering off;",
+            "proxy_request_buffering off;",
+            "proxy_read_timeout 300s;",
+            "proxy_send_timeout 300s;",
+            "client_max_body_size 0;"
+          ]
+        },
+        "watch": {
+          "github": "zR-JB/graphite-meter",
+          "image": "ghcr.io/zr-jb/graphite-meter:{version}"
+        },
+        "multiServer": {
+          "evidence": "docs/REFERENCE.md, Server catalog: GM_SERVER_CATALOG with defaultSelection",
+          "env": {
+            "GM_SERVER_CATALOG": "{\"defaultSelection\": [\"self\", \"second\"], \"servers\": [{\"id\": \"second\", \"name\": \"Second\", \"url\": \"http://10.71.3.10:7246\"}]}"
+          }
+        }
+      },
+      "librespeed": {
+        "name": "LibreSpeed",
+        "version": "6.3.0",
+        "image": "ghcr.io/librespeed/speedtest:latest@sha256:94e627a2b29947a9ee1e39db465c2346b66ed4fce2c979e7f1c431eb1904703c",
+        "port": 8080,
+        "env": {},
+        "source": "https://github.com/librespeed/speedtest",
+        "quickStart": "docker run -p 80:8080 -d --name speedtest --rm ghcr.io/librespeed/speedtest",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "speedtest_worker.js v6.3.0: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
+        },
+        "proxy": {
+          "evidence": "doc.md v6.3.0: Nginx client_max_body_size 128m",
+          "env": {},
+          "location": [
+            "client_max_body_size 128m;"
+          ]
+        },
+        "watch": {
+          "github": "librespeed/speedtest",
+          "image": "ghcr.io/librespeed/speedtest:latest"
+        },
+        "options": {
+          "overheadCompensationFactor": 1
+        }
+      },
+      "librespeed-go": {
+        "name": "LibreSpeed Go backend",
+        "version": "1.1.6",
+        "adapter": "librespeed",
+        "release": {
+          "url": "https://github.com/librespeed/speedtest-go/releases/download/v1.1.6/speedtest-go_1.1.6_linux_amd64.tar.gz",
+          "sha256": "50b778d6ae582b1af9e8f8c4c8ce5f14878e645582691dbf54f659f093ac8cc5",
+          "command": [
+            "./speedtest-backend"
+          ]
+        },
+        "port": 8989,
+        "env": {},
+        "source": "https://github.com/librespeed/speedtest-go",
+        "quickStart": "Release binary with its bundled settings.toml (the project publishes no public image)",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "web/assets/speedtest_worker.js at v1.1.6, embedded in the binary: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
+        },
+        "watch": {
+          "github": "librespeed/speedtest-go",
+          "release": "https://github.com/librespeed/speedtest-go/releases/download/v{version}/speedtest-go_{version}_linux_amd64.tar.gz"
+        },
+        "options": {
+          "overheadCompensationFactor": 1
+        }
+      },
+      "librespeed-rust": {
+        "name": "LibreSpeed Rust backend",
+        "version": "1.4.0",
+        "adapter": "librespeed",
+        "image": "ghcr.io/librespeed/speedtest-rust:v1.4.0@sha256:8094b51e5b08964591ee844ebbd6cd301ae8a9b82f4f1918fae6f6dff22089e4",
+        "port": 8080,
+        "env": {},
+        "source": "https://github.com/librespeed/speedtest-rust",
+        "quickStart": "Published image with its default configs.toml",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "/usr/local/bin/assets/speedtest_worker.js in the image: overheadCompensationFactor (default 1.06) only multiplies the displayed rate (dlStatus, ulStatus); set to 1 with the documented setParameter (doc.md)"
+        },
+        "watch": {
+          "github": "librespeed/speedtest-rust",
+          "image": "ghcr.io/librespeed/speedtest-rust:v{version}"
+        },
+        "options": {
+          "overheadCompensationFactor": 1
+        }
+      },
+      "openspeedtest": {
+        "name": "OpenSpeedTest",
+        "version": "2.5.4",
+        "image": "docker.io/openspeedtest/latest:latest@sha256:1745e913f596fe98882b286a67751efdae74774e9caa742a4934bb056e8748d2",
+        "port": 3000,
+        "env": {},
+        "source": "https://github.com/openspeedtest/Speed-Test",
+        "quickStart": "docker run --restart=unless-stopped --name openspeedtest -d -p 3000:3000 -p 3001:3001 openspeedtest/latest",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "assets/js/app-2.5.4.js in the image: upAdjust (default 1.04) only multiplies the displayed and averaged rate; README: the Clean URL parameter resets it to zero"
+        },
+        "proxy": {
+          "evidence": "README: behind a reverse proxy, increase the post-body content length to 35 megabytes",
+          "env": {},
+          "location": [
+            "client_max_body_size 35m;"
+          ]
+        },
+        "watch": {
+          "image": "docker.io/openspeedtest/latest:latest"
+        },
+        "urlSuffix": "?clean"
+      },
+      "graphite-meter-h2": {
+        "variantOf": "graphite-meter",
+        "name": "Graphite Meter, HTTP/2",
+        "browsers": [
+          "chrome"
+        ],
+        "onlyScenarios": [
+          "accuracy-1000",
+          "loss-1000",
+          "accuracy-10000",
+          "accuracy-25000",
+          "accuracy-40000"
+        ],
+        "tls": {
+          "mount": "/certs",
+          "env": {
+            "GM_H2_ADDR": ":7248",
+            "GM_H3_ADDR": ":7249",
+            "GM_TLS_CERT": "/certs/cert.pem",
+            "GM_TLS_KEY": "/certs/key.pem",
+            "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+            "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+            "GM_H1_TLS_ADDR": ":7247",
+            "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+          }
+        },
+        "options": {
+          "config": {
+            "transports": {
+              "throughputTarget": "protocol:http2",
+              "latencyTarget": "transport:websocket"
+            }
+          }
+        },
+        "reports": {
+          "quantity": "payload",
+          "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+        },
+        "url": "https://{host}:7247/",
+        "version": "0.13.2",
+        "image": "ghcr.io/zr-jb/graphite-meter:0.13.2@sha256:a37303eef23bc2de5889f86e039ec5f5025dd4d676831cd93ed7f07de260f259",
+        "port": 7246,
+        "env": {},
+        "source": "https://github.com/zR-JB/graphite-meter",
+        "quickStart": "docker run -d --name graphite-meter --restart unless-stopped -p 7246:7246 ghcr.io/zr-jb/graphite-meter:latest",
+        "proxy": {
+          "evidence": "docs/DEPLOYMENT.md, Reverse proxies and nginx",
+          "env": {
+            "GM_ADVERTISED_NATIVE_ENDPOINTS": "none",
+            "GM_PUBLIC_ORIGINS": "self",
+            "GM_TRUSTED_PROXIES": "127.0.0.1/32"
+          },
+          "location": [
+            "proxy_set_header Upgrade $http_upgrade;",
+            "proxy_set_header Connection $connection_upgrade;",
+            "proxy_set_header X-Real-IP $remote_addr;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "proxy_set_header X-Forwarded-Host $http_host;",
+            "proxy_buffering off;",
+            "proxy_request_buffering off;",
+            "proxy_read_timeout 300s;",
+            "proxy_send_timeout 300s;",
+            "client_max_body_size 0;"
+          ]
+        },
+        "watch": {
+          "github": "zR-JB/graphite-meter",
+          "image": "ghcr.io/zr-jb/graphite-meter:{version}"
+        },
+        "multiServer": {
+          "evidence": "docs/REFERENCE.md, Server catalog: GM_SERVER_CATALOG with defaultSelection",
+          "env": {
+            "GM_SERVER_CATALOG": "{\"defaultSelection\": [\"self\", \"second\"], \"servers\": [{\"id\": \"second\", \"name\": \"Second\", \"url\": \"http://10.71.3.10:7246\"}]}"
+          }
+        }
+      },
+      "graphite-meter-h3": {
+        "variantOf": "graphite-meter",
+        "name": "Graphite Meter, HTTP/3",
+        "browsers": [
+          "chrome"
+        ],
+        "onlyScenarios": [
+          "accuracy-1000",
+          "loss-1000",
+          "accuracy-10000",
+          "accuracy-25000",
+          "accuracy-40000"
+        ],
+        "tls": {
+          "mount": "/certs",
+          "env": {
+            "GM_H2_ADDR": ":7248",
+            "GM_H3_ADDR": ":7249",
+            "GM_TLS_CERT": "/certs/cert.pem",
+            "GM_TLS_KEY": "/certs/key.pem",
+            "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+            "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+            "GM_H1_TLS_ADDR": ":7247",
+            "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+          }
+        },
+        "options": {
+          "config": {
+            "transports": {
+              "throughputTarget": "protocol:http3",
+              "latencyTarget": "transport:websocket"
+            }
+          }
+        },
+        "reports": {
+          "quantity": "payload",
+          "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+        },
+        "url": "https://{host}:7247/",
+        "version": "0.13.2",
+        "image": "ghcr.io/zr-jb/graphite-meter:0.13.2@sha256:a37303eef23bc2de5889f86e039ec5f5025dd4d676831cd93ed7f07de260f259",
+        "port": 7246,
+        "env": {},
+        "source": "https://github.com/zR-JB/graphite-meter",
+        "quickStart": "docker run -d --name graphite-meter --restart unless-stopped -p 7246:7246 ghcr.io/zr-jb/graphite-meter:latest",
+        "proxy": {
+          "evidence": "docs/DEPLOYMENT.md, Reverse proxies and nginx",
+          "env": {
+            "GM_ADVERTISED_NATIVE_ENDPOINTS": "none",
+            "GM_PUBLIC_ORIGINS": "self",
+            "GM_TRUSTED_PROXIES": "127.0.0.1/32"
+          },
+          "location": [
+            "proxy_set_header Upgrade $http_upgrade;",
+            "proxy_set_header Connection $connection_upgrade;",
+            "proxy_set_header X-Real-IP $remote_addr;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "proxy_set_header X-Forwarded-Host $http_host;",
+            "proxy_buffering off;",
+            "proxy_request_buffering off;",
+            "proxy_read_timeout 300s;",
+            "proxy_send_timeout 300s;",
+            "client_max_body_size 0;"
+          ]
+        },
+        "watch": {
+          "github": "zR-JB/graphite-meter",
+          "image": "ghcr.io/zr-jb/graphite-meter:{version}"
+        },
+        "multiServer": {
+          "evidence": "docs/REFERENCE.md, Server catalog: GM_SERVER_CATALOG with defaultSelection",
+          "env": {
+            "GM_SERVER_CATALOG": "{\"defaultSelection\": [\"self\", \"second\"], \"servers\": [{\"id\": \"second\", \"name\": \"Second\", \"url\": \"http://10.71.3.10:7246\"}]}"
+          }
+        }
+      },
+      "graphite-meter-wt": {
+        "variantOf": "graphite-meter",
+        "name": "Graphite Meter, WebTransport",
+        "browsers": [
+          "chrome"
+        ],
+        "onlyScenarios": [
+          "accuracy-1000",
+          "loss-1000",
+          "accuracy-10000",
+          "accuracy-25000",
+          "accuracy-40000"
+        ],
+        "tls": {
+          "mount": "/certs",
+          "env": {
+            "GM_H2_ADDR": ":7248",
+            "GM_H3_ADDR": ":7249",
+            "GM_TLS_CERT": "/certs/cert.pem",
+            "GM_TLS_KEY": "/certs/key.pem",
+            "GM_H2_PUBLIC_ORIGIN": "https://{host}:7248",
+            "GM_H3_PUBLIC_ORIGIN": "https://{host}:7249",
+            "GM_H1_TLS_ADDR": ":7247",
+            "GM_H1_TLS_PUBLIC_ORIGIN": "https://{host}:7247"
+          }
+        },
+        "options": {
+          "config": {
+            "transports": {
+              "throughputTarget": "transport:webtransport",
+              "latencyTarget": "transport:webtransport"
+            }
+          }
+        },
+        "reports": {
+          "quantity": "payload",
+          "evidence": "docs/DEPLOYMENT.md, Native listeners; the browser's connection path setting (client/src/engine/types.ts)"
+        },
+        "url": "https://{host}:7247/",
+        "version": "0.13.2",
+        "image": "ghcr.io/zr-jb/graphite-meter:0.13.2@sha256:a37303eef23bc2de5889f86e039ec5f5025dd4d676831cd93ed7f07de260f259",
+        "port": 7246,
+        "env": {},
+        "source": "https://github.com/zR-JB/graphite-meter",
+        "quickStart": "docker run -d --name graphite-meter --restart unless-stopped -p 7246:7246 ghcr.io/zr-jb/graphite-meter:latest",
+        "proxy": {
+          "evidence": "docs/DEPLOYMENT.md, Reverse proxies and nginx",
+          "env": {
+            "GM_ADVERTISED_NATIVE_ENDPOINTS": "none",
+            "GM_PUBLIC_ORIGINS": "self",
+            "GM_TRUSTED_PROXIES": "127.0.0.1/32"
+          },
+          "location": [
+            "proxy_set_header Upgrade $http_upgrade;",
+            "proxy_set_header Connection $connection_upgrade;",
+            "proxy_set_header X-Real-IP $remote_addr;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "proxy_set_header X-Forwarded-Host $http_host;",
+            "proxy_buffering off;",
+            "proxy_request_buffering off;",
+            "proxy_read_timeout 300s;",
+            "proxy_send_timeout 300s;",
+            "client_max_body_size 0;"
+          ]
+        },
+        "watch": {
+          "github": "zR-JB/graphite-meter",
+          "image": "ghcr.io/zr-jb/graphite-meter:{version}"
+        },
+        "multiServer": {
+          "evidence": "docs/REFERENCE.md, Server catalog: GM_SERVER_CATALOG with defaultSelection",
+          "env": {
+            "GM_SERVER_CATALOG": "{\"defaultSelection\": [\"self\", \"second\"], \"servers\": [{\"id\": \"second\", \"name\": \"Second\", \"url\": \"http://10.71.3.10:7246\"}]}"
+          }
+        }
+      },
+      "librespeed-go-h2": {
+        "variantOf": "librespeed-go",
+        "name": "LibreSpeed Go backend, HTTP/2",
+        "browsers": [
+          "chrome"
+        ],
+        "onlyScenarios": [
+          "accuracy-1000",
+          "loss-1000",
+          "accuracy-10000",
+          "accuracy-25000",
+          "accuracy-40000"
+        ],
+        "tls": {
+          "mount": "/certs",
+          "env": {}
+        },
+        "url": "https://{host}:8989/",
+        "configFile": {
+          "source": "release:settings.toml",
+          "target": "/config/settings.toml",
+          "edits": [
+            [
+              "enable_tls=false",
+              "enable_tls=true"
+            ],
+            [
+              "enable_http2=false",
+              "enable_http2=true"
+            ],
+            [
+              "# tls_cert_file=\"cert.pem\"",
+              "tls_cert_file=\"/certs/cert.pem\""
+            ],
+            [
+              "# tls_key_file=\"privkey.pem\"",
+              "tls_key_file=\"/certs/key.pem\""
+            ]
+          ]
+        },
+        "command": [
+          "./speedtest-backend",
+          "-c",
+          "/config/settings.toml"
+        ],
+        "reports": {
+          "quantity": "payload",
+          "evidence": "settings.toml v1.1.6: TLS and HTTP/2 settings, TLS is required for HTTP/2"
+        },
+        "expectProtocol": "2",
+        "version": "1.1.6",
+        "adapter": "librespeed",
+        "release": {
+          "url": "https://github.com/librespeed/speedtest-go/releases/download/v1.1.6/speedtest-go_1.1.6_linux_amd64.tar.gz",
+          "sha256": "50b778d6ae582b1af9e8f8c4c8ce5f14878e645582691dbf54f659f093ac8cc5",
+          "command": [
+            "./speedtest-backend"
+          ]
+        },
+        "port": 8989,
+        "env": {},
+        "source": "https://github.com/librespeed/speedtest-go",
+        "quickStart": "Release binary with its bundled settings.toml (the project publishes no public image)",
+        "watch": {
+          "github": "librespeed/speedtest-go",
+          "release": "https://github.com/librespeed/speedtest-go/releases/download/v{version}/speedtest-go_{version}_linux_amd64.tar.gz"
+        },
+        "options": {
+          "overheadCompensationFactor": 1
+        }
+      },
+      "openspeedtest-h2": {
+        "variantOf": "openspeedtest",
+        "name": "OpenSpeedTest, HTTP/2",
+        "browsers": [
+          "chrome"
+        ],
+        "onlyScenarios": [
+          "accuracy-1000",
+          "loss-1000",
+          "accuracy-10000",
+          "accuracy-25000",
+          "accuracy-40000"
+        ],
+        "tls": {
+          "mount": "/etc/ssl",
+          "env": {}
+        },
+        "url": "https://{host}:3001/",
+        "port": 3001,
+        "configFile": {
+          "source": "image:/etc/nginx/conf.d/OpenSpeedTest-Server.conf",
+          "target": "/etc/nginx/conf.d/OpenSpeedTest-Server.conf",
+          "edits": [
+            [
+              "listen 3001 ssl reuseport;",
+              "listen 3001 ssl http2 reuseport;"
+            ],
+            [
+              "listen [::]:3001 ssl reuseport;",
+              "listen [::]:3001 ssl http2 reuseport;"
+            ],
+            [
+              "       #location = /upload {",
+              "       location = /upload {"
+            ],
+            [
+              "       #    proxy_pass http://127.0.0.1:3000/dev-null;",
+              "           proxy_pass http://127.0.0.1:3000/dev-null;"
+            ],
+            [
+              "       #location = /dev-null {",
+              "       location = /dev-null {"
+            ],
+            [
+              "       #    return 200;",
+              "           return 200;"
+            ],
+            [
+              "       #}",
+              "       }"
+            ]
+          ]
+        },
+        "reports": {
+          "quantity": "payload",
+          "evidence": "OpenSpeedTest-Server.conf in the image: add http2 to the TLS listen line and enable the HTTP2 & HTTP3 upload fix"
+        },
+        "expectProtocol": "2",
+        "version": "2.5.4",
+        "image": "docker.io/openspeedtest/latest:latest@sha256:1745e913f596fe98882b286a67751efdae74774e9caa742a4934bb056e8748d2",
+        "env": {},
+        "source": "https://github.com/openspeedtest/Speed-Test",
+        "quickStart": "docker run --restart=unless-stopped --name openspeedtest -d -p 3000:3000 -p 3001:3001 openspeedtest/latest",
+        "proxy": {
+          "evidence": "README: behind a reverse proxy, increase the post-body content length to 35 megabytes",
+          "env": {},
+          "location": [
+            "client_max_body_size 35m;"
+          ]
+        },
+        "watch": {
+          "image": "docker.io/openspeedtest/latest:latest"
+        },
+        "urlSuffix": "?clean"
+      }
+    },
+    "browsers": {
+      "chrome": {
+        "version": "155.0.8059.84",
+        "url": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/linux64/chrome-linux64.zip",
+        "sha256": "cf0f049892dea22e6a6db26d47ed0d7776b7158edcbec4634086633df8bafcbc",
+        "binary": "chrome-linux64/chrome"
+      },
+      "firefox": {
+        "version": "158.0",
+        "url": "https://ftp.mozilla.org/pub/firefox/releases/158.0/linux-x86_64/en-US/firefox-158.0.tar.xz",
+        "sha256": "9549b054ec4cf85f50f6a19d8c6fb79580312e71ebc4ec2cb217ec9af09dc12a",
+        "binary": "firefox/firefox"
+      }
+    },
+    "client": "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf",
+    "clients": {
+      "graphite-meter-client": {
+        "name": "Graphite Meter terminal client",
+        "version": "0.13.2",
+        "server": "graphite-meter",
+        "release": {
+          "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.13.2/graphite-meter-client_0.13.2_linux_amd64.tar.gz",
+          "sha256": "4e1c92f5672577568d8aed5726ddf77deb7e9a4fb16713e4e211fd482317555c",
+          "command": [
+            "graphite-meter-client_0.13.2_linux_amd64/graphite-meter-client",
+            "--url",
+            "http://10.71.2.10:7246",
+            "--report"
+          ]
+        },
+        "parse": "graphite-meter-report",
+        "reports": {
+          "quantity": "payload",
+          "evidence": "docs/MEASUREMENTS.md: payload bytes per second, uploads timed at the receiver"
+        },
+        "watch": {
+          "github": "zR-JB/graphite-meter",
+          "release": "https://github.com/zR-JB/graphite-meter/releases/download/v{version}/graphite-meter-client_{version}_linux_amd64.tar.gz",
+          "command": [
+            "graphite-meter-client_{version}_linux_amd64/graphite-meter-client",
+            "--url",
+            "http://10.71.2.10:7246",
+            "--report"
+          ]
+        }
+      },
+      "librespeed-cli": {
+        "name": "LibreSpeed CLI",
+        "version": "1.0.14",
+        "server": "librespeed",
+        "release": {
+          "url": "https://github.com/librespeed/speedtest-cli/releases/download/v1.0.14/librespeed-cli_1.0.14_linux_amd64.tar.gz",
+          "sha256": "89800767ac14085c78a20847ebea23340f6c14a78de0a15c2ac7db8b565c961f",
+          "command": [
+            "./librespeed-cli",
+            "--local-json",
+            "/config/librespeed-servers.json",
+            "--json"
+          ]
+        },
+        "parse": "librespeed-json",
+        "config": {
+          "librespeed-servers.json": [
+            {
+              "id": 1,
+              "name": "bench",
+              "server": "http://10.71.2.10:8080/",
+              "dlURL": "backend/garbage.php",
+              "ulURL": "backend/empty.php",
+              "pingURL": "backend/empty.php",
+              "getIpURL": "backend/getIP.php"
+            }
+          ]
+        },
+        "reports": {
+          "quantity": "payload",
+          "evidence": "defs/bytes_counter.go v1.0.14: AvgMbps of counted payload bytes, no compensation factor"
+        },
+        "watch": {
+          "github": "librespeed/speedtest-cli",
+          "release": "https://github.com/librespeed/speedtest-cli/releases/download/v{version}/librespeed-cli_{version}_linux_amd64.tar.gz"
+        }
+      }
+    },
+    "proxy": {
+      "name": "nginx",
+      "version": "1.30.6",
+      "image": "docker.io/library/nginx:1.30.6-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5",
+      "port": 80
+    },
+    "quicOrigins": [
+      "10.71.2.10:7249"
+    ]
+  },
+  "host": {
+    "kernel": "6.17.0-1022-azure",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cpus": 4,
+    "memoryBytes": 16766414848,
+    "podman": "podman version 4.9.3",
+    "node": "v24.21.0",
+    "runner": "ubuntu24 20261012.334.1",
+    "cpusets": {
+      "shaper": "0",
+      "server": "1",
+      "client": "2-3"
+    },
+    "rootful": true
+  },
+  "bench": "5daa598",
+  "blocks": [
+    {
+      "scenario": "accuracy-100",
+      "rep": 1,
+      "order": [
+        "librespeed-rust/firefox",
+        "openspeedtest/firefox",
+        "librespeed-go/firefox",
+        "librespeed-cli/null",
+        "graphite-meter-client/null",
+        "librespeed/chrome",
+        "graphite-meter/firefox",
+        "librespeed/firefox",
+        "librespeed-go/chrome",
+        "librespeed-rust/chrome",
+        "openspeedtest/chrome",
+        "graphite-meter/chrome",
+        "iperf3/null"
+      ],
+      "noise": {
+        "hashMs": 151.69151,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.122
+    },
+    {
+      "scenario": "accuracy-1000",
+      "rep": 1,
+      "order": [
+        "iperf3/null",
+        "graphite-meter/chrome",
+        "librespeed-go/chrome",
+        "openspeedtest-h2/chrome",
+        "librespeed-rust/chrome",
+        "graphite-meter-wt/chrome",
+        "graphite-meter-client/null",
+        "graphite-meter-h2/chrome",
+        "librespeed-cli/null",
+        "openspeedtest/chrome",
+        "openspeedtest/firefox",
+        "librespeed/chrome",
+        "librespeed-go/firefox",
+        "graphite-meter/firefox",
+        "graphite-meter-h3/chrome",
+        "librespeed/firefox",
+        "librespeed-go-h2/chrome",
+        "librespeed-rust/firefox"
+      ],
+      "noise": {
+        "hashMs": 151.811638,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.092
+    },
+    {
+      "scenario": "accuracy-10000",
+      "rep": 1,
+      "order": [
+        "graphite-meter-wt/chrome",
+        "graphite-meter-client/null",
+        "librespeed-rust/chrome",
+        "graphite-meter-h3/chrome",
+        "librespeed-go/firefox",
+        "graphite-meter/chrome",
+        "librespeed/chrome",
+        "iperf3/null",
+        "librespeed-go/chrome",
+        "librespeed-cli/null",
+        "graphite-meter-h2/chrome",
+        "openspeedtest/firefox",
+        "librespeed-rust/firefox",
+        "librespeed-go-h2/chrome",
+        "librespeed/firefox",
+        "openspeedtest-h2/chrome",
+        "openspeedtest/chrome",
+        "graphite-meter/firefox"
+      ],
+      "noise": {
+        "hashMs": 151.759032,
+        "stealTicks": 0
+      },
+      "baseRttMs": 2.129
+    },
+    {
+      "scenario": "bufferbloat-300-30",
+      "rep": 1,
+      "order": [
+        "librespeed-cli/null",
+        "openspeedtest/chrome",
+        "librespeed-go/chrome",
+        "librespeed-rust/firefox",
+        "librespeed/firefox",
+        "graphite-meter/chrome",
+        "openspeedtest/firefox",
+        "librespeed-rust/chrome",
+        "graphite-meter/firefox",
+        "librespeed/chrome",
+        "graphite-meter-client/null",
+        "librespeed-go/firefox",
+        "iperf3/null"
+      ],
+      "noise": {
+        "hashMs": 151.340889,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.134
+    },
+    {
+      "scenario": "loss-100",
+      "rep": 1,
+      "order": [
+        "librespeed/firefox",
+        "librespeed-cli/null",
+        "openspeedtest/firefox",
+        "graphite-meter/firefox",
+        "librespeed-rust/firefox",
+        "iperf3/null",
+        "librespeed-go/firefox",
+        "librespeed-rust/chrome",
+        "librespeed-go/chrome",
+        "openspeedtest/chrome",
+        "graphite-meter-client/null",
+        "librespeed/chrome",
+        "graphite-meter/chrome"
+      ],
+      "noise": {
+        "hashMs": 151.3559,
+        "stealTicks": 0
+      },
+      "baseRttMs": 40.109
+    },
+    {
+      "scenario": "loss-1000",
+      "rep": 1,
+      "order": [
+        "librespeed/firefox",
+        "librespeed-rust/chrome",
+        "librespeed-cli/null",
+        "graphite-meter/chrome",
+        "openspeedtest/chrome",
+        "graphite-meter/firefox",
+        "iperf3/null",
+        "graphite-meter-client/null",
+        "librespeed/chrome",
+        "graphite-meter-wt/chrome",
+        "librespeed-go/chrome",
+        "openspeedtest-h2/chrome",
+        "librespeed-rust/firefox",
+        "graphite-meter-h3/chrome",
+        "graphite-meter-h2/chrome",
+        "librespeed-go/firefox",
+        "openspeedtest/firefox",
+        "librespeed-go-h2/chrome"
+      ],
+      "noise": {
+        "hashMs": 151.161435,
+        "stealTicks": 0
+      },
+      "baseRttMs": 40.166
+    },
+    {
+      "scenario": "long-300",
+      "rep": 1,
+      "order": [
+        "librespeed-rust/chrome",
+        "iperf3/null",
+        "openspeedtest/firefox",
+        "librespeed-go/chrome",
+        "librespeed-cli/null",
+        "graphite-meter/chrome",
+        "graphite-meter-client/null",
+        "graphite-meter/firefox",
+        "openspeedtest/chrome",
+        "librespeed-go/firefox",
+        "librespeed-rust/firefox",
+        "librespeed/firefox",
+        "librespeed/chrome"
+      ],
+      "noise": {
+        "hashMs": 151.467668,
+        "stealTicks": 0
+      },
+      "baseRttMs": 160.175
+    },
+    {
+      "scenario": "compete-100",
+      "rep": 1,
+      "order": [
+        "librespeed-go/firefox",
+        "openspeedtest/firefox",
+        "librespeed-rust/firefox",
+        "graphite-meter/chrome",
+        "librespeed/chrome",
+        "iperf3/null",
+        "librespeed-cli/null",
+        "librespeed-go/chrome",
+        "graphite-meter/firefox",
+        "openspeedtest/chrome",
+        "librespeed-rust/chrome",
+        "librespeed/firefox",
+        "graphite-meter-client/null"
+      ],
+      "noise": {
+        "hashMs": 151.127232,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.141
+    },
+    {
+      "scenario": "proxy-1000",
+      "rep": 1,
+      "order": [
+        "graphite-meter/firefox",
+        "graphite-meter/chrome",
+        "iperf3/null",
+        "librespeed/chrome",
+        "librespeed/firefox",
+        "openspeedtest/firefox",
+        "openspeedtest/chrome"
+      ],
+      "noise": {
+        "hashMs": 150.650684,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.151
+    },
+    {
+      "scenario": "multi-200",
+      "rep": 1,
+      "order": [
+        "graphite-meter/firefox",
+        "iperf3/null",
+        "graphite-meter/chrome",
+        "graphite-meter-client/null"
+      ],
+      "noise": {
+        "hashMs": 151.288199,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.103
+    },
+    {
+      "scenario": "unshaped",
+      "rep": 1,
+      "order": [
+        "openspeedtest/chrome",
+        "openspeedtest/firefox",
+        "librespeed-go/chrome",
+        "librespeed-rust/firefox",
+        "graphite-meter/firefox",
+        "librespeed/firefox",
+        "librespeed-rust/chrome",
+        "graphite-meter/chrome",
+        "librespeed-cli/null",
+        "librespeed/chrome",
+        "graphite-meter-client/null",
+        "iperf3/null",
+        "librespeed-go/firefox"
+      ],
+      "noise": {
+        "hashMs": 157.036086,
+        "stealTicks": 0
+      },
+      "baseRttMs": 0.06
+    },
+    {
+      "scenario": "accuracy-100",
+      "rep": 2,
+      "order": [
+        "iperf3/null",
+        "graphite-meter/chrome",
+        "openspeedtest/chrome",
+        "librespeed-rust/chrome",
+        "librespeed-go/chrome",
+        "librespeed/firefox",
+        "graphite-meter/firefox",
+        "librespeed/chrome",
+        "graphite-meter-client/null",
+        "librespeed-cli/null",
+        "librespeed-go/firefox",
+        "openspeedtest/firefox",
+        "librespeed-rust/firefox"
+      ],
+      "noise": {
+        "hashMs": 151.184563,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.107
+    },
+    {
+      "scenario": "accuracy-1000",
+      "rep": 2,
+      "order": [
+        "librespeed-rust/firefox",
+        "librespeed-go-h2/chrome",
+        "librespeed/firefox",
+        "graphite-meter-h3/chrome",
+        "graphite-meter/firefox",
+        "librespeed-go/firefox",
+        "librespeed/chrome",
+        "openspeedtest/firefox",
+        "openspeedtest/chrome",
+        "librespeed-cli/null",
+        "graphite-meter-h2/chrome",
+        "graphite-meter-client/null",
+        "graphite-meter-wt/chrome",
+        "librespeed-rust/chrome",
+        "openspeedtest-h2/chrome",
+        "librespeed-go/chrome",
+        "graphite-meter/chrome",
+        "iperf3/null"
+      ],
+      "noise": {
+        "hashMs": 151.621089,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.101
+    },
+    {
+      "scenario": "accuracy-10000",
+      "rep": 2,
+      "order": [
+        "graphite-meter/firefox",
+        "openspeedtest/chrome",
+        "openspeedtest-h2/chrome",
+        "librespeed/firefox",
+        "librespeed-go-h2/chrome",
+        "librespeed-rust/firefox",
+        "openspeedtest/firefox",
+        "graphite-meter-h2/chrome",
+        "librespeed-cli/null",
+        "librespeed-go/chrome",
+        "iperf3/null",
+        "librespeed/chrome",
+        "graphite-meter/chrome",
+        "librespeed-go/firefox",
+        "graphite-meter-h3/chrome",
+        "librespeed-rust/chrome",
+        "graphite-meter-client/null",
+        "graphite-meter-wt/chrome"
+      ],
+      "noise": {
+        "hashMs": 150.973273,
+        "stealTicks": 0
+      },
+      "baseRttMs": 2.091
+    },
+    {
+      "scenario": "bufferbloat-300-30",
+      "rep": 2,
+      "order": [
+        "iperf3/null",
+        "librespeed-go/firefox",
+        "graphite-meter-client/null",
+        "librespeed/chrome",
+        "graphite-meter/firefox",
+        "librespeed-rust/chrome",
+        "openspeedtest/firefox",
+        "graphite-meter/chrome",
+        "librespeed/firefox",
+        "librespeed-rust/firefox",
+        "librespeed-go/chrome",
+        "openspeedtest/chrome",
+        "librespeed-cli/null"
+      ],
+      "noise": {
+        "hashMs": 151.248614,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.146
+    },
+    {
+      "scenario": "loss-100",
+      "rep": 2,
+      "order": [
+        "graphite-meter/chrome",
+        "librespeed/chrome",
+        "graphite-meter-client/null",
+        "openspeedtest/chrome",
+        "librespeed-go/chrome",
+        "librespeed-rust/chrome",
+        "librespeed-go/firefox",
+        "iperf3/null",
+        "librespeed-rust/firefox",
+        "graphite-meter/firefox",
+        "openspeedtest/firefox",
+        "librespeed-cli/null",
+        "librespeed/firefox"
+      ],
+      "noise": {
+        "hashMs": 151.584151,
+        "stealTicks": 0
+      },
+      "baseRttMs": 40.157
+    },
+    {
+      "scenario": "loss-1000",
+      "rep": 2,
+      "order": [
+        "librespeed-go-h2/chrome",
+        "openspeedtest/firefox",
+        "librespeed-go/firefox",
+        "graphite-meter-h2/chrome",
+        "graphite-meter-h3/chrome",
+        "librespeed-rust/firefox",
+        "openspeedtest-h2/chrome",
+        "librespeed-go/chrome",
+        "graphite-meter-wt/chrome",
+        "librespeed/chrome",
+        "graphite-meter-client/null",
+        "iperf3/null",
+        "graphite-meter/firefox",
+        "openspeedtest/chrome",
+        "graphite-meter/chrome",
+        "librespeed-cli/null",
+        "librespeed-rust/chrome",
+        "librespeed/firefox"
+      ],
+      "noise": {
+        "hashMs": 150.822744,
+        "stealTicks": 0
+      },
+      "baseRttMs": 40.136
+    },
+    {
+      "scenario": "long-300",
+      "rep": 2,
+      "order": [
+        "librespeed/chrome",
+        "librespeed/firefox",
+        "librespeed-rust/firefox",
+        "librespeed-go/firefox",
+        "openspeedtest/chrome",
+        "graphite-meter/firefox",
+        "graphite-meter-client/null",
+        "graphite-meter/chrome",
+        "librespeed-cli/null",
+        "librespeed-go/chrome",
+        "openspeedtest/firefox",
+        "iperf3/null",
+        "librespeed-rust/chrome"
+      ],
+      "noise": {
+        "hashMs": 150.638044,
+        "stealTicks": 0
+      },
+      "baseRttMs": 160.141
+    },
+    {
+      "scenario": "compete-100",
+      "rep": 2,
+      "order": [
+        "graphite-meter-client/null",
+        "librespeed/firefox",
+        "librespeed-rust/chrome",
+        "openspeedtest/chrome",
+        "graphite-meter/firefox",
+        "librespeed-go/chrome",
+        "librespeed-cli/null",
+        "iperf3/null",
+        "librespeed/chrome",
+        "graphite-meter/chrome",
+        "librespeed-rust/firefox",
+        "openspeedtest/firefox",
+        "librespeed-go/firefox"
+      ],
+      "noise": {
+        "hashMs": 151.113642,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.15
+    },
+    {
+      "scenario": "proxy-1000",
+      "rep": 2,
+      "order": [
+        "openspeedtest/chrome",
+        "openspeedtest/firefox",
+        "librespeed/firefox",
+        "librespeed/chrome",
+        "iperf3/null",
+        "graphite-meter/chrome",
+        "graphite-meter/firefox"
+      ],
+      "noise": {
+        "hashMs": 151.215415,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.145
+    },
+    {
+      "scenario": "multi-200",
+      "rep": 2,
+      "order": [
+        "graphite-meter-client/null",
+        "graphite-meter/chrome",
+        "iperf3/null",
+        "graphite-meter/firefox"
+      ],
+      "noise": {
+        "hashMs": 150.77422,
+        "stealTicks": 0
+      },
+      "baseRttMs": 20.12
+    },
+    {
+      "scenario": "unshaped",
+      "rep": 2,
+      "order": [
+        "librespeed-go/firefox",
+        "iperf3/null",
+        "graphite-meter-client/null",
+        "librespeed/chrome",
+        "librespeed-cli/null",
+        "graphite-meter/chrome",
+        "librespeed-rust/chrome",
+        "librespeed/firefox",
+        "graphite-meter/firefox",
+        "librespeed-rust/firefox",
+        "librespeed-go/chrome",
+        "openspeedtest/firefox",
+        "openspeedtest/chrome"
+      ],
+      "noise": {
+        "hashMs": 150.930935,
+        "stealTicks": 0
+      },
+      "baseRttMs": 0.065
+    }
+  ],
+  "endedAt": "2026-10-19T03:50:48.107Z"
+}
