@@ -28,6 +28,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   plan:
     runs-on: ubuntu-24.04
@@ -164,7 +168,11 @@ jobs:
         with:
           pattern: job-*
           path: results
-      - run: node bench/summarize.js results/job-* | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Summarize (a single job's artifact downloads without its own folder)
+        run: |
+          dirs=(results/job-*)
+          [[ -e ${dirs[0]} ]] || dirs=(results)
+          node bench/summarize.js "${dirs[@]}" | tee summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v5
         with:
           name: summary
