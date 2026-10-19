@@ -8,7 +8,7 @@ reference that does not come from any of the tools.
 one of the tools compared. Every config, adapter and raw result is published so anyone can check or rerun it, and
 corrections to how a tool is set up or read are welcome as issues.
 
-**Status:** results from GitHub runners below. A second dataset from a 16-thread desktop, including 25 and 40 Gbit/s, is being collected.
+**Status:** results from GitHub runners and from a 16-thread desktop below.
 
 ## What runs
 
@@ -381,6 +381,39 @@ No shaping: the host's CPU is the limit, so rates show how far each tool gets on
 Raw data: [`results/2026-10-18-ci-run-39163069945`](results/2026-10-18-ci-run-39163069945), one JSON per run and each
 job's manifest (pins, host, CPU sets, block order, noise checks). Screenshots of every run's final screen are in the
 run's artifacts. Earlier runs with other settings, superseded by this one, are kept in `results/` with their manifests.
+
+## Results: desktop, night of 18 to 19 October 2026
+
+A second dataset from an AMD Ryzen 7 7800X3D desktop (8 cores, 16 threads, kernel 7.2.10-1-cachyos, rootless Podman),
+with the browser on three cores instead of the runners' two vCPUs, the same tools and versions as the runner results,
+and the 25 and 40 Gbit/s scenarios: 6 runs per tool, browser and scenario, 1,074 runs, all complete. Full tables and
+setup: [`results/2026-10-18-desktop-7800x3d`](results/2026-10-18-desktop-7800x3d). With 6 runs per cell, differences
+of about 2 % or less are within its noise.
+
+This kernel's TCP recovers from random loss far better than the runners' (iperf3 reaches 94 Mbit/s at 1 % loss here
+and 13 there, with the same netem loss and CUBIC on both), so its loss, long-path and deep-buffer numbers compare only
+within that dataset.
+
+- **10 Gbit/s with three browser cores:** over HTTP/1.1, Chrome reaches the link in both directions with every tool
+  (9.55 to 9.60 Gbit/s). In Firefox, Graphite Meter downloads at 9.60 Gbit/s and uploads at 7.8; the LibreSpeed
+  backends reach 8.4 to 9.2 down and 8.2 to 8.5 up; OpenSpeedTest 7.1 down and 9.5 up.
+- **25 Gbit/s:** Graphite Meter's client fills the link (23.91 Gbit/s both ways; iperf3 23.90 and 23.45). Chrome
+  downloads reach it with every tool; Chrome uploads stop at 12.9 Gbit/s with Graphite Meter and 11.1 to 11.4 with the
+  others. In Firefox, Graphite Meter reaches 17.7 Gbit/s down and the others 8.3 to 10.4.
+- **40 Gbit/s:** only Graphite Meter's client fills the link (38.26 Gbit/s both ways; iperf3 37.8 and 37.5). In
+  Chrome, Graphite Meter downloads at 33.6 Gbit/s and the others at 24.2 to 24.7; uploads stop at 12.7 and 11.1 to
+  11.3.
+- **Unshaped:** Chrome downloads reach 39.0 Gbit/s with Graphite Meter and 24.1 to 24.5 with the others, uploads 15.1
+  and 13.9 to 14.1. Graphite Meter's client moves 185 Gbit/s down and 242 up, iperf3 172 and 207. Server CPU per GB:
+  0.11 to 0.14 s for Graphite Meter, OpenSpeedTest and the Rust backend, 0.15 to 0.18 s for LibreSpeed's Go and PHP
+  backends.
+- **Upload on plain links:** Graphite Meter's Firefox upload at 1 Gbit/s reads 3.2 % low here against 11.1 % on the
+  runners, so that gap depends strongly on the host. OpenSpeedTest's upload reads above the payload rate here: 1.7 to
+  4.5 % at 100 Mbit/s and 2.0 to 2.6 % at 1 Gbit/s.
+- **Behind a 200 ms FIFO:** Graphite Meter's upload again reads within 0.3 %, and its loaded latency lands within 6 ms
+  of the queue reference. OpenSpeedTest's upload reads 7.0 % (Chrome) and 27 % (Firefox) above the payload rate.
+- **Behind nginx:** OpenSpeedTest's upload reads 10.0 % (Chrome) and 11.6 % (Firefox) low, LibreSpeed's 3.6 % and 10.6
+  %, Graphite Meter's 2.2 % and 1.6 %.
 
 ## Run it
 
