@@ -120,6 +120,7 @@ async function configFile(name) {
     if (!text.includes(from)) fail(`${name}: ${source} no longer contains ${JSON.stringify(from)}`);
     text = text.replaceAll(from, to);
   }
+  mkdirSync(`${out}/config`, { recursive: true });
   const file = `${out}/config/${name}-${target.split("/").pop()}`;
   writeFileSync(file, text);
   return ["-v", `${file}:${target}:ro`];
