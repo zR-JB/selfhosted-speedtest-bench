@@ -22,6 +22,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # A full matrix only starts once every tool and every scenario has run cleanly on this commit.
   preflight:
