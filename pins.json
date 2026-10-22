@@ -2,8 +2,8 @@
   "tools": {
     "graphite-meter": {
       "name": "Graphite Meter",
-      "version": "0.13.2",
-      "image": "ghcr.io/zr-jb/graphite-meter:0.13.2@sha256:a37303eef23bc2de5889f86e039ec5f5025dd4d676831cd93ed7f07de260f259",
+      "version": "0.13.4",
+      "image": "ghcr.io/zr-jb/graphite-meter:0.13.4@sha256:a09e39bc4203c85779b53cad3aa6d45a9ea841630f3149a36faa584d52c6fff0",
       "port": 7246,
       "env": {},
       "source": "https://github.com/zR-JB/graphite-meter",
@@ -45,8 +45,8 @@
     },
     "librespeed": {
       "name": "LibreSpeed",
-      "version": "6.3.0",
-      "image": "ghcr.io/librespeed/speedtest:latest@sha256:94e627a2b29947a9ee1e39db465c2346b66ed4fce2c979e7f1c431eb1904703c",
+      "version": "6.3.1",
+      "image": "ghcr.io/librespeed/speedtest:latest@sha256:bc34bf69b6c102b23ab81b6e77beb7cce321fb0d3be33ec6e80edef3e9dd8bab",
       "port": 8080,
       "env": {},
       "source": "https://github.com/librespeed/speedtest",
@@ -375,15 +375,15 @@
   },
   "browsers": {
     "chrome": {
-      "version": "155.0.8059.84",
-      "url": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/linux64/chrome-linux64.zip",
-      "sha256": "cf0f049892dea22e6a6db26d47ed0d7776b7158edcbec4634086633df8bafcbc",
+      "version": "156.0.8078.47",
+      "url": "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-linux64.zip",
+      "sha256": "e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50",
       "binary": "chrome-linux64/chrome"
     },
     "firefox": {
-      "version": "158.0",
-      "url": "https://ftp.mozilla.org/pub/firefox/releases/158.0/linux-x86_64/en-US/firefox-158.0.tar.xz",
-      "sha256": "9549b054ec4cf85f50f6a19d8c6fb79580312e71ebc4ec2cb217ec9af09dc12a",
+      "version": "158.0.1",
+      "url": "https://ftp.mozilla.org/pub/firefox/releases/158.0.1/linux-x86_64/en-US/firefox-158.0.1.tar.xz",
+      "sha256": "dce45470139242cf294eb6ada3d192a9bb334696842b02b71ade448a139eb41a",
       "binary": "firefox/firefox"
     }
   },
@@ -391,13 +391,13 @@
   "clients": {
     "graphite-meter-client": {
       "name": "Graphite Meter terminal client",
-      "version": "0.13.2",
+      "version": "0.13.4",
       "server": "graphite-meter",
       "release": {
-        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.13.2/graphite-meter-client_0.13.2_linux_amd64.tar.gz",
-        "sha256": "4e1c92f5672577568d8aed5726ddf77deb7e9a4fb16713e4e211fd482317555c",
+        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.13.4/graphite-meter-client_0.13.4_linux_amd64.tar.gz",
+        "sha256": "2caeb5ccdc465e6223192258138e1697f5fc83123a15bcdcf199c985d288cadd",
         "command": [
-          "graphite-meter-client_0.13.2_linux_amd64/graphite-meter-client",
+          "graphite-meter-client_0.13.4_linux_amd64/graphite-meter-client",
           "--url",
           "http://10.71.2.10:7246",
           "--report"
