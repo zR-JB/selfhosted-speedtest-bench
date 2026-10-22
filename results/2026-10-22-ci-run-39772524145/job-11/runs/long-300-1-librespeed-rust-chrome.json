@@ -1,0 +1,48 @@
+{
+  "rep": 1,
+  "position": 5,
+  "baseRttMs": 160.149,
+  "tool": "librespeed-rust",
+  "browser": "chrome",
+  "scenario": "long-300",
+  "reported": {
+    "startedAt": 1792675182884,
+    "outcome": "complete",
+    "downloadMbit": 230,
+    "uploadMbit": 220,
+    "idleLatencyMs": 160,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "screen": [
+      "230",
+      "220",
+      "160",
+      "0.10"
+    ],
+    "detail": {
+      "page": "/",
+      "jitterMs": 0.1
+    },
+    "browserCpuSeconds": 9,
+    "endedAt": 1792675203947
+  },
+  "linkBytes": {
+    "down": 169942305,
+    "up": 199857322
+  },
+  "serverCpuSeconds": 0.771111,
+  "serverMemoryPeakBytes": 22581248,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 44,
+      "medianQueueMs": 10.71912,
+      "medianOwnLinkMbit": 284.06541818266373
+    },
+    "up": {
+      "loadedSamples": 55,
+      "medianQueueMs": 16.917813333333335,
+      "medianOwnLinkMbit": 252.50589090879865
+    }
+  }
+}

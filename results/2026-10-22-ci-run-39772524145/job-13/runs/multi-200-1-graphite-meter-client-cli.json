@@ -1,0 +1,38 @@
+{
+  "rep": 1,
+  "position": 1,
+  "baseRttMs": 20.175,
+  "tool": "graphite-meter-client",
+  "browser": null,
+  "scenario": "multi-200",
+  "reported": {
+    "outcome": "complete",
+    "downloadMbit": 382.6,
+    "uploadMbit": 382.6,
+    "idleLatencyMs": 20.3,
+    "loadedLatencyDownMs": 20.4,
+    "loadedLatencyUpMs": 20.3,
+    "report": "Graphite Meter  Complete  2 test servers · 29.1 s · 960.7 MB\n\n↓ Download  382.6 Mbit/s   peak 382.7 · 478.3 MB · 10.0 s\n↑ Upload    382.6 Mbit/s   peak 385.2 · 482.4 MB · 10.0 s · receiver-timed\n\nLatency to graphite-meter  Median   Added    P95      Jitter    Timeouts\nIdle                       20.3 ms           20.4 ms  < 0.1 ms  0 / 198\nLoaded download            20.4 ms  +0.2 ms  20.6 ms  0.2 ms    0 / 40\nLoaded upload              20.3 ms  +0.0 ms  20.4 ms  < 0.1 ms  0 / 40\n\nServer handling of the mean round trip: Idle < 0.1 ms of 20.3 ms\n  Loaded download < 0.1 ms of 20.4 ms · Loaded upload < 0.1 ms of 20.3 ms\nAdded: loaded median minus idle median, same server.\n\nComplete · all 2 test servers\nTest server       Download      Upload\nAll test servers  382.6 Mbit/s  382.6 Mbit/s\ngraphite-meter    191.3 Mbit/s  191.4 Mbit/s\ngraphite-meter    191.3 Mbit/s  191.3 Mbit/s\n\nLatency median by test server\nTest server     Idle     Loaded download  Loaded upload\ngraphite-meter  20.3 ms  20.4 ms          20.3 ms\ngraphite-meter  20.3 ms  20.4 ms          20.2 ms",
+    "startedAt": 1792676177519,
+    "endedAt": 1792676206894
+  },
+  "linkBytes": {
+    "down": 576855745,
+    "up": 593629491
+  },
+  "serverCpuSeconds": 6.129129,
+  "serverMemoryPeakBytes": 17264640,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 0,
+      "medianQueueMs": null,
+      "medianOwnLinkMbit": null
+    },
+    "up": {
+      "loadedSamples": 111,
+      "medianQueueMs": 3.028,
+      "medianOwnLinkMbit": 195.56909090967304
+    }
+  }
+}

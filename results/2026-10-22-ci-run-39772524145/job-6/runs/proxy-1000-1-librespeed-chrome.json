@@ -1,0 +1,48 @@
+{
+  "rep": 1,
+  "position": 1,
+  "baseRttMs": 20.06,
+  "tool": "librespeed",
+  "browser": "chrome",
+  "scenario": "proxy-1000",
+  "reported": {
+    "startedAt": 1792675756608,
+    "outcome": "complete",
+    "downloadMbit": 936,
+    "uploadMbit": 798,
+    "idleLatencyMs": 20.4,
+    "loadedLatencyDownMs": null,
+    "loadedLatencyUpMs": null,
+    "screen": [
+      "936",
+      "798",
+      "20.4",
+      "0.45"
+    ],
+    "detail": {
+      "page": "/index-classic.html",
+      "jitterMs": 0.45
+    },
+    "browserCpuSeconds": 12.12,
+    "endedAt": 1792675774907
+  },
+  "linkBytes": {
+    "down": 817845455,
+    "up": 879740162
+  },
+  "serverCpuSeconds": 7.073812,
+  "serverMemoryPeakBytes": 625471488,
+  "queues": {
+    "kind": "fq_codel",
+    "down": {
+      "loadedSamples": 62,
+      "medianQueueMs": 3.84556,
+      "medianOwnLinkMbit": 1034.9704000009415
+    },
+    "up": {
+      "loadedSamples": 70,
+      "medianQueueMs": 3.3974159999999998,
+      "medianOwnLinkMbit": 955.0899781836737
+    }
+  }
+}
