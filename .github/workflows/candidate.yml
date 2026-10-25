@@ -1,8 +1,8 @@
 name: Candidate
 
 # Measures unreleased Graphite Meter commits on the runners without publishing anything: each candidate and a base ref
-# are built here with the same profile, then run interleaved with the pinned release and OpenSpeedTest, plus their
-# transport variants when asked. Results stay in this run's summary and artifacts.
+# are built here with the same profile, server and terminal client, then run interleaved with the pinned release and
+# OpenSpeedTest, plus their transport variants when asked. Results stay in this run's summary and artifacts.
 on:
   workflow_dispatch:
     inputs:
@@ -79,6 +79,20 @@ jobs:
           docker save "localhost/graphite-meter:$ID" -o "$RUNNER_TEMP/image/$ID.tar"
           jq -n --arg id "$ID" --arg ref "$REF" --arg sha "$sha" --arg profile "$PROFILE" \
             '{id: $id, ref: $ref, sha: $sha, profile: $profile}' > "$RUNNER_TEMP/image/$ID.json"
+      - name: Build the terminal client
+        env:
+          ID: ${{ matrix.build.id }}
+          PROFILE: ${{ inputs.profile }}
+        # A ref from before the client archives had a build target measures its server alone; any other failure fails.
+        run: |
+          if ! grep -q ' AS tui-artifacts$' container/Dockerfile; then
+            echo "::warning::$ID has no terminal client build target; only its server runs"
+            exit 0
+          fi
+          docker build --file container/Dockerfile --target tui-artifacts --platform linux/amd64 \
+            --build-arg VERSION="0.0.0-$ID" --build-arg PROFILE="$PROFILE" --build-arg TUI_PLATFORM=linux/amd64 \
+            --output "type=local,dest=$RUNNER_TEMP/client" .
+          cp "$RUNNER_TEMP/client/graphite-meter-client_0.0.0-${ID}_linux_amd64.tar.gz" "$RUNNER_TEMP/image/$ID-client.tar.gz"
       - uses: actions/upload-artifact@v5
         with:
           name: image-${{ matrix.build.id }}
@@ -109,15 +123,35 @@ jobs:
           VARIANTS: ${{ inputs.variants }}
         run: |
           overrides='{"tools":{}}'
-          tools=graphite-meter
+          tools=graphite-meter,graphite-meter-client
           for v in ${VARIANTS//,/ }; do
             jq -e --arg v "$v" '.tools["graphite-meter-\($v)"]' pins.json > /dev/null \
               || { echo "::error::pins.json has no graphite-meter-$v"; exit 1; }
             tools="$tools,graphite-meter-$v"
+            if jq -e --arg v "$v" '.clients["graphite-meter-client-\($v)"]' pins.json > /dev/null; then tools="$tools,graphite-meter-client-$v"; fi
           done
           for meta in "$RUNNER_TEMP"/image/*.json; do
             id=$(jq -r .id "$meta")
+            sha=$(jq -r .sha "$meta")
             sudo podman load -q -i "${meta%.json}.tar"
+            # The build's client runs from where the harness keeps release archives, as a variant of the pinned one.
+            if [[ -f "$RUNNER_TEMP/image/$id-client.tar.gz" ]]; then
+              mkdir -p ".cache/releases/graphite-meter-client-$sha"
+              tar -xzf "$RUNNER_TEMP/image/$id-client.tar.gz" -C ".cache/releases/graphite-meter-client-$sha"
+              for c in graphite-meter-client $(for v in ${VARIANTS//,/ }; do echo graphite-meter-client-$v; done); do
+                jq -e --arg c "$c" '.clients[$c]' pins.json > /dev/null || continue
+                suffix=${c#graphite-meter-client}
+                overrides=$(jq -c --slurpfile m "$meta" --slurpfile pins pins.json --arg c "$c" --arg suffix "$suffix" '
+                  $pins[0].clients[$c] as $client | $pins[0].clients["graphite-meter-client"].name as $base
+                  | .clients["\($c)-\($m[0].id)"] = ($client | del(.release, .watch)) + {
+                      variantOf: "graphite-meter-client",
+                      name: "\($base) \($m[0].id) \($m[0].ref) (\($m[0].sha[0:8]), \($m[0].profile) build)\($client.name | ltrimstr($base))",
+                      server: "graphite-meter\($suffix)-\($m[0].id)",
+                      version: $m[0].sha,
+                      binary: "graphite-meter-client_0.0.0-\($m[0].id)_linux_amd64/graphite-meter-client"}' <<<"$overrides")
+                tools="$tools,$c-$id"
+              done
+            fi
             overrides=$(jq -c --slurpfile m "$meta" '.tools["graphite-meter-\($m[0].id)"] = {
               variantOf: "graphite-meter",
               name: "Graphite Meter \($m[0].id) \($m[0].ref) (\($m[0].sha[0:8]), \($m[0].profile) build)",

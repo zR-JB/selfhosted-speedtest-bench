@@ -37,6 +37,8 @@ if (process.env.SB_PIN_OVERRIDES) merge(pins, JSON.parse(process.env.SB_PIN_OVER
 // A variant is its base tool with a documented option set; it inherits everything it does not override.
 for (const tool of Object.values(pins.tools))
   if (tool.variantOf) Object.assign(tool, { ...pins.tools[tool.variantOf], ...tool });
+for (const client of Object.values(pins.clients))
+  if (client.variantOf) Object.assign(client, { ...pins.clients[client.variantOf], ...client });
 const requested = opts.scenarios.split(",").map((id) => allScenarios.find((s) => s.id === id) ?? fail(`no scenario ${id}`));
 // Scenarios beyond what a small host can carry (multi-gigabit shaping) are skipped there and listed in the manifest.
 const scenarios = requested.filter((s) => (s.minHostCpus ?? 0) <= os.availableParallelism());
@@ -219,10 +221,13 @@ async function runClient(name) {
     writeFileSync(`${config}/${file}`, JSON.stringify(content));
   const startedAt = Date.now();
   // A non-zero exit still prints a report (a partial run); the parser decides what it means.
+  // A variant runs its base's binary, or a build's (`binary`), with arguments of its own.
+  const [binary, ...args] = client.release.command;
+  const dir = `${releaseDir}/${client.variantOf ?? name}-${client.version}`;
   const text = await bed
     .clientRun(
-      ["-v", `${releaseDir}/${name}-${client.version}:/opt/tool:ro`, "-v", `${config}:/config:ro`, "-w", "/opt/tool"],
-      client.release.command,
+      ["-v", `${dir}:/opt/tool:ro`, "-v", `${config}:/config:ro`, "-w", "/opt/tool"],
+      [client.binary ?? binary, ...(client.args ?? args)],
     )
     .catch((error) => error.stdout ?? "");
   return { ...PARSERS[client.parse](text), report: text, startedAt, endedAt: Date.now() };
