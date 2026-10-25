@@ -88,7 +88,7 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 | Download and upload with loss, a long path or competing traffic | None: TCP cannot fill these links, and a tool's share of a shared link grows over its run. The tools are compared with each other and with iperf3; each run's median share under competition, measured on the shaper, is in the raw data |
 | Idle latency | Base RTT measured with ping before each block |
 | Latency under load | Base RTT plus the bottleneck FIFO's queue delay, sampled on the shaper every 100 ms (FIFO scenarios only; under `fq_codel` a probe flow skips the bulk queue) |
-| Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory |
+| Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory; each run also splits that CPU by 100 ms samples into download, upload and other phases, which `bench/phases.js` tables |
 | Browser CPU | CPU seconds per GB of the browser's process tree |
 
 Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT; 10, 25 and 40 Gbit/s at
@@ -436,6 +436,7 @@ the run's manifest records what ran.
 ```sh
 node bench/run.js --scenarios accuracy-100 --reps 1
 node bench/summarize.js results/local-*
+node bench/phases.js results/local-*
 ```
 
 Published numbers come from the [Bench workflow](.github/workflows/bench.yml) on GitHub-hosted runners, where every

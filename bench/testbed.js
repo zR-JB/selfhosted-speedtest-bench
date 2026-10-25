@@ -338,5 +338,77 @@ export async function serverCgroup(name = C.server) {
   };
 }
 
+// Samples the server side every 100 ms from the host: the CPU of the server-side cgroups and the bytes on the server
+// namespaces' links, so a run's CPU can be split by phase. A file that cannot be read gives null, never a guess.
+export async function startServerSampler(cgroups, namespaces) {
+  const inspect = (name, field) => podman("inspect", "-f", `{{.State.${field}}}`, name);
+  const paths = await Promise.all(cgroups.map((name) => inspect(name, "CgroupPath")));
+  const pids = await Promise.all(namespaces.map((name) => inspect(name, "Pid")));
+  const cpu = async (path) => {
+    const stat = (await readFile(`/sys/fs/cgroup${path}/cpu.stat`, "utf8").catch(() => "")).split("\n");
+    const field = (key) => Number(stat.find((line) => line.startsWith(`${key} `))?.split(" ")[1] ?? NaN);
+    return [field("user_usec"), field("system_usec")];
+  };
+  const link = async (p) => {
+    const dev = (await readFile(`/proc/${p}/net/dev`, "utf8").catch(() => "")).split("\n");
+    const fields = dev.find((line) => line.trim().startsWith("eth0:"))?.split(":")[1].trim().split(/\s+/).map(Number);
+    return fields ? [fields[0], fields[8]] : [NaN, NaN];
+  };
+  const total = (pairs) => {
+    const [a, b] = pairs.reduce(([a, b], [c, d]) => [a + c, b + d], [0, 0]);
+    return Number.isFinite(a + b) ? [a, b] : [null, null];
+  };
+  const samples = [];
+  const sample = async () => {
+    const t = Date.now();
+    const [cpus, links] = await Promise.all([Promise.all(paths.map(cpu)), Promise.all(pids.map(link))]);
+    samples.push([t, ...total(cpus), ...total(links)]);
+  };
+  let stopped = false;
+  let timer;
+  // Each sample is taken after the last one finished, so two never overlap.
+  const next = () => (timer = setTimeout(() => sample().then(() => stopped || next()), 100).unref());
+  await sample();
+  next();
+  return async () => {
+    stopped = true;
+    clearTimeout(timer);
+    await sample();
+    return samples;
+  };
+}
+
+// A sustained direction is a phase: this many 100 ms intervals in a row where one direction carries DOMINANT times the
+// other's bytes and at least 1 Mbit/s. Shorter bursts, such as page loads, join idle probing and bidirectional stages
+// as "other".
+const DOMINANT = 4;
+const SUSTAINED = 5;
+const MIN_BYTES_PER_MS = 1e6 / 8 / 1000;
+
+/** CPU seconds and bytes of each phase; down is what the server side sent, up what it received. */
+export function serverPhases(samples) {
+  const intervals = [];
+  for (let i = 1; i < samples.length; i++) {
+    const [t0, user0, sys0, rx0, tx0] = samples[i - 1];
+    const [t1, user1, sys1, rx1, tx1] = samples[i];
+    if ([user0, sys0, rx0, tx0, user1, sys1, rx1, tx1].includes(null) || t1 <= t0) continue;
+    const [rx, tx, floor] = [rx1 - rx0, tx1 - tx0, MIN_BYTES_PER_MS * (t1 - t0)];
+    const direction = tx > DOMINANT * rx && tx >= floor ? "down" : rx > DOMINANT * tx && rx >= floor ? "up" : "other";
+    intervals.push({ direction, cpu: (user1 - user0 + sys1 - sys0) / 1e6, bytes: rx + tx });
+  }
+  const split = { down: { cpuSeconds: 0, bytes: 0 }, up: { cpuSeconds: 0, bytes: 0 }, other: { cpuSeconds: 0, bytes: 0 } };
+  for (let i = 0; i < intervals.length; ) {
+    let j = i;
+    while (j < intervals.length && intervals[j].direction === intervals[i].direction) j++;
+    const phase = j - i >= SUSTAINED ? intervals[i].direction : "other";
+    for (const { cpu, bytes } of intervals.slice(i, j)) {
+      split[phase].cpuSeconds += cpu;
+      split[phase].bytes += bytes;
+    }
+    i = j;
+  }
+  return split;
+}
+
 export const driver = (args) =>
   sh([...PODMAN, "exec", C.client, "node", "/driver/main.js", JSON.stringify(args)], { timeoutMs: 300_000 });

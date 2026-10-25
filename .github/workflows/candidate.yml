@@ -172,7 +172,7 @@ jobs:
         run: |
           dirs=(results/job-*)
           [[ -e ${dirs[0]} ]] || dirs=(results)
-          node bench/summarize.js "${dirs[@]}" | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+          { node bench/summarize.js "${dirs[@]}"; echo; node bench/phases.js "${dirs[@]}"; } | tee summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v5
         with:
           name: summary
