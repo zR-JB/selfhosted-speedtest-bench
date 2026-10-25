@@ -266,6 +266,7 @@ async function measure(unit, scenario, file) {
   const server = client?.server ?? unit.tool;
   const proxied = Boolean(scenario.proxy && !isReference);
   let sampling = false;
+  let stopServerSampler = null;
   // Whatever fails, the next run must start from a clean server side: no sampler, competitor, proxy or server left.
   try {
     const multi = scenario.servers === 2;
@@ -284,10 +285,9 @@ async function measure(unit, scenario, file) {
       : null;
     if (expected && served !== expected) throw new Error(`${server} served HTTP/${served}, expected HTTP/${expected}`);
     // Everything on the server side counts: a proxy in front, or the second server.
+    const sides = [bed.C.server, ...(proxied ? [bed.C.proxy] : []), ...(multi ? [bed.C.server2] : [])];
     const cgroups = async () => {
-      const parts = await Promise.all(
-        [bed.C.server, ...(proxied ? [bed.C.proxy] : []), ...(multi ? [bed.C.server2] : [])].map((n) => bed.serverCgroup(n)),
-      );
+      const parts = await Promise.all(sides.map((n) => bed.serverCgroup(n)));
       return {
         cpuUsec: parts.reduce((sum, p) => sum + p.cpuUsec, 0),
         memoryPeakBytes: parts.reduce((sum, p) => sum + p.memoryPeakBytes, 0),
@@ -297,6 +297,8 @@ async function measure(unit, scenario, file) {
     const before = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
     await bed.startSampler();
     sampling = true;
+    // A proxy shares its server's namespace, so the servers' links carry all the bytes.
+    stopServerSampler = await bed.startServerSampler(sides, [bed.C.server, ...(multi ? [bed.C.server2] : [])]);
     let reported;
     if (isReference) {
       const startedAt = Date.now();
@@ -325,6 +327,8 @@ async function measure(unit, scenario, file) {
     }
     const samples = await bed.stopSampler();
     sampling = false;
+    const serverSamples = await stopServerSampler();
+    stopServerSampler = null;
     const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
     return {
       ...unit,
@@ -334,11 +338,14 @@ async function measure(unit, scenario, file) {
       linkBytes: { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up },
       serverCpuSeconds: after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6,
       serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
+      // [ms, user µs, system µs, received bytes, sent bytes] of the server side, every 100 ms.
+      serverSamples,
       queues: analyse(samples, scenario),
     };
   } finally {
     await bed.sweepClient();
     if (sampling) await bed.stopSampler().catch(() => {});
+    await stopServerSampler?.();
     await bed.stopCompetitor();
     await bed.unserve();
   }
