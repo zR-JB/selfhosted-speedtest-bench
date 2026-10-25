@@ -419,6 +419,50 @@
         ]
       }
     },
+    "graphite-meter-client-h2": {
+      "variantOf": "graphite-meter-client",
+      "name": "Graphite Meter terminal client, HTTP/2",
+      "server": "graphite-meter-h2",
+      "onlyScenarios": [
+        "accuracy-1000",
+        "accuracy-10000",
+        "unshaped"
+      ],
+      "args": [
+        "--url",
+        "https://10.71.2.10:7247",
+        "--insecure",
+        "--throughput-protocol",
+        "http2",
+        "--report"
+      ],
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/MEASUREMENTS.md: payload bytes per second; --throughput-protocol picks the native listener (docs/REFERENCE.md)"
+      }
+    },
+    "graphite-meter-client-h3": {
+      "variantOf": "graphite-meter-client",
+      "name": "Graphite Meter terminal client, HTTP/3",
+      "server": "graphite-meter-h3",
+      "onlyScenarios": [
+        "accuracy-1000",
+        "accuracy-10000",
+        "unshaped"
+      ],
+      "args": [
+        "--url",
+        "https://10.71.2.10:7247",
+        "--insecure",
+        "--throughput-protocol",
+        "http3",
+        "--report"
+      ],
+      "reports": {
+        "quantity": "payload",
+        "evidence": "docs/MEASUREMENTS.md: payload bytes per second; --throughput-protocol picks the native listener (docs/REFERENCE.md)"
+      }
+    },
     "librespeed-cli": {
       "name": "LibreSpeed CLI",
       "version": "1.0.14",
