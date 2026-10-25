@@ -425,7 +425,10 @@
       "server": "graphite-meter-h2",
       "onlyScenarios": [
         "accuracy-1000",
+        "loss-1000",
         "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000",
         "unshaped"
       ],
       "args": [
@@ -434,11 +437,15 @@
         "--insecure",
         "--throughput-protocol",
         "http2",
+        "--throughput-transport",
+        "fetch-stream",
+        "--latency-transport",
+        "websocket",
         "--report"
       ],
       "reports": {
         "quantity": "payload",
-        "evidence": "docs/MEASUREMENTS.md: payload bytes per second; --throughput-protocol picks the native listener (docs/REFERENCE.md)"
+        "evidence": "docs/MEASUREMENTS.md: payload bytes per second; docs/TERMINAL.md: --throughput-protocol and --throughput-transport force the native listener, --latency-transport the WebSocket bus, as the browser variants do"
       }
     },
     "graphite-meter-client-h3": {
@@ -447,7 +454,10 @@
       "server": "graphite-meter-h3",
       "onlyScenarios": [
         "accuracy-1000",
+        "loss-1000",
         "accuracy-10000",
+        "accuracy-25000",
+        "accuracy-40000",
         "unshaped"
       ],
       "args": [
@@ -456,11 +466,15 @@
         "--insecure",
         "--throughput-protocol",
         "http3",
+        "--throughput-transport",
+        "fetch-stream",
+        "--latency-transport",
+        "websocket",
         "--report"
       ],
       "reports": {
         "quantity": "payload",
-        "evidence": "docs/MEASUREMENTS.md: payload bytes per second; --throughput-protocol picks the native listener (docs/REFERENCE.md)"
+        "evidence": "docs/MEASUREMENTS.md: payload bytes per second; docs/TERMINAL.md: --throughput-protocol and --throughput-transport force the native listener, --latency-transport the WebSocket bus, as the browser variants do"
       }
     },
     "librespeed-cli": {

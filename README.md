@@ -25,19 +25,20 @@ corrections to how a tool is set up or read are welcome as issues.
 Every tool is scored against the payload rate. Current versions, image digests, browser builds and checksums are in
 [`pins.json`](pins.json); each results section names the versions it ran, and each run's manifest records them exactly.
 
-Transport variants, each set up only as its project documents, Chrome only, in the 1, 10, 25 and 40 Gbit/s scenarios
-and at 0.1 % loss:
+Transport variants, each set up only as its project documents, in Chrome in the 1, 10, 25 and 40 Gbit/s scenarios and at
+0.1 % loss, and for Graphite Meter's terminal client in those scenarios and the unshaped one:
 
 | Variant | Setup | Protocol evidence |
 | --- | --- | --- |
 | Graphite Meter, HTTP/2 / HTTP/3 / WebTransport | Native TLS listeners (`GM_H1_TLS_ADDR`, `GM_H2_ADDR`, `GM_H3_ADDR`), page over HTTPS, connection path set in its settings | The browser-observed protocol in each saved result |
 | LibreSpeed Go backend, HTTP/2 | `enable_tls` and `enable_http2` in its `settings.toml` | The server's negotiated protocol, checked with curl before each run |
 | OpenSpeedTest, HTTP/2 | `http2` on its TLS listener plus its documented upload fix, in its nginx config | The same curl check |
+| Graphite Meter terminal client, HTTP/2 / HTTP/3 | The same native listeners; `--throughput-protocol`, `--throughput-transport fetch-stream` and `--latency-transport websocket`, as the browser variants set their connection path | The client offers only that protocol in its TLS handshake, so it cannot fall back |
 
-All TLS uses one self-signed certificate per job; Chrome trusts its key by hash. Firefox is left out of these
-cells: it does not accept a test certificate for QUIC, and Graphite Meter's own tests keep its HTTP/2 cells
-Chrome-only for a Firefox worker bug. LibreSpeed's PHP image and Rust backend document no HTTP/2 setting and are not
-in this profile.
+All TLS uses one self-signed certificate per job; Chrome trusts its key by hash and the terminal client takes it with
+its documented `--insecure`. Firefox is left out of these cells: it does not accept a test certificate for QUIC, and
+Graphite Meter's own tests keep its HTTP/2 cells Chrome-only for a Firefox worker bug. LibreSpeed's PHP image and Rust
+backend document no HTTP/2 setting and are not in this profile.
 
 By default LibreSpeed shows its measured rate × 1.06 and OpenSpeedTest × 1.04, as an estimate of transport overhead.
 In both, the factor only multiplies the displayed rate: test duration, stop rules and stream counts use the
