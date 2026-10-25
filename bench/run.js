@@ -329,6 +329,8 @@ async function measure(unit, scenario, file) {
     sampling = false;
     const serverSamples = await stopServerSampler();
     stopServerSampler = null;
+    // Competing flows run in the server's namespace, so its links cannot tell the tool's directions apart.
+    const serverPhases = scenario.competing ? null : bed.serverPhases(serverSamples);
     const after = { bytes: await bed.linkBytes(), cgroup: await cgroups() };
     return {
       ...unit,
@@ -338,8 +340,7 @@ async function measure(unit, scenario, file) {
       linkBytes: { down: after.bytes.down - before.bytes.down, up: after.bytes.up - before.bytes.up },
       serverCpuSeconds: after.cgroup.cpuUsec == null ? null : (after.cgroup.cpuUsec - before.cgroup.cpuUsec) / 1e6,
       serverMemoryPeakBytes: after.cgroup.memoryPeakBytes,
-      // [ms, user µs, system µs, received bytes, sent bytes] of the server side, every 100 ms.
-      serverSamples,
+      serverPhases,
       queues: analyse(samples, scenario),
     };
   } finally {
