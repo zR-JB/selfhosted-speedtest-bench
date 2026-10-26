@@ -2,8 +2,8 @@
   "tools": {
     "graphite-meter": {
       "name": "Graphite Meter",
-      "version": "0.13.4",
-      "image": "ghcr.io/zr-jb/graphite-meter:0.13.4@sha256:a09e39bc4203c85779b53cad3aa6d45a9ea841630f3149a36faa584d52c6fff0",
+      "version": "0.13.5",
+      "image": "ghcr.io/zr-jb/graphite-meter:0.13.5@sha256:50d8646834364f5015fe314400e5f450a941412d71aba3a51a84d1be6d539a4b",
       "port": 7246,
       "env": {},
       "source": "https://github.com/zR-JB/graphite-meter",
@@ -46,7 +46,7 @@
     "librespeed": {
       "name": "LibreSpeed",
       "version": "6.3.1",
-      "image": "ghcr.io/librespeed/speedtest:latest@sha256:bc34bf69b6c102b23ab81b6e77beb7cce321fb0d3be33ec6e80edef3e9dd8bab",
+      "image": "ghcr.io/librespeed/speedtest:latest@sha256:c0b5192262a5cdf8802fd0d0876aa4909789c3db5799b987aeed5515ae0faf16",
       "port": 8080,
       "env": {},
       "source": "https://github.com/librespeed/speedtest",
@@ -121,7 +121,7 @@
     "openspeedtest": {
       "name": "OpenSpeedTest",
       "version": "2.5.4",
-      "image": "docker.io/openspeedtest/latest:latest@sha256:1745e913f596fe98882b286a67751efdae74774e9caa742a4934bb056e8748d2",
+      "image": "docker.io/openspeedtest/latest:latest@sha256:1127de0693c36bcf8c297c73d09891df8ec243680d027a6b6fab13fa0954ff46",
       "port": 3000,
       "env": {},
       "source": "https://github.com/openspeedtest/Speed-Test",
@@ -391,13 +391,13 @@
   "clients": {
     "graphite-meter-client": {
       "name": "Graphite Meter terminal client",
-      "version": "0.13.4",
+      "version": "0.13.5",
       "server": "graphite-meter",
       "release": {
-        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.13.4/graphite-meter-client_0.13.4_linux_amd64.tar.gz",
-        "sha256": "2caeb5ccdc465e6223192258138e1697f5fc83123a15bcdcf199c985d288cadd",
+        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.13.5/graphite-meter-client_0.13.5_linux_amd64.tar.gz",
+        "sha256": "e6e1a9179e6d9bd33f97b3fc3892c2dc48ac031eb00913684f300e8059421002",
         "command": [
-          "graphite-meter-client_0.13.4_linux_amd64/graphite-meter-client",
+          "graphite-meter-client_0.13.5_linux_amd64/graphite-meter-client",
           "--url",
           "http://10.71.2.10:7246",
           "--report"
