@@ -2,8 +2,6 @@ name: Watch releases
 
 # Opens a pull request when a tool, client or browser publishes a release; merging it starts a full Bench run.
 on:
-  schedule:
-    - cron: "0 4 * * 1"
   workflow_dispatch:
 
 permissions:

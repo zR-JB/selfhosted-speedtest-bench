@@ -78,8 +78,8 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 - After every run the harness checks that nothing was left behind (browser processes, helper containers, sampler
   loops) and stops the job otherwise; three harness errors in a row also stop it. A full bench only starts after a
   [smoke](.github/workflows/smoke.yml) of every tool and every scenario passes with no harness error.
-- A weekly [watcher](.github/workflows/watch.yml) moves the pins to new releases in a pull request; merging it reruns
-  the bench.
+- Run the [release watcher](.github/workflows/watch.yml) manually to propose new pins. Merging that pull request
+  reruns the bench.
 
 ## What is compared
 
