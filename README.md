@@ -8,7 +8,7 @@ reference that does not come from any of the tools.
 one of the tools compared. The harness and adapters are public. Each hosted report links to its run for raw
 measurements and generated configs while GitHub retains the artifacts. Corrections are welcome as issues.
 
-[Latest runner report](#latest-github-runner-results) · [Server load](#server-load-at-1-gbits) ·
+[Latest runner report](#latest-github-runner-results) · [Server load](#server-load-at-1-gbits) · [Terminal performance](#terminal-performance) ·
 [Uncapped throughput](#uncapped-throughput) · [Method](#how-it-works) ·
 [Desktop results](#results-desktop-night-of-18-to-19-october-2026) · [Run it](#run-it)
 
@@ -18,19 +18,20 @@ measurements and generated configs while GitHub retains the artifacts. Correctio
 
 Tools: Graphite Meter 0.13.4, LibreSpeed 6.3.1, LibreSpeed Go backend 1.1.6, LibreSpeed Rust backend 1.4.0, OpenSpeedTest 2.5.4, Graphite Meter terminal client 0.13.4, LibreSpeed CLI 1.0.14. Browsers: chrome 156.0.8078.47, firefox 158.0.1.
 
-### Browser throughput
+### Shaped throughput
 
-Download / upload medians for each browser tool in Chrome using its default transport. **Graphite Meter Browser**
+Download / upload medians for default Chrome and native terminal tests. **Graphite Meter Browser**
 uses streaming HTTP/1.1. The 1 Gbit/s path tests reporting accuracy. The 10 Gbit/s and 1% packet-loss paths show
 how much traffic each tool moved under those conditions. Connection counts can differ between tools.
 
-| Browser tool | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s |
+| Tool or client | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s |
 | --- | ---: | ---: | ---: |
 | Graphite Meter Browser | 956.1 / 952.7 | 9.56 / 4.26 | 13.2 / 14.1 |
 | LibreSpeed | 956.5 / 944.5 | 9.27 / 3.27 | 16.8 / 9.7 |
 | LibreSpeed Go backend | 955.0 / 950.5 | 9.33 / 3.24 | 16.6 / 9.6 |
 | LibreSpeed Rust backend | 955.0 / 948.5 | 9.28 / 3.24 | 16.6 / 9.4 |
 | OpenSpeedTest | 952.0 / 953.8 | 9.46 / 3.38 | 19.3 / 22.4 |
+| Graphite Meter Terminal | 956.4 / 956.4 | 9.56 / 9.56 | 19.7 / 19.6 |
 | iperf3 (reference) | 956.4 / 956.3 | 9.56 / 9.56 | 12.9 / 13.1 |
 
 #### Accuracy on the shaped 1 Gbit/s link
@@ -39,24 +40,38 @@ how much traffic each tool moved under those conditions. Connection counts can d
 
 Each faint dot is one tool run paired with iperf3 on the same VM, scenario, and pass. The large dot is the median
 paired difference. The line spans the 25th to 75th percentile. Zero matches iperf3. Positive values mean the tool
-displayed a higher rate. Each VM contributes two passes, and the intervals describe the observed spread.
+displayed a higher rate. Each VM contributes two passes. Both browser rows show the same native terminal runs for comparison.
+
+### Compare for your setup
+
+- **Ordinary links.** The 1 Gbit/s accuracy chart shows how close each browser test got to its paired reference.
+- **High-throughput links.** Compare the shaped 10 Gbit/s numbers first, then use the uncapped results to see how each
+  client performed on these VMs.
+- **Resource-limited servers.** Compare peak memory and upload CPU at 1 Gbit/s. The testbed gives every server one vCPU.
+
+### Terminal performance
+
+Graphite Meter Terminal uses the native client. The charts show its results alongside the five browser tools, and
+the uncapped table also includes LibreSpeed CLI and iperf3. Server CPU refers to the server container. The full
+uncapped tables report browser CPU separately. Native client CPU is unmeasured.
 
 ### Server load at 1 Gbit/s
 
-These default Chrome tests use the same shaped link. CPU seconds per GB measure server container work per GB counted
+The browser and terminal tests use the same shaped link. CPU seconds per GB measure server container work per GB counted
 on its interface during each phase. Memory is the median of each run’s peak container memory.
 
 ![Server download CPU, upload CPU, and peak memory on the same 1 Gbit/s path](results/2026-11-01-ci-run-41295946781/server-load.png)
 
 Bars show medians. Whiskers show the middle half of observed runs. Each metric uses its own scale.
 
-| Browser tool | Download / upload, Mbit/s | Download CPU, s/GB | Upload CPU, s/GB | Peak memory, MB |
+| Tool or client | Download / upload, Mbit/s | Server download CPU, s/GB | Server upload CPU, s/GB | Peak server memory, MB |
 | --- | ---: | ---: | ---: | ---: |
 | Graphite Meter Browser | 956.1 / 952.7 | 0.304 | 4.011 | 15 |
 | LibreSpeed | 956.5 / 944.5 | 0.374 | 5.878 | 80 |
 | LibreSpeed Go backend | 955.0 / 950.5 | 0.372 | 5.571 | 48 |
 | LibreSpeed Rust backend | 955.0 / 948.5 | 0.321 | 4.289 | 23 |
 | OpenSpeedTest | 952.0 / 953.8 | 0.189 | 3.714 | 29 |
+| Graphite Meter Terminal | 956.4 / 956.4 | 0.209 | 7.104 | 17 |
 
 ### Uncapped throughput
 
@@ -67,10 +82,10 @@ machines and concurrent tests. **Graphite Meter Terminal** runs `graphite-meter-
 --report`. The default path uses streaming HTTP/1.1 with six lanes in each direction, 10-second download and upload
 windows, and loaded latency enabled. The full tables include the separately measured transport variants.
 
-![Uncapped download and upload, with separate panels for Chrome and terminal clients](results/2026-11-01-ci-run-41295946781/uncapped.png)
+![Uncapped download and upload, for five Chrome tools and Graphite Meter Terminal](results/2026-11-01-ci-run-41295946781/uncapped.png)
 
 Bars show the median. Whiskers span the 25th to 75th percentile of repeated runs for the same setup.
-The browser and terminal panels use different scales.
+The browser rows use default Chrome settings. The terminal row uses the native client.
 
 | Browser tool | Chrome down / up, Gbit/s | Firefox down / up, Gbit/s | Chrome server CPU, s/GB | Chrome server peak, MB |
 | --- | ---: | ---: | ---: | ---: |
@@ -104,13 +119,6 @@ difference from the displayed rate is a diagnostic rather than an exact payload 
 | --- | ---: | ---: | ---: | ---: |
 | Chrome | 953.8 | 970.3 | — | 9/30 |
 | Firefox | 950.0 | 965.8 | — | 2/30 |
-
-### Compare for your setup
-
-- **Ordinary links.** The 1 Gbit/s accuracy chart shows how close each browser test got to its paired reference.
-- **High-throughput links.** Compare the shaped 10 Gbit/s numbers first, then use the uncapped results to see how each
-  client performed on these VMs.
-- **Resource-limited servers.** Compare peak memory and upload CPU at 1 Gbit/s. The testbed gives every server one vCPU.
 
 ### Latency and alternate transports
 
@@ -212,7 +220,7 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 | Latency under load | Base RTT plus the bottleneck FIFO's queue delay, sampled on the shaper every 100 ms (FIFO scenarios only; under `fq_codel` a probe flow skips the bulk queue) |
 | Independent transfer rate | Passive server interface byte counter over sustained intervals for each direction. It includes transport overhead and is separate from the app’s own reporting window. Skipped for competing traffic, where another flow shares that interface. |
 | Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory; each run also splits that CPU by 100 ms samples into download, upload and other phases, which `bench/phases.js` tables |
-| Browser CPU | CPU seconds per GB of the browser's process tree |
+| Browser CPU (client side) | CPU seconds per GB of the browser's process tree, reported in the full uncapped tables. Native client CPU is not collected. |
 
 Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT; 10, 25 and 40 Gbit/s at
 2 ms (25 and 40 only on hosts with at least 8 CPUs); 300/30 Mbit/s behind a 200 ms FIFO; 1 % and 0.1 % loss at 40 ms;

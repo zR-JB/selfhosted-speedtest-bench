@@ -16,7 +16,7 @@ const { manifests, runs, noisy } = readResults(dirs, { withJob: Boolean(process.
 if (process.env.SB_REPORT_DATA) {
   const measurements = runs.filter(({ scenario, tool, browser, reported }) => {
     if (reported.outcome !== "complete") return false;
-    if (scenario === "accuracy-1000") return browser === "chrome" || browser === "firefox" || tool === "iperf3";
+    if (scenario === "accuracy-1000") return browser === "chrome" || browser === "firefox" || tool === "iperf3" || tool === "graphite-meter-client";
     return scenario === "unshaped" && (tool === "graphite-meter-client" || tool === "iperf3");
   });
   writeFileSync(process.env.SB_REPORT_DATA, JSON.stringify(measurements));
