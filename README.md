@@ -8,7 +8,8 @@ reference that does not come from any of the tools.
 one of the tools compared. The harness and adapters are public. Each hosted report links to its run for raw
 measurements and generated configs while GitHub retains the artifacts. Corrections are welcome as issues.
 
-[Latest runner report](#latest-github-runner-results) · [Method](#how-it-works) ·
+[Latest runner report](#latest-github-runner-results) · [Server load](#server-load-at-1-gbits) ·
+[Uncapped throughput](#uncapped-throughput) · [Method](#how-it-works) ·
 [Desktop results](#results-desktop-night-of-18-to-19-october-2026) · [Run it](#run-it)
 
 ## Latest GitHub runner results
@@ -23,16 +24,53 @@ Download / upload medians for each tool’s default Chrome transport. The **1 Gb
 for comparing ordinary connections. The **10 Gbit/s** results show what the tools drove on these four-vCPU runners.
 For **1% loss**, compare throughput under this particular test setup. Tools may open different numbers of connections.
 
-| Browser tool | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s | Median peak server memory, MB |
-| --- | ---: | ---: | ---: | ---: |
-| Graphite Meter | 956.1 / 952.7 | 9.56 / 4.26 | 13.2 / 14.1 | 8 |
-| LibreSpeed | 956.5 / 944.5 | 9.27 / 3.27 | 16.8 / 9.7 | 81 |
-| LibreSpeed Go backend | 955.0 / 950.5 | 9.33 / 3.24 | 16.6 / 9.6 | 49 |
-| LibreSpeed Rust backend | 955.0 / 948.5 | 9.28 / 3.24 | 16.6 / 9.4 | 22 |
-| OpenSpeedTest | 952.0 / 953.8 | 9.46 / 3.38 | 19.3 / 22.4 | 21 |
-| iperf3 (reference) | 956.4 / 956.3 | 9.56 / 9.56 | 12.9 / 13.1 | — |
+| Browser tool | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s |
+| --- | ---: | ---: | ---: |
+| Graphite Meter | 956.1 / 952.7 | 9.56 / 4.26 | 13.2 / 14.1 |
+| LibreSpeed | 956.5 / 944.5 | 9.27 / 3.27 | 16.8 / 9.7 |
+| LibreSpeed Go backend | 955.0 / 950.5 | 9.33 / 3.24 | 16.6 / 9.6 |
+| LibreSpeed Rust backend | 955.0 / 948.5 | 9.28 / 3.24 | 16.6 / 9.4 |
+| OpenSpeedTest | 952.0 / 953.8 | 9.46 / 3.38 | 19.3 / 22.4 |
+| iperf3 (reference) | 956.4 / 956.3 | 9.56 / 9.56 | 12.9 / 13.1 |
 
 ![Download and upload median bar charts for five browser tools and the iperf3 reference across three network paths](results/2026-11-01-ci-run-41295946781/throughput.png)
+
+### Server load at 1 Gbit/s
+
+Same shaped link and default Chrome transport as above. CPU seconds per GB show how much work the server container did
+per GB transferred during each phase. Lower values mean less server CPU for the same amount of data. Memory is the
+median of each run’s peak container memory.
+
+| Browser tool | Download / upload, Mbit/s | Download CPU, s/GB | Upload CPU, s/GB | Peak memory, MB |
+| --- | ---: | ---: | ---: | ---: |
+| Graphite Meter | 956.1 / 952.7 | 0.304 | 4.011 | 15 |
+| LibreSpeed | 956.5 / 944.5 | 0.374 | 5.878 | 80 |
+| LibreSpeed Go backend | 955.0 / 950.5 | 0.372 | 5.571 | 48 |
+| LibreSpeed Rust backend | 955.0 / 948.5 | 0.321 | 4.289 | 23 |
+| OpenSpeedTest | 952.0 / 953.8 | 0.189 | 3.714 | 29 |
+
+### Uncapped throughput
+
+The unshaped scenario removes the rate limit and artificial delay and keeps offloads enabled. These are median
+single-test rates over the runner’s virtual network. The server has one vCPU and the browser has two. The browser,
+server, and runner can each cap the result. A capacity test for a production server would also need separate client
+machines and concurrent tests.
+
+| Browser tool | Chrome down / up, Gbit/s | Firefox down / up, Gbit/s | Chrome server CPU, s/GB | Chrome server peak, MB |
+| --- | ---: | ---: | ---: | ---: |
+| Graphite Meter | 18.14 / 5.13 | 3.86 / 6.25 | 0.27 | 8 |
+| LibreSpeed | 10.38 / 4.23 | 2.28 / 3.37 | 0.30 | 81 |
+| LibreSpeed Go backend | 10.34 / 4.18 | 2.29 / 3.30 | 0.32 | 49 |
+| LibreSpeed Rust backend | 10.41 / 4.03 | 2.22 / 3.40 | 0.24 | 22 |
+| OpenSpeedTest | 9.36 / 4.18 | 2.67 / 3.25 | 0.19 | 21 |
+
+| Native client | Down / up, Gbit/s | Server CPU, s/GB | Server peak, MB |
+| --- | ---: | ---: | ---: |
+| Graphite Meter terminal client | 26.48 / 62.16 | 0.19 | 9 |
+| LibreSpeed CLI | 28.26 / 18.54 | 0.33 | 71 |
+| iperf3 (reference) | 31.01 / 44.10 | 0.20 | 12 |
+
+[Download and upload CPU breakdown for all scenarios and transports](results/2026-11-01-ci-run-41295946781/server-cpu.md)
 
 ### What to look at when choosing
 
@@ -43,8 +81,6 @@ For **1% loss**, compare throughput under this particular test setup. Tools may 
 - **Latency under load.** On the 200 ms FIFO, Graphite Meter in Chrome measured **180.3 (171.2) ms**
   during download and **182.9 (180.0) ms** during upload, with the queue-based reference in
   parentheses. The other browser tools in this run reported idle latency.
-- **Small servers.** Peak memory is the median of the server container’s peak on the unshaped path.
-  The full report also gives server and browser CPU per GB. Native clients have their own rows there.
 - **HTTP/3 and WebTransport.** Use the transport-specific rows if you plan to deploy them. On the 1 Gbit/s link,
   Graphite Meter in Chrome reported **139.9 Mbit/s upload over HTTP/3**
   and **668.5 Mbit/s over WebTransport**.
@@ -108,8 +144,11 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
   `fq_codel`. Segmentation offloads are off up to 1 Gbit/s and wherever loss applies, so shaping and loss act on real
   frames; the 10, 25 and 40 Gbit/s and unshaped scenarios turn them on, as real network cards do.
 - CPU sets and memory caps are fixed per role (shaper, server, client) and the same for every tool.
-- Every repetition runs every tool in every browser plus an iperf3 reference, in a seeded random order followed by its
-  reverse, so a slow stretch on a shared machine hits every tool alike.
+- Every runner job tests every eligible tool and browser and an iperf3 reference on the same VM. The first pass visits
+  every scenario, then the second pass repeats each scenario with its tool order reversed. Each VM has its own random
+  seed, so no tool consistently goes first or last. The summary pools measured runs from the VMs and leaves out an
+  entire scenario repetition when its CPU probe takes over 25% longer than that VM’s median. Small differences can
+  still reflect runner variation.
 - Each tool is pressed through its own start button; results are read from what the page shows or saves. Adapters are
   in [`bench/driver/adapters`](bench/driver/adapters), one small file per tool. Terminal clients run in the client's
   namespace and their own report is parsed.
