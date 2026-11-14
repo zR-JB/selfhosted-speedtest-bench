@@ -20,20 +20,22 @@ Tools: Graphite Meter 0.13.4, LibreSpeed 6.3.1, LibreSpeed Go backend 1.1.6, Lib
 
 ### Compare browser tools at a glance
 
-Download / upload medians for each tool’s default Chrome transport. The **1 Gbit/s** link is the best starting point
+Download / upload medians for each browser tool in Chrome using its default transport. **Graphite Meter Browser**
+uses streaming HTTP/1.1 in these charts. The [uncapped results](#uncapped-throughput) show the browser and terminal
+client measurements separately. The **1 Gbit/s** link is the best starting point
 for comparing ordinary connections. The **10 Gbit/s** results show what the tools drove on these four-vCPU runners.
 For **1% loss**, compare throughput under this particular test setup. Tools may open different numbers of connections.
 
 | Browser tool | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s |
 | --- | ---: | ---: | ---: |
-| Graphite Meter | 956.1 / 952.7 | 9.56 / 4.26 | 13.2 / 14.1 |
+| Graphite Meter Browser | 956.1 / 952.7 | 9.56 / 4.26 | 13.2 / 14.1 |
 | LibreSpeed | 956.5 / 944.5 | 9.27 / 3.27 | 16.8 / 9.7 |
 | LibreSpeed Go backend | 955.0 / 950.5 | 9.33 / 3.24 | 16.6 / 9.6 |
 | LibreSpeed Rust backend | 955.0 / 948.5 | 9.28 / 3.24 | 16.6 / 9.4 |
 | OpenSpeedTest | 952.0 / 953.8 | 9.46 / 3.38 | 19.3 / 22.4 |
 | iperf3 (reference) | 956.4 / 956.3 | 9.56 / 9.56 | 12.9 / 13.1 |
 
-![Download and upload median bar charts for five browser tools and the iperf3 reference across three network paths](results/2026-11-01-ci-run-41295946781/throughput.png)
+![Default Chrome tests and iperf3 reference. Bars show median download and upload across repeated runs](results/2026-11-01-ci-run-41295946781/throughput.png)
 
 ### Server load at 1 Gbit/s
 
@@ -43,7 +45,7 @@ median of each run’s peak container memory.
 
 | Browser tool | Download / upload, Mbit/s | Download CPU, s/GB | Upload CPU, s/GB | Peak memory, MB |
 | --- | ---: | ---: | ---: | ---: |
-| Graphite Meter | 956.1 / 952.7 | 0.304 | 4.011 | 15 |
+| Graphite Meter Browser | 956.1 / 952.7 | 0.304 | 4.011 | 15 |
 | LibreSpeed | 956.5 / 944.5 | 0.374 | 5.878 | 80 |
 | LibreSpeed Go backend | 955.0 / 950.5 | 0.372 | 5.571 | 48 |
 | LibreSpeed Rust backend | 955.0 / 948.5 | 0.321 | 4.289 | 23 |
@@ -54,11 +56,17 @@ median of each run’s peak container memory.
 The unshaped scenario removes the rate limit and artificial delay and keeps offloads enabled. These are median
 single-test rates over the runner’s virtual network. The server has one vCPU and the browser has two. The browser,
 server, and runner can each cap the result. A capacity test for a production server would also need separate client
-machines and concurrent tests.
+machines and concurrent tests. **Graphite Meter Terminal** runs the native client with its default settings.
+The full tables include the separately measured transport variants.
+
+![Uncapped download and upload, with separate panels for Chrome and terminal clients](results/2026-11-01-ci-run-41295946781/uncapped.png)
+
+Bars show the median. Whiskers span the 25th to 75th percentile of repeated runs for the same setup.
+The browser and terminal panels use different scales.
 
 | Browser tool | Chrome down / up, Gbit/s | Firefox down / up, Gbit/s | Chrome server CPU, s/GB | Chrome server peak, MB |
 | --- | ---: | ---: | ---: | ---: |
-| Graphite Meter | 18.14 / 5.13 | 3.86 / 6.25 | 0.27 | 8 |
+| Graphite Meter Browser | 18.14 / 5.13 | 3.86 / 6.25 | 0.27 | 8 |
 | LibreSpeed | 10.38 / 4.23 | 2.28 / 3.37 | 0.30 | 81 |
 | LibreSpeed Go backend | 10.34 / 4.18 | 2.29 / 3.30 | 0.32 | 49 |
 | LibreSpeed Rust backend | 10.41 / 4.03 | 2.22 / 3.40 | 0.24 | 22 |
@@ -66,7 +74,7 @@ machines and concurrent tests.
 
 | Native client | Down / up, Gbit/s | Server CPU, s/GB | Server peak, MB |
 | --- | ---: | ---: | ---: |
-| Graphite Meter terminal client | 26.48 / 62.16 | 0.19 | 9 |
+| Graphite Meter Terminal | 26.48 / 62.16 | 0.19 | 9 |
 | LibreSpeed CLI | 28.26 / 18.54 | 0.33 | 71 |
 | iperf3 (reference) | 31.01 / 44.10 | 0.20 | 12 |
 
