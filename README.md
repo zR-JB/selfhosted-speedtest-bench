@@ -5,8 +5,8 @@ own image, driven through its own page in pinned browsers, over the same shaped 
 reference that does not come from any of the tools.
 
 **Conflict of interest:** this repository is maintained by the author of [Graphite Meter](https://github.com/zR-JB/graphite-meter),
-one of the tools compared. Every config, adapter and raw result is published so anyone can check or rerun it, and
-corrections to how a tool is set up or read are welcome as issues.
+one of the tools compared. The harness and adapters are public. Each hosted report links to its run for raw
+measurements and generated configs while GitHub retains the artifacts. Corrections are welcome as issues.
 
 [Latest runner report](#latest-github-runner-results) · [Method](#how-it-works) ·
 [Desktop results](#results-desktop-night-of-18-to-19-october-2026) · [Run it](#run-it)
@@ -121,8 +121,10 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 - After every run the harness checks that nothing was left behind (browser processes, helper containers, sampler
   loops) and stops the job otherwise; three harness errors in a row also stop it. A full bench only starts after a
   [smoke](.github/workflows/smoke.yml) of every tool and every scenario passes with no harness error.
-- Run the [release watcher](.github/workflows/watch.yml) manually to propose new pins. Merging that pull request
-  reruns the bench.
+- Bench verifies the committed pins against the current stable releases before starting smoke tests. The
+  [release watcher](.github/workflows/watch.yml) checks every Monday at 04:00 UTC and can also run on demand.
+  It proposes pin updates in a pull request. Merging a pin update starts a new Bench run. The regular benchmark
+  runs on the first of each month at 03:00 UTC.
 
 ## What is compared
 

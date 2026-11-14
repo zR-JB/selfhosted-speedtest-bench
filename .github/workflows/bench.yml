@@ -27,23 +27,35 @@ defaults:
     shell: bash
 
 jobs:
-  # A full matrix only starts once every tool and every scenario has run cleanly on this commit.
-  preflight:
-    uses: ./.github/workflows/smoke.yml
-
   plan:
-    needs: preflight
     runs-on: ubuntu-24.04
     outputs:
       jobs: ${{ steps.plan.outputs.jobs }}
     steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Verify stable pins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node bench/watch.js
+          if ! git diff --quiet -- pins.json; then
+            echo '::error file=pins.json::New stable releases are available. Run Watch releases and merge its pin update to start a new Bench run.'
+            exit 1
+          fi
       - id: plan
         run: echo "jobs=$(seq -s, 1 "${JOBS:-15}" | sed 's/.*/[&]/')" >> "$GITHUB_OUTPUT"
         env:
           JOBS: ${{ inputs.jobs }}
 
-  bench:
+  preflight:
     needs: plan
+    uses: ./.github/workflows/smoke.yml
+
+  bench:
+    needs: [plan, preflight]
     runs-on: ubuntu-24.04
     timeout-minutes: 340
     strategy:
@@ -74,7 +86,7 @@ jobs:
 
   summary:
     needs: bench
-    if: always()
+    if: ${{ !cancelled() && (needs.bench.result == 'success' || needs.bench.result == 'failure') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
