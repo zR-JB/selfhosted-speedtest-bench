@@ -1,41 +1,23 @@
 // Turns one or more result directories into Markdown tables: node bench/summarize.js results/a [results/b ...]
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { quantile, readResults } from "./results.js";
 
 // tbf counts Ethernet frames: 1,514 bytes carry 1,448 bytes of TCP payload (IPv4, timestamps, 1,500 byte MTU).
 const PAYLOAD_SHARE = 1448 / 1514;
 // A link counts as fillable when iperf3's median reaches this share of the payload rate in both directions.
 const FILLABLE = 0.98;
-// A block whose fixed CPU benchmark ran this much slower than its job's median ran on a busy host.
-const NOISY = 1.25;
 
 const dirs = process.argv.slice(2);
 if (!dirs.length) throw new Error("usage: node bench/summarize.js <results dir>...");
 
 const scenarios = JSON.parse(readFileSync(new URL("../scenarios.json", import.meta.url), "utf8"));
-const quantile = (values, q) => {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const at = (sorted.length - 1) * q;
-  const low = Math.floor(at);
-  return sorted[low] + (sorted[Math.min(low + 1, sorted.length - 1)] - sorted[low]) * (at - low);
-};
 const median = (values) => quantile(values, 0.5);
-
-const manifests = [];
-const runs = [];
-let noisy = 0;
-for (const dir of dirs) {
-  const manifest = JSON.parse(readFileSync(`${dir}/manifest.json`, "utf8"));
-  manifests.push(manifest);
-  const typical = median(manifest.blocks.map((b) => b.noise.hashMs));
-  const busy = new Set(
-    manifest.blocks.filter((b) => b.noise.hashMs > typical * NOISY).map((b) => `${b.scenario}|${b.rep}`),
-  );
-  for (const file of readdirSync(`${dir}/runs`)) {
-    const run = JSON.parse(readFileSync(`${dir}/runs/${file}`, "utf8"));
-    if (busy.has(`${run.scenario}|${run.rep}`)) noisy++;
-    else runs.push(run);
-  }
+const { manifests, runs, noisy } = readResults(dirs);
+if (process.env.SB_REPORT_DATA) {
+  const measurements = runs.filter((run) => run.reported.outcome === "complete" &&
+    ((run.scenario === "accuracy-1000" && run.browser === "chrome") ||
+      (run.scenario === "unshaped" && ["graphite-meter-client", "iperf3"].includes(run.tool))));
+  writeFileSync(process.env.SB_REPORT_DATA, JSON.stringify(measurements));
 }
 const pins = manifests[0].pins;
 

@@ -178,7 +178,8 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 - Bench verifies the committed pins against the current stable releases before starting smoke tests. The
   [release watcher](.github/workflows/watch.yml) checks every Monday at 04:00 UTC and can also run on demand.
   It proposes pin updates in a pull request. Merging a pin update starts a new Bench run. The regular benchmark
-  runs on the first of each month at 03:00 UTC.
+  runs on the first of each month at 03:00 UTC. The [report workflow](.github/workflows/publish-report.yml) publishes
+  updated tables and charts after each successful full run.
 
 ## What is compared
 

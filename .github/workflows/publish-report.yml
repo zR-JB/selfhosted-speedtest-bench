@@ -1,0 +1,78 @@
+name: Publish benchmark report
+
+on:
+  workflow_run:
+    workflows: [Bench]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: Successful full Bench run ID
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: publish-benchmark-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    env:
+      RUN_ID: ${{ inputs.run-id || github.event.workflow_run.id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Download full benchmark results
+        id: bench
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/run.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .head_repository.full_name == $repo and .head_branch == "main" and
+            .path == ".github/workflows/bench.yml" and .conclusion == "success"
+          ' "$RUNNER_TEMP/run.json" > /dev/null
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name | test("^bench \\([0-9]+\\)$")) | .conclusion' > "$RUNNER_TEMP/jobs"
+          if [[ $(grep -cx success "$RUNNER_TEMP/jobs") != 15 ]]; then
+            echo '::notice::Only the full 15-job benchmark can replace the report.'
+            exit 0
+          fi
+          gh run download "$RUN_ID" --pattern 'job-*' --dir "$RUNNER_TEMP/bench"
+          echo 'full=true' >> "$GITHUB_OUTPUT"
+      - name: Render report
+        id: report
+        if: steps.bench.outputs.full == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-matplotlib
+          /usr/bin/python3 bench/report.py "$RUN_ID" "$RUNNER_TEMP/bench"
+      - name: Publish report
+        if: steps.report.outputs.report != ''
+        env:
+          REPORT: ${{ steps.report.outputs.report }}
+        run: |
+          git add README.md "$REPORT/README.md" "$REPORT/server-cpu.md" "$REPORT/throughput.png" "$REPORT/uncapped.png"
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m 'Publish benchmark report'
+          git pull --rebase origin main
+          git push origin HEAD:main
