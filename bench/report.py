@@ -13,6 +13,17 @@ from tempfile import TemporaryDirectory
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, MaxNLocator
+
+plt.rcParams.update({
+    "figure.facecolor": "#f3f6fa",
+    "axes.facecolor": "#ffffff",
+    "font.family": "DejaVu Sans",
+    "text.color": "#15253a",
+    "axes.labelcolor": "#40536b",
+    "xtick.color": "#40536b",
+    "ytick.color": "#15253a",
+})
 
 run, artifact_path = sys.argv[1:]
 if not run.isascii() or not run.isdecimal():
@@ -77,14 +88,14 @@ def tables(markdown, heading):
 
 
 browser_tools = {
-    "Graphite Meter": ("Graphite Meter Browser", "#2563a8"),
-    "LibreSpeed": ("LibreSpeed", "#2b835d"),
-    "LibreSpeed Go backend": ("LibreSpeed Go", "#b4571d"),
-    "LibreSpeed Rust backend": ("LibreSpeed Rust", "#8c57aa"),
-    "OpenSpeedTest": ("OpenSpeedTest", "#8e670b"),
+    "Graphite Meter": ("Graphite Meter Browser", "#1264ac"),
+    "LibreSpeed": ("LibreSpeed", "#187765"),
+    "LibreSpeed Go backend": ("LibreSpeed Go", "#a1482b"),
+    "LibreSpeed Rust backend": ("LibreSpeed Rust", "#744399"),
+    "OpenSpeedTest": ("OpenSpeedTest", "#886008"),
 }
 terminal_tool = "Graphite Meter terminal client"
-terminal_series = ("Graphite Meter Terminal", "#465a6f")
+terminal_series = ("Graphite Meter Terminal", "#34455f")
 headline_tools = {**browser_tools, terminal_tool: terminal_series}
 reference_tool = "iperf3 (reference)"
 reference_series = ("iperf3 reference", "#5b6570")
@@ -104,14 +115,54 @@ def chrome_key(label):
     return label if label in (reference_tool, terminal_tool) else f"{label}, chrome"
 
 
-selected = [
-    ("1/1 Gbit/s, 20 ms RTT, fq_codel", "1 Gbit/s · 20 ms", 2, 4, 1),
-    ("10/10 Gbit/s, 2 ms RTT, fq_codel, offloads on", "10 Gbit/s · 2 ms", 2, 4, .001),
-    ("100/100 Mbit/s, 40 ms RTT, 1 % loss each way, fq_codel", "100 Mbit/s · 1% loss", 2, 4, 1),
-]
-def med(row, col):
+def style_axis(ax, title, unit, *, labels=True):
+    ax.set_title(title, loc="left", fontsize=10, weight="bold", pad=8)
+    ax.set_xlabel(unit, fontsize=8)
+    ax.set_yticks(range(len(headline_tools)), [name for name, _ in headline_tools.values()] if labels else [])
+    ax.set_ylim(len(headline_tools) - .35, -.65)
+    ax.tick_params(axis="y", labelsize=8.5, length=0)
+    ax.tick_params(axis="x", labelsize=8, length=3, labelbottom=True)
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=6, min_n_ticks=4))
+    ax.grid(axis="x", color="#e1e8f0", linewidth=.75)
+    ax.set_axisbelow(True)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+
+def save_chart(fig, name, title, subtitle):
+    fig.suptitle(title, x=.02, y=.98, ha="left", fontsize=17, weight="bold")
+    fig.text(.02, .872 if fig.get_figheight() < 5 else .905, subtitle, fontsize=8.5, color="#40536b")
+    fig.savefig(report / name, dpi=155, facecolor=fig.get_facecolor())
+    plt.close(fig)
+
+
+def quartiles(values):
+    center = median(values)
+    if len(values) == 1:
+        return center, center, center
+    low, _, high = quantiles(values, n=4, method="inclusive")
+    return center, low, high
+
+
+def spread_bar(ax, y, center, low, high, color, value_label):
+    ax.barh(y, center, color=color, height=.55, zorder=3)
+    ax.errorbar(center, y, xerr=[[center - low], [high - center]], color="#15253a",
+                fmt="o", ms=3, capsize=3, linewidth=1, zorder=4)
+    ax.annotate(value_label, (high, y), xytext=(5, 0), textcoords="offset points",
+                va="center", fontsize=8, color="#15253a")
+
+
+shaped_title = "1/1 Gbit/s, 20 ms RTT, fq_codel"
+plain = groups[shaped_title]
+fast = groups["10/10 Gbit/s, 2 ms RTT, fq_codel, offloads on"]
+loss = groups["100/100 Mbit/s, 40 ms RTT, 1 % loss each way, fq_codel"]
+pins = manifests[0]["pins"]
+
+
+def value_at(row, col):
     value = row[col].split()[0]
     return float(value) if value != "n/a" else math.nan
+
 
 baseline = {
     (row["job"], row["rep"]): row["reported"] for row in measurements
@@ -123,52 +174,54 @@ for row in measurements:
     ref = baseline.get((row["job"], row["rep"]))
     if row["scenario"] != "accuracy-1000" or tool == "iperf3" or ref is None:
         continue
-    pins = manifests[0]["pins"]
     label = (pins["tools"].get(tool) or pins["clients"][tool])["name"]
     for field in ("downloadMbit", "uploadMbit"):
         value = row["reported"].get(field)
         if value is not None and ref.get(field) and ref[field] > 0:
             paired_rates[label, row["browser"], field].append(100 * (value / ref[field] - 1))
 
-fig, axes = plt.subplots(2, 2, figsize=(11, 5.4), layout="constrained", sharex=True)
+fig, axes = plt.subplots(2, 2, figsize=(11.2, 6.35), sharex=True)
+fig.subplots_adjust(left=.208, right=.98, top=.83, bottom=.10, hspace=.64, wspace=.12)
 for row, browser in enumerate(("chrome", "firefox")):
     for col, (direction, field) in enumerate((("Download", "downloadMbit"), ("Upload", "uploadMbit"))):
         ax = axes[row, col]
-        ax.axvline(0, color="#536475", linewidth=1)
+        ax.axvline(0, color="#41546a", linewidth=1.2)
         for pos, (label, (_, color)) in enumerate(headline_tools.items()):
             values = paired_rates[label, None if label == terminal_tool else browser, field]
             if not values:
                 continue
-            low, _, high = quantiles(values, n=4, method="inclusive") if len(values) > 1 else values * 3
-            ax.scatter(values, [pos] * len(values), color=color, alpha=.20, s=12)
-            ax.hlines(pos, low, high, color=color, linewidth=3)
-            ax.scatter(median(values), pos, color=color, edgecolor="white", linewidth=.6, s=45, zorder=4)
-        ax.set_yticks(range(len(headline_tools)), [name for name, _ in headline_tools.values()])
-        ax.set_ylim(len(headline_tools) - .45, -.55)
-        ax.set_title(f"{browser.capitalize()} · {direction}", loc="left", fontsize=11, weight="bold", color="#24354a")
-        ax.set_xlabel("Difference from same-pass iperf3 (%)", fontsize=9)
-        ax.tick_params(axis="x", labelsize=8, labelbottom=True)
-        ax.tick_params(axis="y", labelsize=9, length=0)
-        ax.grid(axis="x", color="#e2e8ef")
-        ax.set_axisbelow(True)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-fig.savefig(report / "throughput.png", dpi=160)
-plt.close(fig)
+            center, low, high = quartiles(values)
+            ax.scatter(values, [pos] * len(values), color=color, alpha=.24, s=13)
+            ax.hlines(pos, low, high, color=color, linewidth=3, zorder=3)
+            ax.scatter(center, pos, color=color, edgecolor="white", linewidth=.8, s=56, zorder=4)
+        style_axis(ax, f"{browser.capitalize()}  /  {direction}", "Difference from same-pass iperf3", labels=col == 0)
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: "0%" if value == 0 else f"{value:+g}%"))
+save_chart(fig, "throughput.png", "Reporting accuracy on a 1 Gbit/s link",
+           "Dot: median   /   Line: middle 50%   /   Faint dots: paired runs   /   0%: matches iperf3")
 
-plain = groups[selected[0][0]]
-fast = groups[selected[1][0]]
 buf = groups["300/30 Mbit/s, 20 ms RTT, 200 ms FIFO"]
 total = int(re.search(r"Runs: (\d+)", summary)[1])
 included = sum(int(v[0].split("/")[1]) for rows in groups.values() for v in rows.values())
 complete = sum(int(v[0].split("/")[0]) for rows in groups.values() for v in rows.values())
 path = str(report)
-def speed(row, i, divisor=1):
-    value = med(row, i)
+def speed(row, column, divisor=1):
+    value = value_at(row, column)
     precision = 2 if divisor != 1 else 1
     return f"{value/divisor:,.{precision}f}" if math.isfinite(value) else "—"
+
+
 def pair(rows, label, d=2, u=4, divisor=1):
-    return f"{speed(rows[label], d, divisor)} / {speed(rows[label], u, divisor)}" if label in rows else "—"
+    return " / ".join(speed(rows[label], column, divisor) for column in (d, u)) if label in rows else "—"
+
+
+def paired_median(label, browser, field):
+    values = paired_rates[label, None if label == terminal_tool else browser, field]
+    if not values:
+        return "—"
+    rounded = round(median(values), 1)
+    return f"{rounded:+.1f}%" if rounded else "0.0%"
+
+
 report_date = datetime.fromisoformat(date).strftime("%-d %B %Y")
 version_line = summary.splitlines()[1]
 historical = ""
@@ -181,16 +234,55 @@ intro = f"""## Latest GitHub runner results
 
 {version_line}
 
+### Compare the tradeoffs
+
+The upload columns show how closely each tool agrees with iperf3 on an ordinary 1 Gbit/s link, how fast it reports
+on a 10 Gbit/s link, and what it reports on a 100 Mbit/s link with 1% packet loss. Server CPU and memory are from the
+1 Gbit/s test. Throughput and resource figures use default Chrome or the native terminal client.
+
+| Tool or client | 1 Gbit/s upload vs iperf3 (Chrome / Firefox) | 10 Gbit/s upload | Upload with 1% loss | Server upload CPU | Peak server memory |
+| --- | ---: | ---: | ---: | ---: | ---: |
+"""
+cpu = tables(phases, "### ")
+shaped_cpu = cpu[shaped_title]
+uncapped_title = "Unshaped, offloads on: as fast as the host allows"
+unshaped = groups[uncapped_title]
+memory = defaultdict(list)
+openspeed = []
+paired = {tool: [0, 0] for tool in ("graphite-meter-client", "iperf3")}
+for result in measurements:
+    tool = result["tool"]
+    if result["scenario"] == "accuracy-1000":
+        if tool == "openspeedtest":
+            openspeed.append(result)
+        if (result["browser"] == "chrome" or tool == "graphite-meter-client") and result.get("serverMemoryPeakBytes") is not None:
+            name = (pins["tools"].get(tool) or pins["clients"][tool])["name"]
+            memory[name].append(result["serverMemoryPeakBytes"] / 1e6)
+    elif result["scenario"] == "unshaped" and tool in paired:
+        measurement = result["reported"]
+        paired[tool][0] += measurement["uploadMbit"] > measurement["downloadMbit"]
+        paired[tool][1] += 1
+
+for label in headline_tools:
+    key = chrome_key(label)
+    chrome = paired_median(label, "chrome", "uploadMbit")
+    firefox = paired_median(label, "firefox", "uploadMbit")
+    agreement = f"{chrome} (native)" if label == terminal_tool else f"{chrome} / {firefox}"
+    fast_upload = speed(fast[key], 4, 1000)
+    loss_upload = speed(loss[key], 4)
+    cpu_upload = shaped_cpu.get(key, ["", "n/a", "n/a"])[2].split()[0]
+    peak = f"{median(memory[label]):.0f} MB" if memory[label] else "—"
+    intro += f"| {display(label)} | {agreement} | {fast_upload} Gbit/s | {loss_upload} Mbit/s | {cpu_upload} s/GB | {peak} |\n"
+
+intro += """
 ### Shaped throughput
 
-Download / upload medians for default Chrome and native terminal tests. **Graphite Meter Browser**
-uses streaming HTTP/1.1. The 1 Gbit/s path tests reporting accuracy. The 10 Gbit/s and 1% packet-loss paths show
-how much traffic each tool moved under those conditions. Connection counts can differ between tools.
+Download / upload medians for default Chrome and native terminal tests. Graphite Meter Browser uses streaming
+HTTP/1.1. Connection counts can differ between tools.
 
 | Tool or client | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s |
 | --- | ---: | ---: | ---: |
 """
-loss = groups[selected[2][0]]
 for label in shaped_tools:
     key = chrome_key(label)
     intro += f"| {display(label)} | {pair(plain, key)} | {pair(fast, key, divisor=1000)} | {pair(loss, key)} |\n"
@@ -202,12 +294,6 @@ intro += f"""
 Each faint dot is one tool run paired with iperf3 on the same VM, scenario, and pass. The large dot is the median
 paired difference. The line spans the 25th to 75th percentile. Zero matches iperf3. Positive values mean the tool
 displayed a higher rate. Each VM contributes two passes. Both browser rows show the same native terminal runs for comparison.
-
-### Terminal performance
-
-Graphite Meter Terminal uses the native client. The charts show its results alongside the five browser tools, and
-the uncapped table also includes LibreSpeed CLI and iperf3. Server CPU refers to the server container. The full
-uncapped tables report browser CPU separately. Native client CPU is unmeasured.
 
 ### Latency and alternate transports
 
@@ -222,32 +308,11 @@ uncapped tables report browser CPU separately. Native client CPU is unmeasured.
 [Hosted run, raw measurements and screenshots]({run_url}){historical}
 
 """
-cpu = tables(phases, "### ")
-shaped_cpu = cpu[selected[0][0]]
-uncapped_title = "Unshaped, offloads on: as fast as the host allows"
-unshaped = groups[uncapped_title]
-memory = {}
-openspeed = []
-paired = {tool: [0, 0] for tool in ('graphite-meter-client', 'iperf3')}
-for result in measurements:
-    tool = result["tool"]
-    if result["scenario"] == "accuracy-1000" and tool == "openspeedtest":
-        openspeed.append(result)
-    if result["scenario"] == "accuracy-1000" and (result["browser"] == "chrome" or tool == "graphite-meter-client"):
-        peak = result.get("serverMemoryPeakBytes")
-        if peak is not None:
-            pins = manifests[0]["pins"]
-            name = (pins["tools"].get(tool) or pins["clients"][tool])["name"]
-            memory.setdefault(name, []).append(peak / 1e6)
-    elif result["scenario"] == "unshaped" and tool in paired:
-        measurement = result["reported"]
-        paired[tool][0] += measurement["uploadMbit"] > measurement["downloadMbit"]
-        paired[tool][1] += 1
-
-fig, axes = plt.subplots(1, 3, figsize=(12, 3.1), layout="constrained")
+fig, axes = plt.subplots(1, 3, figsize=(12, 4.05))
+fig.subplots_adjust(left=.192, right=.98, top=.78, bottom=.16, wspace=.21)
 for ax, (title, field, unit) in zip(axes, (
-    ("Server CPU · Download", 1, "CPU seconds / GB"),
-    ("Server CPU · Upload", 2, "CPU seconds / GB"),
+    ("Server CPU / download", 1, "CPU seconds per GB"),
+    ("Server CPU / upload", 2, "CPU seconds per GB"),
     ("Peak server memory", None, "MB"),
 ), strict=True):
     maximum = 0
@@ -257,32 +322,18 @@ for ax, (title, field, unit) in zip(axes, (
             values = memory.get(label, [])
             if not values:
                 continue
-            center = median(values)
-            low, _, high = quantiles(values, n=4, method="inclusive") if len(values) > 1 else values * 3
+            center, low, high = quartiles(values)
         else:
             raw = shaped_cpu.get(key, ["", "n/a", "n/a"])[field]
             if raw == "n/a":
                 continue
             center, low, high = map(float, re.findall(r"[\d.]+", raw))
         maximum = max(maximum, high)
-        ax.barh(pos, center, color=color, height=.56)
-        ax.errorbar(center, pos, xerr=[[center - low], [high - center]],
-                    fmt="o", color="#18293b", markersize=3, capsize=3, lw=1)
-        ax.annotate(f"{center:.0f}" if field is None else f"{center:.3f}",
-                    (high, pos), xytext=(4, 0), textcoords="offset points", va="center", fontsize=8)
-    ax.set_yticks(range(len(headline_tools)), [name for name, _ in headline_tools.values()] if field == 1 else [])
-    ax.set_ylim(len(headline_tools) - .4, -.6)
-    ax.set_xlim(0, maximum * 1.25 if maximum else 1)
-    ax.set_title(title, loc="left", fontsize=11, weight="bold", color="#24354a")
-    ax.set_xlabel(unit, fontsize=9)
-    ax.tick_params(axis="y", labelsize=9, length=0)
-    ax.tick_params(axis="x", labelsize=8)
-    ax.grid(axis="x", color="#e2e8ef")
-    ax.set_axisbelow(True)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-fig.savefig(report / "server-load.png", dpi=160)
-plt.close(fig)
+        spread_bar(ax, pos, center, low, high, color, f"{center:.0f}" if field is None else f"{center:.3f}")
+    style_axis(ax, title, unit, labels=field == 1)
+    ax.set_xlim(0, maximum * 1.28 if maximum else 1)
+save_chart(fig, "server-load.png", "Server resources at 1 Gbit/s",
+           "Default Chrome and native terminal   /   Lower uses fewer resources   /   Median and middle 50%")
 
 def first(part):
     return part.split()[0]
@@ -325,7 +376,8 @@ windows, and loaded latency enabled. The full tables include the separately meas
 {chart}
 
 Bars show the median. Whiskers span the 25th to 75th percentile of repeated runs for the same setup.
-The browser rows use default Chrome settings. The terminal row uses the native client.
+The browser rows use default Chrome settings. The terminal row uses the native client. The full tables also show
+client-side browser CPU. Native client CPU is unmeasured.
 
 | Browser tool | Chrome down / up, Gbit/s | Firefox down / up, Gbit/s | Chrome server CPU, s/GB | Chrome server peak, MB |
 | --- | ---: | ---: | ---: | ---: |
@@ -353,34 +405,21 @@ download bytes and time at the client and upload bytes and time at the server.
 '''
 load += f'\n[Download and upload CPU breakdown for all scenarios and transports]({report}/server-cpu.md)\n\n'
 (report / 'server-cpu.md').write_text(f'# Server CPU by phase, {date}\n\n[Full benchmark report](README.md)\n\n' + phases.split('\n\n', 1)[1])
-tools = [(chrome_key(label), *spec) for label, spec in headline_tools.items()]
-fig, axes = plt.subplots(1, 2, figsize=(11.5, 3.6), layout="constrained")
-highs = (float(raw.split()[-1].rstrip("]")) for key, _, _ in tools
-         for raw in unshaped[key][1:3] if raw != "n/a")
-interval_limit = max(highs, default=1000) / 1000
-for direction, field in enumerate(('Download', 'Upload')):
-    ax = axes[direction]
-    for position, (key, name, color) in enumerate(tools):
-        raw = unshaped[key][direction + 1]
-        if raw == 'n/a':
-            ax.text(0, position, 'No completed runs', va='center', color='#253548', fontsize=8)
+fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.1))
+fig.subplots_adjust(left=.208, right=.98, top=.77, bottom=.16, wspace=.17)
+for ax, (direction, field) in zip(axes, (("Download", 1), ("Upload", 2)), strict=True):
+    maximum = 0
+    for pos, (label, (_, color)) in enumerate(headline_tools.items()):
+        raw = unshaped[chrome_key(label)][field]
+        if raw == "n/a":
             continue
-        med, low, high = (float(v) / 1000 for v in re.findall(r'[\d.]+', raw))
-        ax.barh(position, med, color=color, height=.58)
-        ax.errorbar(med, position, xerr=[[med - low], [high - med]], fmt='o', color='#18293b', markersize=3, capsize=3, lw=1, zorder=3)
-        ax.annotate(f'{med:.2f}', (high, position), xytext=(5, 0), textcoords='offset points', va='center', color='#253548', fontsize=9)
-    ax.set_yticks(range(len(tools)), [name for _, name, _ in tools])
-    ax.set_ylim(len(tools) - .5, -.5)
-    ax.set_xlim(0, interval_limit * 1.14)
-    ax.set_title(field, loc='left', fontsize=11, weight='bold', color='#24354a')
-    ax.tick_params(axis='y', labelsize=9, length=0)
-    ax.tick_params(axis='x', labelsize=8)
-    ax.grid(axis='x', color='#e2e8ef')
-    ax.set_axisbelow(True)
-    ax.set_xlabel('Gbit/s', fontsize=9)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-fig.savefig(report / 'uncapped.png', dpi=150)
+        center, low, high = (float(value) / 1000 for value in re.findall(r"[\d.]+", raw))
+        maximum = max(maximum, high)
+        spread_bar(ax, pos, center, low, high, color, f"{center:.2f}")
+    style_axis(ax, direction, "Gbit/s", labels=field == 1)
+    ax.set_xlim(0, maximum * 1.22 if maximum else 1)
+save_chart(fig, "uncapped.png", "Single-test throughput without shaping",
+           "Default Chrome and native terminal   /   Median and middle 50%   /   Separate scales for each direction")
 
 check = """### Independent upload check
 
