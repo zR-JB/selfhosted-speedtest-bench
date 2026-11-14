@@ -95,8 +95,11 @@ browser_tools = {
     "OpenSpeedTest": ("OpenSpeedTest", "#886008"),
 }
 terminal_tool = "Graphite Meter terminal client"
-terminal_series = ("Graphite Meter Terminal", "#34455f")
-headline_tools = {**browser_tools, terminal_tool: terminal_series}
+terminal_tools = {
+    terminal_tool: ("Graphite Meter Terminal", "#34455f"),
+    "LibreSpeed CLI": ("LibreSpeed CLI", "#276d58"),
+}
+headline_tools = {**browser_tools, **terminal_tools}
 reference_tool = "iperf3 (reference)"
 reference_series = ("iperf3 reference", "#5b6570")
 shaped_tools = {**headline_tools, reference_tool: reference_series}
@@ -104,22 +107,20 @@ groups = tables(summary, "## ")
 
 
 def display(label):
-    if label == "Graphite Meter":
-        return browser_tools[label][0]
-    if label == "Graphite Meter terminal client":
-        return "Graphite Meter Terminal"
-    return label
+    if label in terminal_tools:
+        return terminal_tools[label][0]
+    return browser_tools["Graphite Meter"][0] if label == "Graphite Meter" else label
 
 
 def chrome_key(label):
-    return label if label in (reference_tool, terminal_tool) else f"{label}, chrome"
+    return f"{label}, chrome" if label in browser_tools else label
 
 
-def style_axis(ax, title, unit, *, labels=True):
+def style_axis(ax, title, unit, *, labels=True, tools=headline_tools):
     ax.set_title(title, loc="left", fontsize=10, weight="bold", pad=8)
     ax.set_xlabel(unit, fontsize=8)
-    ax.set_yticks(range(len(headline_tools)), [name for name, _ in headline_tools.values()] if labels else [])
-    ax.set_ylim(len(headline_tools) - .35, -.65)
+    ax.set_yticks(range(len(tools)), [name for name, _ in tools.values()] if labels else [])
+    ax.set_ylim(len(tools) - .35, -.65)
     ax.tick_params(axis="y", labelsize=8.5, length=0)
     ax.tick_params(axis="x", labelsize=8, length=3, labelbottom=True)
     ax.xaxis.set_major_locator(MaxNLocator(nbins=6, min_n_ticks=4))
@@ -180,24 +181,25 @@ for row in measurements:
         if value is not None and ref.get(field) and ref[field] > 0:
             paired_rates[label, row["browser"], field].append(100 * (value / ref[field] - 1))
 
-fig, axes = plt.subplots(2, 2, figsize=(11.2, 6.35), sharex=True)
+fig, axes = plt.subplots(2, 2, figsize=(11.2, 6.85), sharex=True)
 fig.subplots_adjust(left=.208, right=.98, top=.83, bottom=.10, hspace=.64, wspace=.12)
 for row, browser in enumerate(("chrome", "firefox")):
     for col, (direction, field) in enumerate((("Download", "downloadMbit"), ("Upload", "uploadMbit"))):
         ax = axes[row, col]
         ax.axvline(0, color="#41546a", linewidth=1.2)
         for pos, (label, (_, color)) in enumerate(headline_tools.items()):
-            values = paired_rates[label, None if label == terminal_tool else browser, field]
+            values = paired_rates[label, None if label in terminal_tools else browser, field]
             if not values:
                 continue
             center, low, high = quartiles(values)
             ax.scatter(values, [pos] * len(values), color=color, alpha=.24, s=13)
             ax.hlines(pos, low, high, color=color, linewidth=3, zorder=3)
-            ax.scatter(center, pos, color=color, edgecolor="white", linewidth=.8, s=56, zorder=4)
+            ax.scatter(center, pos, color=color, edgecolor="white", linewidth=.8, s=56,
+                       marker="D" if label in terminal_tools else "o", zorder=4)
         style_axis(ax, f"{browser.capitalize()}  /  {direction}", "Difference from same-pass iperf3", labels=col == 0)
         ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: "0%" if value == 0 else f"{value:+g}%"))
 save_chart(fig, "throughput.png", "Reporting accuracy on a 1 Gbit/s link",
-           "Dot: median   /   Line: middle 50%   /   Faint dots: paired runs   /   0%: matches iperf3")
+           "Dot: median   /   Line: middle 50%   /   Diamonds: terminal medians   /   0%: matches iperf3")
 
 buf = groups["300/30 Mbit/s, 20 ms RTT, 200 ms FIFO"]
 total = int(re.search(r"Runs: (\d+)", summary)[1])
@@ -215,7 +217,7 @@ def pair(rows, label, d=2, u=4, divisor=1):
 
 
 def paired_median(label, browser, field):
-    values = paired_rates[label, None if label == terminal_tool else browser, field]
+    values = paired_rates[label, None if label in terminal_tools else browser, field]
     if not values:
         return "—"
     rounded = round(median(values), 1)
@@ -238,7 +240,7 @@ intro = f"""## Latest GitHub runner results
 
 The upload columns show how closely each tool agrees with iperf3 on an ordinary 1 Gbit/s link, how fast it reports
 on a 10 Gbit/s link, and what it reports on a 100 Mbit/s link with 1% packet loss. Server CPU and memory are from the
-1 Gbit/s test. Throughput and resource figures use default Chrome or the native terminal client.
+1 Gbit/s test. Throughput and resource figures use default Chrome or the native terminal clients.
 
 | Tool or client | 1 Gbit/s upload vs iperf3 (Chrome / Firefox) | 10 Gbit/s upload | Upload with 1% loss | Server upload CPU | Peak server memory |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -255,7 +257,7 @@ for result in measurements:
     if result["scenario"] == "accuracy-1000":
         if tool == "openspeedtest":
             openspeed.append(result)
-        if (result["browser"] == "chrome" or tool == "graphite-meter-client") and result.get("serverMemoryPeakBytes") is not None:
+        if (result["browser"] == "chrome" or tool in ("graphite-meter-client", "librespeed-cli")) and result.get("serverMemoryPeakBytes") is not None:
             name = (pins["tools"].get(tool) or pins["clients"][tool])["name"]
             memory[name].append(result["serverMemoryPeakBytes"] / 1e6)
     elif result["scenario"] == "unshaped" and tool in paired:
@@ -267,7 +269,7 @@ for label in headline_tools:
     key = chrome_key(label)
     chrome = paired_median(label, "chrome", "uploadMbit")
     firefox = paired_median(label, "firefox", "uploadMbit")
-    agreement = f"{chrome} (native)" if label == terminal_tool else f"{chrome} / {firefox}"
+    agreement = f"{chrome} (native)" if label in terminal_tools else f"{chrome} / {firefox}"
     fast_upload = speed(fast[key], 4, 1000)
     loss_upload = speed(loss[key], 4)
     cpu_upload = shaped_cpu.get(key, ["", "n/a", "n/a"])[2].split()[0]
@@ -308,7 +310,7 @@ displayed a higher rate. Each VM contributes two passes. Both browser rows show 
 [Hosted run, raw measurements and screenshots]({run_url}){historical}
 
 """
-fig, axes = plt.subplots(1, 3, figsize=(12, 4.05))
+fig, axes = plt.subplots(1, 3, figsize=(12, 4.4))
 fig.subplots_adjust(left=.192, right=.98, top=.78, bottom=.16, wspace=.21)
 for ax, (title, field, unit) in zip(axes, (
     ("Server CPU / download", 1, "CPU seconds per GB"),
@@ -362,7 +364,7 @@ for label in headline_tools:
     peak = f'{median(memory[label]):.0f}' if label in memory else '—'
     load += f'| {display(label)} | {down} / {up} | {cpu_down} | {cpu_up} | {peak} |\n'
 
-chart = f'![Uncapped download and upload, for five Chrome tools and Graphite Meter Terminal]({report}/uncapped.png)'
+chart = f'![Uncapped download and upload for browser tools, terminal clients, and the iperf3 reference]({report}/uncapped.png)'
 load += f'''
 ### Uncapped throughput
 
@@ -376,7 +378,7 @@ windows, and loaded latency enabled. The full tables include the separately meas
 {chart}
 
 Bars show the median. Whiskers span the 25th to 75th percentile of repeated runs for the same setup.
-The browser rows use default Chrome settings. The terminal row uses the native client. The full tables also show
+The browser rows use default Chrome settings. The terminal rows use native clients. iperf3 is the reference. The full tables also show
 client-side browser CPU. Native client CPU is unmeasured.
 
 | Browser tool | Chrome down / up, Gbit/s | Firefox down / up, Gbit/s | Chrome server CPU, s/GB | Chrome server peak, MB |
@@ -390,7 +392,7 @@ load += '''
 | Native client | Down / up, Gbit/s | Server CPU, s/GB | Server peak, MB |
 | --- | ---: | ---: | ---: |
 '''
-for label in ['Graphite Meter terminal client', 'LibreSpeed CLI', 'iperf3 (reference)']:
+for label in (*terminal_tools, reference_tool):
     cells = unshaped[label]
     load += f'| {display(label)} | {gbit(cells[1])} / {gbit(cells[2])} | {cells[3]} | {cells[4]} |\n'
 uncapped_cpu = cpu.get(uncapped_title, {}).get('Graphite Meter terminal client', ['', 'n/a', 'n/a'])
@@ -405,18 +407,18 @@ download bytes and time at the client and upload bytes and time at the server.
 '''
 load += f'\n[Download and upload CPU breakdown for all scenarios and transports]({report}/server-cpu.md)\n\n'
 (report / 'server-cpu.md').write_text(f'# Server CPU by phase, {date}\n\n[Full benchmark report](README.md)\n\n' + phases.split('\n\n', 1)[1])
-fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.1))
+fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.65))
 fig.subplots_adjust(left=.208, right=.98, top=.77, bottom=.16, wspace=.17)
 for ax, (direction, field) in zip(axes, (("Download", 1), ("Upload", 2)), strict=True):
     maximum = 0
-    for pos, (label, (_, color)) in enumerate(headline_tools.items()):
+    for pos, (label, (_, color)) in enumerate(shaped_tools.items()):
         raw = unshaped[chrome_key(label)][field]
         if raw == "n/a":
             continue
         center, low, high = (float(value) / 1000 for value in re.findall(r"[\d.]+", raw))
         maximum = max(maximum, high)
         spread_bar(ax, pos, center, low, high, color, f"{center:.2f}")
-    style_axis(ax, direction, "Gbit/s", labels=field == 1)
+    style_axis(ax, direction, "Gbit/s", labels=field == 1, tools=shaped_tools)
     ax.set_xlim(0, maximum * 1.22 if maximum else 1)
 save_chart(fig, "uncapped.png", "Single-test throughput without shaping",
            "Default Chrome and native terminal   /   Median and middle 50%   /   Separate scales for each direction")

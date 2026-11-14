@@ -22,7 +22,7 @@ Tools: Graphite Meter 0.13.4, LibreSpeed 6.3.1, LibreSpeed Go backend 1.1.6, Lib
 
 The upload columns show how closely each tool agrees with iperf3 on an ordinary 1 Gbit/s link, how fast it reports
 on a 10 Gbit/s link, and what it reports on a 100 Mbit/s link with 1% packet loss. Server CPU and memory are from the
-1 Gbit/s test. Throughput and resource figures use default Chrome or the native terminal client.
+1 Gbit/s test. Throughput and resource figures use default Chrome or the native terminal clients.
 
 | Tool or client | 1 Gbit/s upload vs iperf3 (Chrome / Firefox) | 10 Gbit/s upload | Upload with 1% loss | Server upload CPU | Peak server memory |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -32,6 +32,7 @@ on a 10 Gbit/s link, and what it reports on a 100 Mbit/s link with 1% packet los
 | LibreSpeed Rust backend | -0.8% / -6.5% | 3.24 Gbit/s | 9.4 Mbit/s | 4.289 s/GB | 23 MB |
 | OpenSpeedTest | -0.2% / -0.6% | 3.38 Gbit/s | 22.4 Mbit/s | 3.714 s/GB | 29 MB |
 | Graphite Meter Terminal | 0.0% (native) | 9.56 Gbit/s | 19.6 Mbit/s | 7.104 s/GB | 17 MB |
+| LibreSpeed CLI | -9.0% (native) | 8.10 Gbit/s | 11.8 Mbit/s | 2.675 s/GB | 68 MB |
 
 ### Shaped throughput
 
@@ -46,6 +47,7 @@ HTTP/1.1. Connection counts can differ between tools.
 | LibreSpeed Rust backend | 955.0 / 948.5 | 9.28 / 3.24 | 16.6 / 9.4 |
 | OpenSpeedTest | 952.0 / 953.8 | 9.46 / 3.38 | 19.3 / 22.4 |
 | Graphite Meter Terminal | 956.4 / 956.4 | 9.56 / 9.56 | 19.7 / 19.6 |
+| LibreSpeed CLI | 943.8 / 869.9 | 9.36 / 8.10 | 11.3 / 11.8 |
 | iperf3 (reference) | 956.4 / 956.3 | 9.56 / 9.56 | 12.9 / 13.1 |
 
 #### Accuracy on the shaped 1 Gbit/s link
@@ -73,6 +75,7 @@ Bars show medians. Whiskers show the middle half of observed runs. Each metric u
 | LibreSpeed Rust backend | 955.0 / 948.5 | 0.321 | 4.289 | 23 |
 | OpenSpeedTest | 952.0 / 953.8 | 0.189 | 3.714 | 29 |
 | Graphite Meter Terminal | 956.4 / 956.4 | 0.209 | 7.104 | 17 |
+| LibreSpeed CLI | 943.8 / 869.9 | 0.268 | 2.675 | 68 |
 
 ### Uncapped throughput
 
@@ -83,10 +86,10 @@ machines and concurrent tests. **Graphite Meter Terminal** runs `graphite-meter-
 --report`. The default path uses streaming HTTP/1.1 with six lanes in each direction, 10-second download and upload
 windows, and loaded latency enabled. The full tables include the separately measured transport variants.
 
-![Uncapped download and upload, for five Chrome tools and Graphite Meter Terminal](results/2026-11-01-ci-run-41295946781/uncapped.png)
+![Uncapped download and upload for browser tools, terminal clients, and the iperf3 reference](results/2026-11-01-ci-run-41295946781/uncapped.png)
 
 Bars show the median. Whiskers span the 25th to 75th percentile of repeated runs for the same setup.
-The browser rows use default Chrome settings. The terminal row uses the native client. The full tables also show
+The browser rows use default Chrome settings. The terminal rows use native clients. iperf3 is the reference. The full tables also show
 client-side browser CPU. Native client CPU is unmeasured.
 
 | Browser tool | Chrome down / up, Gbit/s | Firefox down / up, Gbit/s | Chrome server CPU, s/GB | Chrome server peak, MB |
