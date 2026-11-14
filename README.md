@@ -56,8 +56,9 @@ median of each run’s peak container memory.
 The unshaped scenario removes the rate limit and artificial delay and keeps offloads enabled. These are median
 single-test rates over the runner’s virtual network. The server has one vCPU and the browser has two. The browser,
 server, and runner can each cap the result. A capacity test for a production server would also need separate client
-machines and concurrent tests. **Graphite Meter Terminal** runs the native client with its default settings.
-The full tables include the separately measured transport variants.
+machines and concurrent tests. **Graphite Meter Terminal** runs `graphite-meter-client --url http://10.71.2.10:7246
+--report`. The default path uses streaming HTTP/1.1 with six lanes in each direction, 10-second download and upload
+windows, and loaded latency enabled. The full tables include the separately measured transport variants.
 
 ![Uncapped download and upload, with separate panels for Chrome and terminal clients](results/2026-11-01-ci-run-41295946781/uncapped.png)
 
@@ -77,6 +78,12 @@ The browser and terminal panels use different scales.
 | Graphite Meter Terminal | 26.48 / 62.16 | 0.19 | 9 |
 | LibreSpeed CLI | 28.26 / 18.54 | 0.33 | 71 |
 | iperf3 (reference) | 31.01 / 44.10 | 0.20 | 12 |
+
+In this run, Graphite Meter Terminal uploaded faster than it downloaded in **28 of 30** uncapped tests. iperf3 did so
+in **30 of 30**. The same Graphite Meter command measured about **9.56 Gbit/s each way** on the shaped 10 Gbit/s path.
+Uncapped, the server used a median **0.301 CPU s/GB** while sending and **0.126 CPU s/GB** while receiving. The terminal
+counts download bytes at the client and upload bytes at the server. Both directions use the receiver’s timing, and the
+CPU split is consistent with a higher cost per GB on the server’s download path in this setup.
 
 [Download and upload CPU breakdown for all scenarios and transports](results/2026-11-01-ci-run-41295946781/server-cpu.md)
 
