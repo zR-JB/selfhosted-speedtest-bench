@@ -195,15 +195,18 @@ shaped_cpu = cpu[selected[0][0]]
 uncapped_title = "Unshaped, offloads on: as fast as the host allows"
 unshaped = groups[uncapped_title]
 memory = {}
+openspeed = []
 paired = {tool: [0, 0] for tool in ('graphite-meter-client', 'iperf3')}
 for result in measurements:
     tool = result["tool"]
-    if result["scenario"] == "accuracy-1000" and tool != "iperf3":
+    if result["scenario"] == "accuracy-1000" and tool == "openspeedtest":
+        openspeed.append(result)
+    if result["scenario"] == "accuracy-1000" and result["browser"] == "chrome" and tool != "iperf3":
         peak = result.get("serverMemoryPeakBytes")
         if peak is not None:
             name = manifests[0]["pins"]["tools"][tool]["name"]
             memory.setdefault(name, []).append(peak / 1e6)
-    elif tool in paired:
+    elif result["scenario"] == "unshaped" and tool in paired:
         measurement = result["reported"]
         paired[tool][0] += measurement["uploadMbit"] > measurement["downloadMbit"]
         paired[tool][1] += 1
@@ -311,9 +314,34 @@ for idx, (client, tools) in enumerate(series):
             spine.set_visible(False)
 fig.savefig(report / 'uncapped.png', dpi=150)
 
+reference = med(plain[reference_tool], 4)
+check = """### Independent upload check
+
+The 1 Gbit/s OpenSpeedTest results below use the tool’s displayed payload rate and independent network counters.
+The shaper measures a median over busy intervals and includes protocol overhead. The server-interface rate, when
+available, averages bytes received during sustained upload intervals. Neither uses the app’s timing window, so their
+difference from the displayed rate is a diagnostic rather than an exact payload error.
+
+| Browser | Displayed upload, Mbit/s | Shaper busy median, Mbit/s | Server interface, Mbit/s | Above iperf3 upload median |
+| --- | ---: | ---: | ---: | ---: |
+"""
+for browser in ("chrome", "firefox"):
+    label = f"OpenSpeedTest, {browser}"
+    records = [result for result in openspeed if result["browser"] == browser]
+    link = [value for result in records
+            if (value := (result.get("queues") or {}).get("up", {}).get("medianOwnLinkMbit")) is not None]
+    received = shaped_cpu.get(label, [])[6:7]
+    display_mbit = first(plain[label][4])
+    above = sum(result["reported"]["uploadMbit"] > reference for result in records)
+    shaper_median = f"{median(link):.1f}" if link else "—"
+    receiver_median = first(received[0]) if received else "—"
+    comparison = f"{above}/{len(records)}" if records and math.isfinite(reference) else "—"
+    check += f"| {browser.capitalize()} | {display_mbit} | {shaper_median} | {receiver_median} | {comparison} |\n"
+check += "\n"
+
 start = original.index("## Latest GitHub runner results")
 end = original.index("## What runs", start)
-readme.write_text(original[:start] + intro.replace("### What to look at when choosing", load + "### What to look at when choosing") + original[end:])
+readme.write_text(original[:start] + intro.replace("### What to look at when choosing", load + check + "### What to look at when choosing") + original[end:])
 if output := os.environ.get("GITHUB_OUTPUT"):
     with Path(output).open("a") as stream:
         print(f"report={report}", file=stream)

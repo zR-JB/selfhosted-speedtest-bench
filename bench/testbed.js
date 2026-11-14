@@ -360,19 +360,24 @@ export async function startServerSampler(cgroups, namespaces) {
   };
   const samples = [];
   const sample = async () => {
-    const t = Date.now();
+    const t = performance.now();
     const [cpus, links] = await Promise.all([Promise.all(paths.map(cpu)), Promise.all(pids.map(link))]);
     samples.push([t, ...total(cpus), ...total(links)]);
   };
   let stopped = false;
   let timer;
-  // Each sample is taken after the last one finished, so two never overlap.
-  const next = () => (timer = setTimeout(() => sample().then(() => stopped || next()), 100).unref());
+  let pending;
+  const next = () => {
+    timer = setTimeout(() => {
+      pending = sample().then(() => stopped || next());
+    }, 100).unref();
+  };
   await sample();
   next();
   return async () => {
     stopped = true;
     clearTimeout(timer);
+    await pending;
     await sample();
     return samples;
   };
@@ -394,18 +399,23 @@ export function serverPhases(samples) {
     if ([user0, sys0, rx0, tx0, user1, sys1, rx1, tx1].includes(null) || t1 <= t0) continue;
     const [rx, tx, floor] = [rx1 - rx0, tx1 - tx0, MIN_BYTES_PER_MS * (t1 - t0)];
     const direction = tx > DOMINANT * rx && tx >= floor ? "down" : rx > DOMINANT * tx && rx >= floor ? "up" : "other";
-    intervals.push({ direction, cpu: (user1 - user0 + sys1 - sys0) / 1e6, bytes: rx + tx });
+    if (rx < 0 || tx < 0) continue;
+    intervals.push({ direction, cpu: (user1 - user0 + sys1 - sys0) / 1e6, rx, tx, ms: t1 - t0 });
   }
-  const split = { down: { cpuSeconds: 0, bytes: 0 }, up: { cpuSeconds: 0, bytes: 0 }, other: { cpuSeconds: 0, bytes: 0 } };
+  const phaseTotals = () => ({ cpuSeconds: 0, bytes: 0, directionBytes: 0, milliseconds: 0 });
+  const split = { down: phaseTotals(), up: phaseTotals(), other: phaseTotals() };
   for (let i = 0; i < intervals.length; ) {
     let j = i;
     while (j < intervals.length && intervals[j].direction === intervals[i].direction) j++;
     const phase = j - i >= SUSTAINED ? intervals[i].direction : "other";
-    for (const { cpu, bytes } of intervals.slice(i, j)) {
-      split[phase].cpuSeconds += cpu;
-      split[phase].bytes += bytes;
+    const totals = split[phase];
+    for (; i < j; i++) {
+      const { cpu, rx, tx, ms } = intervals[i];
+      totals.cpuSeconds += cpu;
+      totals.bytes += rx + tx;
+      totals.directionBytes += phase === "down" ? tx : phase === "up" ? rx : 0;
+      totals.milliseconds += ms;
     }
-    i = j;
   }
   return split;
 }

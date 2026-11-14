@@ -29,16 +29,20 @@ for (const scenario of scenarios) {
   console.log();
   console.log(`### ${scenario.title}`);
   console.log();
-  console.log("| Tool | Runs | Download s/GB | Upload s/GB | Other s | Other share |");
-  console.log("| --- | --- | --- | --- | --- | --- |");
+  const interfaceRate = mine.some((run) => run.serverPhases.up.milliseconds !== undefined);
+  const extraHeaders = interfaceRate ? " Download interface Mbit/s | Upload interface Mbit/s |" : "";
+  console.log(`| Tool | Runs | Download s/GB | Upload s/GB | Other s | Other share |${extraHeaders}`);
+  console.log(`| --- | --- | --- | --- | --- | --- |${interfaceRate ? " --- | --- |" : ""}`);
   for (const group of Map.groupBy(mine, (run) => `${run.tool}|${run.browser}`).values()) {
     const phases = group.map((run) => run.serverPhases);
     const perGb = (phase) => phases.map((p) => (p[phase].bytes ? p[phase].cpuSeconds / (p[phase].bytes / 1e9) : NaN));
     const total = (p) => p.down.cpuSeconds + p.up.cpuSeconds + p.other.cpuSeconds;
     const others = phases.map((p) => p.other.cpuSeconds);
     const shares = phases.map((p) => p.other.cpuSeconds / total(p));
+    const rate = (phase) => spread(phases.map((p) => 0.008 * p[phase].directionBytes / p[phase].milliseconds), 1);
+    const extra = interfaceRate ? ` ${rate("down")} | ${rate("up")} |` : "";
     console.log(
-      `| ${label(group[0])} | ${group.length} | ${spread(perGb("down"), 3)} | ${spread(perGb("up"), 3)} | ${spread(others, 3)} | ${spread(shares, 2)} |`,
+      `| ${label(group[0])} | ${group.length} | ${spread(perGb("down"), 3)} | ${spread(perGb("up"), 3)} | ${spread(others, 3)} | ${spread(shares, 2)} |${extra}`,
     );
   }
 }

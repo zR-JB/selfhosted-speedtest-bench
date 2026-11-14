@@ -14,9 +14,11 @@ const scenarios = JSON.parse(readFileSync(new URL("../scenarios.json", import.me
 const median = (values) => quantile(values, 0.5);
 const { manifests, runs, noisy } = readResults(dirs);
 if (process.env.SB_REPORT_DATA) {
-  const measurements = runs.filter((run) => run.reported.outcome === "complete" &&
-    ((run.scenario === "accuracy-1000" && run.browser === "chrome") ||
-      (run.scenario === "unshaped" && ["graphite-meter-client", "iperf3"].includes(run.tool))));
+  const measurements = runs.filter(({ scenario, tool, browser, reported }) => {
+    if (reported.outcome !== "complete") return false;
+    if (scenario === "accuracy-1000") return browser === "chrome" || tool === "openspeedtest";
+    return scenario === "unshaped" && (tool === "graphite-meter-client" || tool === "iperf3");
+  });
   writeFileSync(process.env.SB_REPORT_DATA, JSON.stringify(measurements));
 }
 const pins = manifests[0].pins;

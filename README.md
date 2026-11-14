@@ -87,6 +87,14 @@ CPU split is consistent with a higher cost per GB on the server’s download pat
 
 [Download and upload CPU breakdown for all scenarios and transports](results/2026-11-01-ci-run-41295946781/server-cpu.md)
 
+### Independent upload check
+
+OpenSpeedTest’s Chrome upload median on the 1 Gbit/s path was **953.9 Mbit/s**. Eight of 30 readings exceeded the
+nominal payload rate of **956.4 Mbit/s**, and the highest was **965.5 Mbit/s**. The shaper independently observed a
+median **970.3 Mbit/s** during its busy upload intervals. That rate includes overhead and uses a different window
+from the app. It cannot validate the app’s exact payload rate. New runs also record the server’s interface rate
+across the sustained upload phase.
+
 ### What to look at when choosing
 
 - **Ordinary connections.** All five Chrome tools measured within **1.3%** of iperf3 download and upload at 1 Gbit/s.
@@ -189,6 +197,7 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 | Download and upload with loss, a long path or competing traffic | None: TCP cannot fill these links, and a tool's share of a shared link grows over its run. The tools are compared with each other and with iperf3; each run's median share under competition, measured on the shaper, is in the raw data |
 | Idle latency | Base RTT measured with ping before each block |
 | Latency under load | Base RTT plus the bottleneck FIFO's queue delay, sampled on the shaper every 100 ms (FIFO scenarios only; under `fq_codel` a probe flow skips the bulk queue) |
+| Independent transfer rate | Passive server interface byte counter over sustained intervals for each direction. It includes transport overhead and is separate from the app’s own reporting window. Skipped for competing traffic, where another flow shares that interface. |
 | Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory; each run also splits that CPU by 100 ms samples into download, upload and other phases, which `bench/phases.js` tables |
 | Browser CPU | CPU seconds per GB of the browser's process tree |
 
