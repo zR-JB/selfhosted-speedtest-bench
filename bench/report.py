@@ -1,6 +1,7 @@
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from statistics import median
+from statistics import median, quantiles
 import json
 import math
 import os
@@ -109,27 +110,47 @@ def med(row, col):
     value = row[col].split()[0]
     return float(value) if value != "n/a" else math.nan
 
-fig, axes = plt.subplots(3, 2, figsize=(11, 7.4), layout="constrained", facecolor="#ffffff")
-for row, (scenario, title, down, up, scale) in enumerate(selected):
-    for col, (direction, index) in enumerate([("Download", down), ("Upload", up)]):
+baseline = {
+    (row["job"], row["rep"]): row["reported"] for row in measurements
+    if row["scenario"] == "accuracy-1000" and row["tool"] == "iperf3"
+}
+paired_rates = defaultdict(list)
+for row in measurements:
+    tool = row["tool"]
+    ref = baseline.get((row["job"], row["rep"]))
+    if row["scenario"] != "accuracy-1000" or tool == "iperf3" or ref is None:
+        continue
+    label = manifests[0]["pins"]["tools"][tool]["name"]
+    for field in ("downloadMbit", "uploadMbit"):
+        value = row["reported"].get(field)
+        if value is not None and ref.get(field) and ref[field] > 0:
+            paired_rates[label, row["browser"], field].append(100 * (value / ref[field] - 1))
+
+fig, axes = plt.subplots(2, 2, figsize=(11, 5.4), layout="constrained", sharex=True)
+for row, browser in enumerate(("chrome", "firefox")):
+    for col, (direction, field) in enumerate((("Download", "downloadMbit"), ("Upload", "uploadMbit"))):
         ax = axes[row, col]
-        runs = groups[scenario]
-        values = [med(runs[chrome_key(label)], index) * scale for label in shaped_tools]
-        names, colors = zip(*shaped_tools.values(), strict=True)
-        bars = ax.barh(names, values, color=colors, height=.61)
-        precision = 2 if scale < 1 else 1
-        ax.bar_label(bars, labels=[f"{v:,.{precision}f}" if math.isfinite(v) else "" for v in values], padding=4, color="#253548", fontsize=9)
-        ax.invert_yaxis()
-        ax.set_xlim(0, max((v for v in values if math.isfinite(v)), default=1) * 1.21)
-        ax.set_title(f"{title}  /  {direction}", loc="left", fontsize=11, weight="bold", color="#24354a")
-        ax.set_xlabel("Gbit/s" if scale < 1 else "Mbit/s", fontsize=9)
+        ax.axvline(0, color="#536475", linewidth=1)
+        for pos, (label, (_, color)) in enumerate(browser_tools.items()):
+            values = paired_rates[label, browser, field]
+            if not values:
+                continue
+            low, _, high = quantiles(values, n=4, method="inclusive") if len(values) > 1 else values * 3
+            ax.scatter(values, [pos] * len(values), color=color, alpha=.20, s=12)
+            ax.hlines(pos, low, high, color=color, linewidth=3)
+            ax.scatter(median(values), pos, color=color, edgecolor="white", linewidth=.6, s=45, zorder=4)
+        ax.set_yticks(range(len(browser_tools)), [name for name, _ in browser_tools.values()])
+        ax.set_ylim(len(browser_tools) - .45, -.55)
+        ax.set_title(f"{browser.capitalize()} · {direction}", loc="left", fontsize=11, weight="bold", color="#24354a")
+        ax.set_xlabel("Difference from same-pass iperf3 (%)", fontsize=9)
+        ax.tick_params(axis="x", labelsize=8, labelbottom=True)
         ax.tick_params(axis="y", labelsize=9, length=0)
-        ax.tick_params(axis="x", labelsize=8)
         ax.grid(axis="x", color="#e2e8ef")
         ax.set_axisbelow(True)
         for spine in ax.spines.values():
             spine.set_visible(False)
 fig.savefig(report / "throughput.png", dpi=160)
+plt.close(fig)
 
 plain = groups[selected[0][0]]
 fast = groups[selected[1][0]]
@@ -146,7 +167,6 @@ def pair(rows, label, d=2, u=4, divisor=1):
     return f"{speed(rows[label], d, divisor)} / {speed(rows[label], u, divisor)}"
 report_date = datetime.fromisoformat(date).strftime("%-d %B %Y")
 version_line = summary.splitlines()[1]
-reference = pair(plain, "iperf3 (reference)")
 historical = ""
 if previous:
     previous_date = datetime.fromisoformat(previous[1]).strftime("%-d %B %Y")
@@ -157,13 +177,11 @@ intro = f"""## Latest GitHub runner results
 
 {version_line}
 
-### Compare browser tools at a glance
+### Browser throughput
 
 Download / upload medians for each browser tool in Chrome using its default transport. **Graphite Meter Browser**
-uses streaming HTTP/1.1 in these charts. The [uncapped results](#uncapped-throughput) show the browser and terminal
-client measurements separately. The **1 Gbit/s** link is the best starting point
-for comparing ordinary connections. The **10 Gbit/s** results show what the tools drove on these four-vCPU runners.
-For **1% loss**, compare throughput under this particular test setup. Tools may open different numbers of connections.
+uses streaming HTTP/1.1. The 1 Gbit/s path tests reporting accuracy. The 10 Gbit/s and 1% packet-loss paths show
+how much traffic each tool moved under those conditions. Connection counts can differ between tools.
 
 | Browser tool | 1 Gbit/s link, Mbit/s | 10 Gbit/s link, Gbit/s | 100 Mbit/s with 1% loss, Mbit/s |
 | --- | ---: | ---: | ---: |
@@ -173,12 +191,16 @@ for label in shaped_tools:
     key = chrome_key(label)
     intro += f"| {display(label)} | {pair(plain, key)} | {pair(fast, key, divisor=1000)} | {pair(loss, key)} |\n"
 intro += f"""
-![Default Chrome tests and iperf3 reference. Bars show median download and upload across repeated runs]({path}/throughput.png)
+#### Accuracy on the shaped 1 Gbit/s link
 
-### What to look at when choosing
+![Differences from same-VM iperf3 on the 1 Gbit/s link, by browser and direction]({path}/throughput.png)
 
-- **Ordinary connections.** Start with the 1 Gbit/s column. The measured iperf3 baseline was **{reference} Mbit/s**.
-  Check the Firefox rows in the full report if your users mainly use Firefox.
+Each faint dot is one tool run paired with iperf3 on the same VM, scenario, and pass. The large dot is the median
+paired difference. The line spans the 25th to 75th percentile. Zero matches iperf3. Positive values mean the tool
+displayed a higher rate. Each VM contributes two passes, and the intervals describe the observed spread.
+
+### Latency and alternate transports
+
 - **Latency under load.** On the 200 ms FIFO, Graphite Meter in Chrome measured **{buf['Graphite Meter, chrome'][7]} ms**
   during download and **{buf['Graphite Meter, chrome'][8]} ms** during upload, with the queue-based reference in
   parentheses. See the full tables for which tools reported loaded latency.
@@ -211,6 +233,46 @@ for result in measurements:
         paired[tool][0] += measurement["uploadMbit"] > measurement["downloadMbit"]
         paired[tool][1] += 1
 
+fig, axes = plt.subplots(1, 3, figsize=(12, 3.1), layout="constrained")
+for ax, (title, field, unit) in zip(axes, (
+    ("Download CPU", 1, "CPU seconds / GB"),
+    ("Upload CPU", 2, "CPU seconds / GB"),
+    ("Peak memory", None, "MB"),
+), strict=True):
+    maximum = 0
+    for pos, (label, (_, color)) in enumerate(browser_tools.items()):
+        key = chrome_key(label)
+        if field is None:
+            values = memory.get(label, [])
+            if not values:
+                continue
+            center = median(values)
+            low, _, high = quantiles(values, n=4, method="inclusive") if len(values) > 1 else values * 3
+        else:
+            raw = shaped_cpu.get(key, ["", "n/a", "n/a"])[field]
+            if raw == "n/a":
+                continue
+            center, low, high = map(float, re.findall(r"[\d.]+", raw))
+        maximum = max(maximum, high)
+        ax.barh(pos, center, color=color, height=.56)
+        ax.errorbar(center, pos, xerr=[[center - low], [high - center]],
+                    fmt="o", color="#18293b", markersize=3, capsize=3, lw=1)
+        ax.annotate(f"{center:.0f}" if field is None else f"{center:.3f}",
+                    (high, pos), xytext=(4, 0), textcoords="offset points", va="center", fontsize=8)
+    ax.set_yticks(range(len(browser_tools)), [name for name, _ in browser_tools.values()] if field == 1 else [])
+    ax.set_ylim(len(browser_tools) - .4, -.6)
+    ax.set_xlim(0, maximum * 1.25 if maximum else 1)
+    ax.set_title(title, loc="left", fontsize=11, weight="bold", color="#24354a")
+    ax.set_xlabel(unit, fontsize=9)
+    ax.tick_params(axis="y", labelsize=9, length=0)
+    ax.tick_params(axis="x", labelsize=8)
+    ax.grid(axis="x", color="#e2e8ef")
+    ax.set_axisbelow(True)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+fig.savefig(report / "server-load.png", dpi=160)
+plt.close(fig)
+
 def first(part):
     return part.split()[0]
 
@@ -219,11 +281,14 @@ def gbit(part):
     return f'{float(first(part))/1000:.2f}' if first(part) != 'n/a' else '—'
 
 
-load = '''### Server load at 1 Gbit/s
+load = f'''### Server load at 1 Gbit/s
 
-Same shaped link and default Chrome transport as above. CPU seconds per GB show how much work the server container did
-per GB transferred during each phase. Lower values mean less server CPU for the same amount of data. Memory is the
-median of each run’s peak container memory.
+These default Chrome tests use the same shaped link. CPU seconds per GB measure server container work per GB counted
+on its interface during each phase. Memory is the median of each run’s peak container memory.
+
+![Server download CPU, upload CPU, and peak memory on the same 1 Gbit/s path]({report}/server-load.png)
+
+Bars show medians. Whiskers show the middle half of observed runs. Each metric uses its own scale.
 
 | Browser tool | Download / upload, Mbit/s | Download CPU, s/GB | Upload CPU, s/GB | Peak memory, MB |
 | --- | ---: | ---: | ---: | ---: |
@@ -314,7 +379,6 @@ for idx, (client, tools) in enumerate(series):
             spine.set_visible(False)
 fig.savefig(report / 'uncapped.png', dpi=150)
 
-reference = med(plain[reference_tool], 4)
 check = """### Independent upload check
 
 The 1 Gbit/s OpenSpeedTest results below use the tool’s displayed payload rate and independent network counters.
@@ -322,7 +386,7 @@ The shaper measures a median over busy intervals and includes protocol overhead.
 available, averages bytes received during sustained upload intervals. Neither uses the app’s timing window, so their
 difference from the displayed rate is a diagnostic rather than an exact payload error.
 
-| Browser | Displayed upload, Mbit/s | Shaper busy median, Mbit/s | Server interface, Mbit/s | Above iperf3 upload median |
+| Browser | Displayed upload, Mbit/s | Shaper busy median, Mbit/s | Server interface, Mbit/s | Above paired iperf3 |
 | --- | ---: | ---: | ---: | ---: |
 """
 for browser in ("chrome", "firefox"):
@@ -332,16 +396,17 @@ for browser in ("chrome", "firefox"):
             if (value := (result.get("queues") or {}).get("up", {}).get("medianOwnLinkMbit")) is not None]
     received = shaped_cpu.get(label, [])[6:7]
     display_mbit = first(plain[label][4])
-    above = sum(result["reported"]["uploadMbit"] > reference for result in records)
+    differences = paired_rates["OpenSpeedTest", browser, "uploadMbit"]
+    above = sum(value > 0 for value in differences)
     shaper_median = f"{median(link):.1f}" if link else "—"
     receiver_median = first(received[0]) if received else "—"
-    comparison = f"{above}/{len(records)}" if records and math.isfinite(reference) else "—"
+    comparison = f"{above}/{len(differences)}" if differences else "—"
     check += f"| {browser.capitalize()} | {display_mbit} | {shaper_median} | {receiver_median} | {comparison} |\n"
 check += "\n"
 
 start = original.index("## Latest GitHub runner results")
 end = original.index("## What runs", start)
-readme.write_text(original[:start] + intro.replace("### What to look at when choosing", load + check + "### What to look at when choosing") + original[end:])
+readme.write_text(original[:start] + intro.replace("### Latency and alternate transports", load + check + "### Latency and alternate transports") + original[end:])
 if output := os.environ.get("GITHUB_OUTPUT"):
     with Path(output).open("a") as stream:
         print(f"report={report}", file=stream)

@@ -8,7 +8,7 @@ export function quantile(values, q) {
   return sorted[low] + (sorted[Math.min(low + 1, sorted.length - 1)] - sorted[low]) * (at - low);
 }
 
-export function readResults(dirs) {
+export function readResults(dirs, { withJob = false } = {}) {
   const manifests = [];
   const runs = [];
   let noisy = 0;
@@ -20,7 +20,7 @@ export function readResults(dirs) {
     for (const file of readdirSync(`${dir}/runs`)) {
       const run = JSON.parse(readFileSync(`${dir}/runs/${file}`, "utf8"));
       if (busy.has(`${run.scenario}|${run.rep}`)) noisy++;
-      else runs.push(run);
+      else runs.push(withJob ? { ...run, job: dir } : run);
     }
   }
   return { manifests, runs, noisy };

@@ -12,11 +12,11 @@ if (!dirs.length) throw new Error("usage: node bench/summarize.js <results dir>.
 
 const scenarios = JSON.parse(readFileSync(new URL("../scenarios.json", import.meta.url), "utf8"));
 const median = (values) => quantile(values, 0.5);
-const { manifests, runs, noisy } = readResults(dirs);
+const { manifests, runs, noisy } = readResults(dirs, { withJob: Boolean(process.env.SB_REPORT_DATA) });
 if (process.env.SB_REPORT_DATA) {
   const measurements = runs.filter(({ scenario, tool, browser, reported }) => {
     if (reported.outcome !== "complete") return false;
-    if (scenario === "accuracy-1000") return browser === "chrome" || tool === "openspeedtest";
+    if (scenario === "accuracy-1000") return browser === "chrome" || browser === "firefox" || tool === "iperf3";
     return scenario === "unshaped" && (tool === "graphite-meter-client" || tool === "iperf3");
   });
   writeFileSync(process.env.SB_REPORT_DATA, JSON.stringify(measurements));

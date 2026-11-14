@@ -69,7 +69,7 @@ jobs:
         env:
           REPORT: ${{ steps.report.outputs.report }}
         run: |
-          git add README.md "$REPORT/README.md" "$REPORT/server-cpu.md" "$REPORT/throughput.png" "$REPORT/uncapped.png"
+          git add README.md "$REPORT/README.md" "$REPORT/server-cpu.md" "$REPORT/throughput.png" "$REPORT/uncapped.png" "$REPORT/server-load.png"
           git diff --cached --check
           git diff --cached --quiet && exit 0
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
