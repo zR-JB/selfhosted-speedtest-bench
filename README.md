@@ -33,8 +33,8 @@ On the 10 Gbit/s path, reported median uploads ranged from **3.65–4.56 Gbit/s 
 reported **9.56 Gbit/s** and LibreSpeed CLI **8.18 Gbit/s**.
 Graphite Meter Browser’s same-pass upload difference from OpenSpeedTest in Chrome was **+0.79 Gbit/s** (middle 50% +0.65 to +0.90). Graphite Meter Browser reported more on **15/15 matched VMs**. [Upload spread across VMs](results/2026-11-15-ci-run-43694138029/#10-gbits-upload-spread)
 
-Each throughput cell shows **download / upload**. Browser rows use default Chrome. The two terminal
-clients use their native defaults. The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
+Each throughput cell shows **download / upload**. Browser rows use Chrome. Terminal rows use native clients.
+The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
 about 956 Mbit/s. The 10 Gbit/s test uses a 2 ms RTT and offloads. iperf3 uses four TCP streams.
 Bold marks the highest displayed median in each direction within browser or terminal, including rounded ties.
 The iperf3 row is a reference.
@@ -61,8 +61,8 @@ with up to two passes. Large marks show medians across VMs. Lines span the middl
 marks show VM values where plotted. The spreads describe these runners. Sample sizes and exact
 values are in the linked tables.
 
-Tools keep their own test durations, connection counts and probes. Graphite Meter keeps loaded probes
-enabled in both clients. The other adapters record idle latency. The benchmark disables LibreSpeed
+Tools keep their own test durations and connection settings. Default Graphite Meter runs include loaded latency.
+Its without-loaded-latency profiles omit the idle stage and loaded probes. The benchmark disables LibreSpeed
 and OpenSpeedTest’s throughput compensation. [Deployment settings](#what-runs)
 
 ### Agreement at 1 Gbit/s
@@ -114,7 +114,7 @@ the receiver in both directions. [Native upload by runner hardware](results/2026
 
 With Chrome, Graphite Meter Browser’s median peak memory was **15.0 MB**. The LibreSpeed deployments ranged from 22.5–80.3 MB. OpenSpeedTest used **0.171 CPU s/GB** on download and **3.660 CPU s/GB** on upload.
 
-Graphite Meter Terminal used **6.987 CPU s/GB** on upload at **956.4 Mbit/s**. LibreSpeed CLI used **2.091 CPU s/GB** at **870.4 Mbit/s**.
+Graphite Meter Terminal used **6.987 CPU s/GB** on upload at **956.4 Mbit/s**. LibreSpeed CLI used **2.091 CPU s/GB** at **870.4 Mbit/s**. On the unshaped path, the server interface recorded **62.0 Gbit/s** of inbound traffic during the Graphite Meter Terminal upload. Server CPU there was **0.122 CPU s/GB** for Graphite Meter Terminal and **0.320 CPU s/GB** for LibreSpeed CLI.
 
 [Server resource values for Chrome, Firefox and terminals](results/2026-11-15-ci-run-43694138029/#server-resources-at-1-gbits)
 
@@ -159,12 +159,12 @@ Bold marks the lowest displayed median per resource within each client group.
 
 ### Graphite Meter without loaded latency
 
-Both profiles use the same server build and browser settings at 1 Gbit/s. This profile skips the app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.
+Within each client, both profiles use the same server build, automatic connection settings, and transfer durations. The variant skips the app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.
 
-| Browser | Download (Mbit/s) | Upload (Mbit/s) | Download server CPU (s/GB) | Upload server CPU (s/GB) | Total server CPU (s) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Chrome | -0.4 [-1.2, +0.3] (n=15) | +0.8 [-0.3, +1.9] (n=15) | -0.024 [-0.061, +0.018] (n=15) | +0.106 [+0.001, +0.219] (n=15) | +0.10 [-0.89, +0.66] (n=15) |
-| Firefox | +0.1 [-0.3, +0.8] (n=15) | +0.8 [-1.7, +2.9] (n=15) | -0.029 [-0.057, +0.016] (n=15) | +0.058 [+0.009, +0.254] (n=15) | -0.16 [-1.20, +0.62] (n=15) |
+| Path | Client | Download (Mbit/s) | Upload (Mbit/s) | Download server CPU (s/GB) | Upload server CPU (s/GB) | Total server CPU (s) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 Gbit/s | Chrome | -0.4 [-1.2, +0.3] (n=15) | +0.8 [-0.3, +1.9] (n=15) | -0.024 [-0.061, +0.018] (n=15) | +0.106 [+0.001, +0.219] (n=15) | +0.10 [-0.89, +0.66] (n=15) |
+| 1 Gbit/s | Firefox | +0.1 [-0.3, +0.8] (n=15) | +0.8 [-1.7, +2.9] (n=15) | -0.029 [-0.057, +0.016] (n=15) | +0.058 [+0.009, +0.254] (n=15) | -0.16 [-1.20, +0.62] (n=15) |
 
 ### OpenSpeedTest upload check
 
@@ -262,12 +262,13 @@ path. The connection counts are configured settings. The harness does not count 
 | Graphite Meter Browser | Adaptive | 10 s target | Enabled | Payload rate |
 | LibreSpeed PHP, Go and Rust browsers | 5 / 3 in Chrome, 6 / 3 in Firefox in the bundled worker defaults | Up to 15 s, with adaptive timing | Idle only | Set to 1.00 |
 | OpenSpeedTest | 6 / 6 configured | 12 s configured | Idle only | `?clean` sets 1.00 |
-| Graphite Meter Terminal | 6 / 6 on the default HTTP/1.1 path | 10 s target | Enabled | Payload rate |
+| Graphite Meter Terminal | Auto, 6 / 6 on the default HTTP/1.1 path | 10 s target | Enabled | Payload rate |
 | LibreSpeed CLI | 3 concurrent HTTP requests | 15 s | Idle only | Payload rate |
 
-Graphite Meter runs latency probes during throughput and includes their cost in its defaults. A probes-on/off
-comparison uses the same server release and browser transport. The **Graphite Meter without loaded latency** profile skips
-the app’s idle-latency stage and its loaded probes. The harness still measures idle path RTT independently. The separate transport
+Graphite Meter runs latency probes during throughput by default. The browser and terminal profiles without loaded latency
+use the same server release, automatic stream and transport settings, and transfer durations as their defaults. Both profiles
+skip the app’s idle-latency stage and its loaded probes. The terminal profile adds `--stages download,upload`, which uses
+the default `--skip-loaded-latency` behavior. The harness still measures idle path RTT independently. The separate transport
 variants use the documented settings above. The LibreSpeed web worker’s display factor defaults to 1.06, and
 the OpenSpeedTest page defaults to 1.04. The harness uses each application's adjustment for payload-rate display.
 

@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 NO_LOADED_LATENCY = "graphite-meter-no-loaded-latency"
+TERMINAL_NO_LOADED_LATENCY = "graphite-meter-client-no-loaded-latency"
 TOOLS = {
     "graphite-meter": "Graphite Meter Browser",
     NO_LOADED_LATENCY: "Graphite Meter without loaded latency",
@@ -27,10 +28,11 @@ TOOLS = {
     "librespeed-rust": "LibreSpeed Rust backend",
     "openspeedtest": "OpenSpeedTest",
     "graphite-meter-client": "Graphite Meter Terminal",
+    TERMINAL_NO_LOADED_LATENCY: "Graphite Meter Terminal without loaded latency",
     "librespeed-cli": "LibreSpeed CLI",
     "iperf3": "iperf3 (reference)",
 }
-TERMINAL = ("graphite-meter-client", "librespeed-cli")
+TERMINAL = ("graphite-meter-client", TERMINAL_NO_LOADED_LATENCY, "librespeed-cli")
 PLAIN = "accuracy-1000"
 FAST = "accuracy-10000"
 LOSS = "loss-100"
@@ -47,6 +49,7 @@ COLORS = {
     "librespeed-rust": "#7e4697",
     "openspeedtest": "#ae3455",
     "graphite-meter-client": "#1458be",
+    TERMINAL_NO_LOADED_LATENCY: "#4b659c",
     "librespeed-cli": "#087164",
     "iperf3": "#566274",
 }
@@ -158,7 +161,7 @@ releases = pins["tools"] | pins["clients"]
 BROWSER = tuple(tool for tool in TOOLS if tool in pins["tools"])
 CHROME = [(tool, "chrome") for tool in BROWSER]
 FIREFOX = [(tool, "firefox") for tool in BROWSER]
-NATIVE = [(tool, None) for tool in TERMINAL]
+NATIVE = [(tool, None) for tool in TERMINAL if tool in pins["clients"]]
 REFERENCE = ("iperf3", None)
 CLIENTS = [*CHROME, *NATIVE, REFERENCE]
 reference_versions = {job["host"].get("iperf3") for job in jobs}
@@ -247,10 +250,10 @@ def browser_cpu(row):
     return cpu * 1e9 / link if cpu is not None and link else None
 
 
-def server_rx(row):
+def server_rx(row, divisor=1):
     phase = row["serverPhases"]["up"]
     byte_count, ms = phase.get("directionBytes"), phase.get("milliseconds")
-    return byte_count * 0.008 / ms if byte_count is not None and ms else None
+    return byte_count * 0.008 / ms / divisor if byte_count is not None and ms else None
 
 
 def idle_delta(row):
@@ -341,6 +344,8 @@ def show_version(client):
     version = releases[tool]["version"]
     if tool == NO_LOADED_LATENCY:
         return f"Graphite Meter {version}\nwithout loaded latency"
+    if tool == TERMINAL_NO_LOADED_LATENCY:
+        return f"Graphite Meter Terminal {version}\nwithout loaded latency"
     return f"{TOOLS[tool]} {version}"
 
 
@@ -388,7 +393,7 @@ def render_chart(filename, title, groups, compute, *, unit, digits=1, preference
         color = COLORS[client[0]]
         label = ax.text(-.72, y, show_version(client), transform=transform, ha="left", va="center",
                         fontsize=9.6, color=color)
-        if client[0] == NO_LOADED_LATENCY:
+        if client[0] in (NO_LOADED_LATENCY, TERMINAL_NO_LOADED_LATENCY):
             label.set_linespacing(.85)
         ax.axhline(y + .5, color="#edf1f5", linewidth=.65)
         value = "—"
@@ -539,8 +544,7 @@ idle_table = table(
      for client in [*CHROME, *FIREFOX, *NATIVE]],
 )
 loaded_fields = (("loadedLatencyDownMs", "down"), ("loadedLatencyUpMs", "up"))
-loaded_clients = [client for client in [*CHROME, *FIREFOX, *NATIVE]
-                  if client[0] in ("graphite-meter", NO_LOADED_LATENCY, "graphite-meter-client")]
+loaded_clients = [client for client in [*CHROME, *FIREFOX, *NATIVE] if client[0].startswith("graphite-meter")]
 fifo_table = table(
     ["Tool or client", "During download (ms)", "During upload (ms)"],
     [[client_name(client), *(
@@ -628,8 +632,8 @@ vm_method = """We take each VM’s median over its retained passes, then summari
 with up to two passes. Large marks show medians across VMs. Lines span the middle 50%, and small
 marks show VM values where plotted. The spreads describe these runners. Sample sizes and exact
 values are in the linked tables."""
-scope = """Tools keep their own test durations, connection counts and probes. Graphite Meter keeps loaded probes
-enabled in both clients. The other adapters record idle latency. The benchmark disables LibreSpeed
+scope = """Tools keep their own test durations and connection settings. Default Graphite Meter runs include loaded latency.
+Its without-loaded-latency profiles omit the idle stage and loaded probes. The benchmark disables LibreSpeed
 and OpenSpeedTest’s throughput compensation. [Deployment settings](#what-runs)"""
 latency_method = """The idle baseline is the minimum of ten ICMP pings before each scenario pass. Browser and terminal
 probes can include additional protocol and processing time. On the FIFO path, the loaded estimate adds the
@@ -663,8 +667,8 @@ if browser_fast_deltas:
     )
 transport_upload = [latest_value(FAST, (tool, "chrome"), rate(UPLOAD, 1000), 2)
                     for tool in ("graphite-meter", "graphite-meter-h2", "graphite-meter-h3", "graphite-meter-wt")]
-terminal_fast = [latest_value(FAST, client, rate(UPLOAD, 1000), 2) for client in NATIVE]
-terminal_rates = [rate_pair(UNCAPPED, client, 1000, 1) for client in [*NATIVE, REFERENCE]]
+terminal_fast = [latest_value(FAST, client, rate(UPLOAD, 1000), 2) for client in (gm_terminal, ls_terminal)]
+terminal_rates = [rate_pair(UNCAPPED, client, 1000, 1) for client in (gm_terminal, ls_terminal, REFERENCE)]
 native_difference = paired_vms(UNCAPPED, gm_terminal, REFERENCE, rate(UPLOAD))
 native_comparison = ""
 if native_difference:
@@ -693,7 +697,7 @@ for (cpu, kernel), labels in sorted(by_host.items()):
     hardware_rows.append([f"{cpu} ({kernel})", str(len(labels)), *upload,
                           f"{sum(value > 0 for value in differences)}/{len(differences)}" if differences else "—"])
 hardware_table = table(
-    ["CPU and kernel", "VMs", "Graphite Meter Terminal", "LibreSpeed CLI", "iperf3", "GM above iperf3"],
+    ["CPU and kernel", "VMs", *(client_name(client) for client in NATIVE), "iperf3", "GM above iperf3"],
     hardware_rows,
 )
 resource_notes = (
@@ -714,6 +718,14 @@ terminal_resource_notes = (
     f"LibreSpeed CLI used **{latest_value(PLAIN, ls_terminal, phase_cpu('up'), 3)} CPU s/GB** "
     f"at **{latest_value(PLAIN, ls_terminal, rate(UPLOAD))} Mbit/s**."
 )
+terminal_uncapped_rx = latest_value(UNCAPPED, gm_terminal, lambda row: server_rx(row, 1000))
+if terminal_uncapped_rx != "—":
+    terminal_resource_notes += (
+        f" On the unshaped path, the server interface recorded **{terminal_uncapped_rx} Gbit/s** of inbound traffic "
+        f"during the Graphite Meter Terminal upload. Server CPU there was "
+        f"**{latest_value(UNCAPPED, gm_terminal, phase_cpu('up'), 3)} CPU s/GB** for Graphite Meter Terminal "
+        f"and **{latest_value(UNCAPPED, ls_terminal, phase_cpu('up'), 3)} CPU s/GB** for LibreSpeed CLI."
+    )
 fifo_checks = [above_reference(FIFO, client) for client in ost]
 fifo_notes = ""
 if all(fifo_checks):
@@ -722,7 +734,7 @@ if all(fifo_checks):
                   f"**{fifo_checks[1][0]}/{fifo_checks[1][1]} Firefox** passes.")
 
 probes_comparison = ""
-if NO_LOADED_LATENCY in releases:
+if NO_LOADED_LATENCY in releases or TERMINAL_NO_LOADED_LATENCY in releases:
     probe_metrics = [
         ("Download (Mbit/s)", rate(DOWNLOAD), 1),
         ("Upload (Mbit/s)", rate(UPLOAD), 1),
@@ -730,19 +742,23 @@ if NO_LOADED_LATENCY in releases:
         ("Upload server CPU (s/GB)", phase_cpu("up"), 3),
         ("Total server CPU (s)", total_server_cpu, 2),
     ]
+    probe_cases = [("1 Gbit/s", PLAIN, browser.capitalize(), (NO_LOADED_LATENCY, browser), ("graphite-meter", browser))
+                   for browser in ("chrome", "firefox") if NO_LOADED_LATENCY in releases]
+    if TERMINAL_NO_LOADED_LATENCY in releases:
+        probe_cases.extend((path, scenario, "Terminal", (TERMINAL_NO_LOADED_LATENCY, None), gm_terminal)
+                           for path, scenario in (("1 Gbit/s", PLAIN), ("10 Gbit/s", FAST), ("Unshaped", UNCAPPED)))
     probe_rows = [
-        [browser.capitalize(), *(interval_label(list(paired_vms(PLAIN, (NO_LOADED_LATENCY, browser),
-                                                                ("graphite-meter", browser), metric).values()),
+        [path, label, *(interval_label(list(paired_vms(scenario, variant, default, metric).values()),
                                                digits, signed=True)
                                  for _, metric, digits in probe_metrics)]
-        for browser in ("chrome", "firefox")
+        for path, scenario, label, variant, default in probe_cases
     ]
     probes_comparison = (
-        f"### Graphite Meter without loaded latency\n\n"
-        "Both profiles use the same server build and browser settings at 1 Gbit/s. This profile skips the "
-        "app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, "
+        "### Graphite Meter without loaded latency\n\n"
+        "Within each client, both profiles use the same server build, automatic connection settings, and transfer durations. "
+        "The variant skips the app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, "
         "summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.\n\n"
-        + table(["Browser", *(label for label, _, _ in probe_metrics)], probe_rows) + "\n\n"
+        + table(["Path", "Client", *(label for label, _, _ in probe_metrics)], probe_rows) + "\n\n"
     )
 
 summary_heading = "\n\n".join([
@@ -809,8 +825,8 @@ On the 10 Gbit/s path, reported median uploads ranged from **{browser_fast} Gbit
 reported **{terminal_fast[0]} Gbit/s** and LibreSpeed CLI **{terminal_fast[1]} Gbit/s**.
 {browser_fast_comparison} [Upload spread across VMs]({report}/#10-gbits-upload-spread)
 
-Each throughput cell shows **download / upload**. Browser rows use default Chrome. The two terminal
-clients use their native defaults. The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
+Each throughput cell shows **download / upload**. Browser rows use Chrome. Terminal rows use native clients.
+The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
 about 956 Mbit/s. The 10 Gbit/s test uses a 2 ms RTT and offloads. iperf3 uses four TCP streams.
 Bold marks the highest displayed median in each direction within browser or terminal, including rounded ties.
 The iperf3 row is a reference.

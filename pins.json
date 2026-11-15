@@ -431,6 +431,11 @@
         ]
       }
     },
+    "graphite-meter-client-no-loaded-latency": {
+      "variantOf": "graphite-meter-client",
+      "name": "Graphite Meter Terminal without loaded latency",
+      "extraArgs": ["--stages", "download,upload"]
+    },
     "graphite-meter-client-h2": {
       "variantOf": "graphite-meter-client",
       "name": "Graphite Meter terminal client, HTTP/2",

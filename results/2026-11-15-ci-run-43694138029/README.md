@@ -189,12 +189,12 @@ Absolute server CPU time for the complete 1 Gbit/s test and each transfer phase.
 
 ### Graphite Meter without loaded latency
 
-Both profiles use the same server build and browser settings at 1 Gbit/s. This profile skips the app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.
+Within each client, both profiles use the same server build, automatic connection settings, and transfer durations. The variant skips the app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.
 
-| Browser | Download (Mbit/s) | Upload (Mbit/s) | Download server CPU (s/GB) | Upload server CPU (s/GB) | Total server CPU (s) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Chrome | -0.4 [-1.2, +0.3] (n=15) | +0.8 [-0.3, +1.9] (n=15) | -0.024 [-0.061, +0.018] (n=15) | +0.106 [+0.001, +0.219] (n=15) | +0.10 [-0.89, +0.66] (n=15) |
-| Firefox | +0.1 [-0.3, +0.8] (n=15) | +0.8 [-1.7, +2.9] (n=15) | -0.029 [-0.057, +0.016] (n=15) | +0.058 [+0.009, +0.254] (n=15) | -0.16 [-1.20, +0.62] (n=15) |
+| Path | Client | Download (Mbit/s) | Upload (Mbit/s) | Download server CPU (s/GB) | Upload server CPU (s/GB) | Total server CPU (s) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 Gbit/s | Chrome | -0.4 [-1.2, +0.3] (n=15) | +0.8 [-0.3, +1.9] (n=15) | -0.024 [-0.061, +0.018] (n=15) | +0.106 [+0.001, +0.219] (n=15) | +0.10 [-0.89, +0.66] (n=15) |
+| 1 Gbit/s | Firefox | +0.1 [-0.3, +0.8] (n=15) | +0.8 [-1.7, +2.9] (n=15) | -0.029 [-0.057, +0.016] (n=15) | +0.058 [+0.009, +0.254] (n=15) | -0.16 [-1.20, +0.62] (n=15) |
 
 ### Upload counter checks
 

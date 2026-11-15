@@ -221,13 +221,12 @@ async function runClient(name) {
     writeFileSync(`${config}/${file}`, JSON.stringify(content));
   const startedAt = Date.now();
   // A non-zero exit still prints a report (a partial run); the parser decides what it means.
-  // A variant runs its base's binary, or a build's (`binary`), with arguments of its own.
   const [binary, ...args] = client.release.command;
   const dir = `${releaseDir}/${client.variantOf ?? name}-${client.version}`;
   const text = await bed
     .clientRun(
       ["-v", `${dir}:/opt/tool:ro`, "-v", `${config}:/config:ro`, "-w", "/opt/tool"],
-      [client.binary ?? binary, ...(client.args ?? args)],
+      [client.binary ?? binary, ...(client.args ?? args), ...(client.extraArgs ?? [])],
     )
     .catch((error) => error.stdout ?? "");
   return { ...PARSERS[client.parse](text), report: text, startedAt, endedAt: Date.now() };
