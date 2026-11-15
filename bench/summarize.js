@@ -1,5 +1,6 @@
 // Turns one or more result directories into Markdown tables: node bench/summarize.js results/a [results/b ...]
 import { readFileSync, writeFileSync } from "node:fs";
+import { basename } from "node:path";
 import { quantile, readResults } from "./results.js";
 
 // tbf counts Ethernet frames: 1,514 bytes carry 1,448 bytes of TCP payload (IPv4, timestamps, 1,500 byte MTU).
@@ -10,16 +11,27 @@ const FILLABLE = 0.98;
 const dirs = process.argv.slice(2);
 if (!dirs.length) throw new Error("usage: node bench/summarize.js <results dir>...");
 
-const scenarios = JSON.parse(readFileSync(new URL("../scenarios.json", import.meta.url), "utf8"));
+const published = Boolean(process.env.SB_REPORT_DATA);
+const scenarios = JSON.parse(readFileSync(process.env.SB_SCENARIOS ?? new URL("../scenarios.json", import.meta.url), "utf8"));
 const median = (values) => quantile(values, 0.5);
-const { manifests, runs, noisy } = readResults(dirs, { withJob: Boolean(process.env.SB_REPORT_DATA) });
-if (process.env.SB_REPORT_DATA) {
-  const measurements = runs.filter(({ scenario, tool, browser, reported }) => {
-    if (reported.outcome !== "complete") return false;
-    if (scenario === "accuracy-1000") return browser === "chrome" || browser === "firefox" || ["iperf3", "graphite-meter-client", "librespeed-cli"].includes(tool);
-    return scenario === "unshaped" && (tool === "graphite-meter-client" || tool === "iperf3");
-  });
-  writeFileSync(process.env.SB_REPORT_DATA, JSON.stringify(measurements));
+const { manifests, runs, noisy } = readResults(dirs, { withJob: published });
+if (published) {
+  const fields = (record, keys) => Object.fromEntries(keys.filter((key) => record?.[key] != null).map((key) => [key, record[key]]));
+  const directions = (record, keys) => Object.fromEntries(
+    ["down", "up"].map((direction) => [direction, fields(record?.[direction], keys)]),
+  );
+  const measurements = runs.map((run) => ({
+    ...fields(run, ["tool", "browser", "scenario", "rep", "position", "baseRttMs", "serverCpuSeconds", "serverMemoryPeakBytes"]),
+    job: basename(run.job),
+    reported: fields(run.reported, [
+      "outcome", "startedAt", "endedAt", "downloadMbit", "uploadMbit", "idleLatencyMs", "loadedLatencyDownMs",
+      "loadedLatencyUpMs", "browserCpuSeconds",
+    ]),
+    linkBytes: fields(run.linkBytes, ["down", "up"]),
+    serverPhases: directions(run.serverPhases, ["bytes", "cpuSeconds", "directionBytes", "milliseconds"]),
+    queues: directions(run.queues, ["loadedSamples", "medianQueueMs", "medianOwnLinkMbit"]),
+  }));
+  writeFileSync(process.env.SB_REPORT_DATA, JSON.stringify({ runs: measurements, noisy }));
 }
 const pins = manifests[0].pins;
 
@@ -27,8 +39,16 @@ const fmt = (value, digits = 1) => (value == null || Number.isNaN(value) ? "n/a"
 const pct = (value) => (value == null ? "n/a" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)} %`);
 const entry = (tool) => pins.tools[tool] ?? pins.clients?.[tool];
 const quantity = (tool) => (tool === "iperf3" ? "payload" : entry(tool).reports.quantity);
+const name = (run) => {
+  const tool = entry(run.tool);
+  if (process.env.SB_SCENARIOS && run.tool.startsWith("graphite-meter")) {
+    return tool.name.replace(/^(Graphite Meter terminal client|Graphite Meter)/,
+      run.browser ? "Graphite Meter Browser" : "Graphite Meter Terminal");
+  }
+  return tool.name;
+};
 const label = (run) =>
-  `${run.tool === "iperf3" ? "iperf3 (reference)" : entry(run.tool).name}${run.browser ? `, ${run.browser}` : ""}`;
+  `${run.tool === "iperf3" ? "iperf3 (reference)" : name(run)}${run.browser ? `, ${run.browser}` : ""}`;
 
 const lines = [];
 const out = (line = "") => lines.push(line);
@@ -57,7 +77,9 @@ for (let scenario of scenarios) {
     return v.length ? `${fmt(median(v))} [${fmt(quantile(v, 0.25))}, ${fmt(quantile(v, 0.75))}]` : "n/a";
   };
   if (!shaped) {
-    out("No shaping: the host's CPU is the limit, so rates show how far each tool gets on it, not a network's capacity. Rates show median [25th, 75th percentile].");
+    out(published
+      ? "Unshaped single-test throughput on the runner’s virtual link. Rates show median [25th, 75th percentile]."
+      : "No shaping: the host's CPU is the limit, so rates show how far each tool gets on it, not a network's capacity. Rates show median [25th, 75th percentile].");
     out();
     out("| Tool | Runs ok | Download Mbit/s | Upload Mbit/s | Server CPU s/GB | Server peak MB | Browser CPU s/GB |");
     out("| --- | --- | --- | --- | --- | --- | --- |");
@@ -82,23 +104,31 @@ for (let scenario of scenarios) {
       scenario.competing
         ? "One bulk TCP flow each way shares the link. A tool's share grows over its run as its flows take their part, and each tool averages a different window, so there is no single reference: compare the tools with each other and with iperf3 (4 TCP streams). Each run's median share, measured on the shaper, is in the raw data."
         : fillable
-          ? "Error is against the quantity each tool says it reports."
+          ? (published ? "Differences use the modeled TCP payload rate. QUIC rows retain their reported rates without a TCP percentage." : "Error is against the quantity each tool says it reports.")
           : "iperf3 does not fill this link, so it has no accuracy reference: compare the tools with each other and with iperf3 (4 TCP streams).",
       fifo ? "" : "Under fq_codel a latency probe skips the bulk queue, so loaded latency has no reference.",
-      scenario.note ?? "",
+      published && scenario.proxy ? "iperf3 bypasses nginx and measures the direct shaped path as a control." : "",
+      published ? "" : scenario.note ?? "",
       "Rates show median [25th, 75th percentile].",
     ]
       .filter(Boolean)
       .join(" "),
   );
   out();
-  out("| Tool | Runs ok | Reports | Download Mbit/s | Error | Upload Mbit/s | Error | Idle ms (base) | Loaded down ms (ref) | Loaded up ms (ref) |");
+  const difference = published ? "vs TCP model" : "Error";
+  out(`| Tool | Runs ok | Reports | Download Mbit/s | ${difference} | Upload Mbit/s | ${difference} | Idle ms (base) | Loaded down ms (ref) | Loaded up ms (ref) |`);
   out("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const group of groups.values()) {
-    const share = quantity(group[0].tool) === "payload" ? PAYLOAD_SHARE : 1;
+    const tool = group[0].tool;
+    const share = quantity(tool) === "payload" ? PAYLOAD_SHARE : 1;
+    const options = pins.tools[tool]?.options?.config?.transports;
+    const target = options?.throughputTarget;
+    const args = pins.clients?.[tool]?.args ?? [];
+    const quic = target === "protocol:http3" || target === "transport:webtransport" ||
+      (args.includes("--throughput-protocol") && args[args.indexOf("--throughput-protocol") + 1] === "http3");
     const error = (fn, rate) => {
       const value = pick(group, fn);
-      return fillable && !scenario.competing && value != null ? pct(value / (rate * share) - 1) : "n/a";
+      return fillable && !scenario.competing && !(published && quic) && value != null ? pct(value / (rate * share) - 1) : "n/a";
     };
     const ref = (dir) => (fifo ? fmt(pick(group, (r) => r.baseRttMs + (r.queues?.[dir].medianQueueMs ?? NaN))) : "n/a");
     const loaded = (key, dir) => `${fmt(pick(group, (r) => r.reported[key]))} (${ref(dir)})`;

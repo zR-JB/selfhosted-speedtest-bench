@@ -5,7 +5,7 @@ import { quantile, readResults } from "./results.js";
 const dirs = process.argv.slice(2);
 if (!dirs.length) throw new Error("usage: node bench/phases.js <results dir>...");
 
-const scenarios = JSON.parse(readFileSync(new URL("../scenarios.json", import.meta.url), "utf8"));
+const scenarios = JSON.parse(readFileSync(process.env.SB_SCENARIOS ?? new URL("../scenarios.json", import.meta.url), "utf8"));
 const spread = (values, digits) => {
   const v = values.filter(Number.isFinite);
   const f = (x) => x.toFixed(digits);
@@ -15,8 +15,16 @@ const spread = (values, digits) => {
 const { manifests, runs } = readResults(dirs);
 const pins = manifests[0].pins;
 const entry = (tool) => pins.tools[tool] ?? pins.clients?.[tool];
+const name = (run) => {
+  const tool = entry(run.tool);
+  if (process.env.SB_SCENARIOS && run.tool.startsWith("graphite-meter")) {
+    return tool.name.replace(/^(Graphite Meter terminal client|Graphite Meter)/,
+      run.browser ? "Graphite Meter Browser" : "Graphite Meter Terminal");
+  }
+  return tool.name;
+};
 const label = (run) =>
-  `${run.tool === "iperf3" ? "iperf3 (reference)" : entry(run.tool).name}${run.browser ? `, ${run.browser}` : ""}`;
+  `${run.tool === "iperf3" ? "iperf3 (reference)" : name(run)}${run.browser ? `, ${run.browser}` : ""}`;
 
 console.log("## Server CPU by phase");
 console.log();

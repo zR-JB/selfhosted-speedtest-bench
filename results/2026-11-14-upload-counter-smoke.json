@@ -1,0 +1,90 @@
+{
+  "workflowRun": 43607039717,
+  "benchmarkRevision": "b077cceb",
+  "host": {
+    "kernel": "7.0.0-1017-azure",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cpus": 4,
+    "memoryBytes": 16760348672,
+    "podman": "podman version 4.9.3",
+    "node": "v24.22.2",
+    "runner": "ubuntu24 20261111.370.1",
+    "cpusets": {
+      "shaper": "0",
+      "server": "1",
+      "client": "2-3"
+    },
+    "rootful": true
+  },
+  "pins": {
+    "browsers": {
+      "chrome": {
+        "version": "157.0.8103.78",
+        "url": "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.78/linux64/chrome-linux64.zip",
+        "sha256": "9223832977a13db3646201b1341c1f9cf08afa3ceae92540116d7b0c062364fb",
+        "binary": "chrome-linux64/chrome"
+      },
+      "firefox": {
+        "version": "160.0",
+        "url": "https://ftp.mozilla.org/pub/firefox/releases/160.0/linux-x86_64/en-US/firefox-160.0.tar.xz",
+        "sha256": "fde774e9757c8878534c05ec210db592bf6a1b244c57941ffb2e364c04f35fcd",
+        "binary": "firefox/firefox"
+      }
+    },
+    "tool": {
+      "name": "OpenSpeedTest",
+      "version": "2.5.4",
+      "image": "docker.io/openspeedtest/latest:latest@sha256:1127de0693c36bcf8c297c73d09891df8ec243680d027a6b6fab13fa0954ff46",
+      "port": 3000,
+      "env": {},
+      "source": "https://github.com/openspeedtest/Speed-Test",
+      "quickStart": "docker run --restart=unless-stopped --name openspeedtest -d -p 3000:3000 -p 3001:3001 openspeedtest/latest",
+      "reports": {
+        "quantity": "payload",
+        "evidence": "assets/js/app-2.5.4.js in the image: upAdjust (default 1.04) only multiplies the displayed and averaged rate; README: the Clean URL parameter resets it to zero"
+      },
+      "proxy": {
+        "evidence": "README: behind a reverse proxy, increase the post-body content length to 35 megabytes",
+        "env": {},
+        "location": [
+          "client_max_body_size 35m;"
+        ]
+      },
+      "watch": {
+        "image": "docker.io/openspeedtest/latest:latest"
+      },
+      "urlSuffix": "?clean"
+    }
+  },
+  "scenario": "accuracy-1000",
+  "rep": 1,
+  "measurements": [
+    {
+      "tool": "openspeedtest",
+      "browser": "chrome",
+      "outcome": "complete",
+      "reportedMbit": 947.8,
+      "serverInterfaceBytes": 1475601338,
+      "serverInterfaceDurationMs": 12402.628083999967,
+      "shaperBusyMbit": 964.5365818180621
+    },
+    {
+      "tool": "openspeedtest",
+      "browser": "firefox",
+      "outcome": "complete",
+      "reportedMbit": 965.6,
+      "serverInterfaceBytes": 1480642183,
+      "serverInterfaceDurationMs": 12532.750531999976,
+      "shaperBusyMbit": 967.1982545453345
+    },
+    {
+      "tool": "iperf3",
+      "browser": null,
+      "outcome": "complete",
+      "reportedMbit": 955.4316678404766,
+      "serverInterfaceBytes": 1488832519,
+      "serverInterfaceDurationMs": 12166.304000000004,
+      "shaperBusyMbit": 967.638690908971
+    }
+  ]
+}

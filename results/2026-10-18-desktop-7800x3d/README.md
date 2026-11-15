@@ -7,13 +7,13 @@ so each tool and browser has 6 runs per scenario: 1,074 runs, all complete. Vers
 Graphite Meter 0.13.1, LibreSpeed 6.3.0, LibreSpeed Go backend 1.1.6, LibreSpeed Rust backend 1.4.0, OpenSpeedTest
 2.5.4, LibreSpeed CLI 1.0.14, Chrome for Testing 155.0.8059.84, Firefox 158.0.
 
-This kernel's TCP recovers from random loss far better than the runners' kernel 6.17 (iperf3 reaches 94 Mbit/s at
-1 % loss here and 13 there, with the same netem loss and CUBIC on both), so loss, long-path and deep-buffer numbers
-are comparable within this page, not with the runner results. With 6 runs per cell, differences of about 2 % or
-less are within this dataset's noise.
+At 1% loss, iperf3 reached about 94 Mbit/s here and about 13 Mbit/s on the runners. The testbeds differed in
+hardware, kernel and runtime. Compare these results within this desktop dataset, and use the middle 50% of
+the six runs per setup to see how much results varied.
 
-Values are medians with the 25th and 75th percentile in brackets; error compares the median with the payload rate;
-latency references are in brackets. Raw data: one JSON per run in `runs/` and the campaign's `manifest.json`.
+Values are medians with the 25th and 75th percentiles in brackets. The historical “Error” columns show differences
+from the modeled TCP payload ceiling. They use a shared TCP yardstick for alternate protocols.
+Latency references are in brackets. Raw data: one JSON per run in `runs/` and the campaign's `manifest.json`.
 
 ## 100/100 Mbit/s, 20 ms RTT, fq_codel
 
