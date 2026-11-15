@@ -18,10 +18,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
-PROBES_OFF = "graphite-meter-probes-off"
+NO_LOADED_LATENCY = "graphite-meter-no-loaded-latency"
 TOOLS = {
     "graphite-meter": "Graphite Meter Browser",
-    PROBES_OFF: "Graphite Meter · probes off",
+    NO_LOADED_LATENCY: "Graphite Meter without loaded latency",
     "librespeed": "LibreSpeed",
     "librespeed-go": "LibreSpeed Go backend",
     "librespeed-rust": "LibreSpeed Rust backend",
@@ -41,7 +41,7 @@ UPLOAD = "uploadMbit"
 INK, MUTED, LINE = "#192b3d", "#455b6e", "#dbe4eb"
 COLORS = {
     "graphite-meter": "#1458be",
-    PROBES_OFF: "#4b659c",
+    NO_LOADED_LATENCY: "#4b659c",
     "librespeed": "#087164",
     "librespeed-go": "#a14d0d",
     "librespeed-rust": "#7e4697",
@@ -338,7 +338,10 @@ def show_version(client):
     tool, _ = client
     if client == REFERENCE:
         return "iperf3" if reference_version == "Unrecorded" else f"iperf3 {reference_version}"
-    return f"{TOOLS[tool]} {releases[tool]['version']}"
+    version = releases[tool]["version"]
+    if tool == NO_LOADED_LATENCY:
+        return f"Graphite Meter {version}\nwithout loaded latency"
+    return f"{TOOLS[tool]} {version}"
 
 
 def render_chart(filename, title, groups, compute, *, unit, digits=1, preference="highest"):
@@ -384,7 +387,7 @@ def render_chart(filename, title, groups, compute, *, unit, digits=1, preference
         client, series, highlighted = row
         color = COLORS[client[0]]
         ax.text(-.72, y, show_version(client), transform=transform, ha="left", va="center",
-                fontsize=9.6, color=color)
+                fontsize=9.6, linespacing=.85, color=color)
         ax.axhline(y + .5, color="#edf1f5", linewidth=.65)
         value = "—"
         if series:
@@ -392,7 +395,7 @@ def render_chart(filename, title, groups, compute, *, unit, digits=1, preference
             offsets = [y + ((index % 5) - 2) * .073 for index in range(len(series))]
             ax.scatter(series, offsets, color=color, s=13, alpha=.50, linewidth=0, zorder=3)
             ax.hlines(y, low, high, color=color, linewidth=2.9, zorder=4)
-            marker = "D" if client in NATIVE else "s" if client == REFERENCE else "^" if client[0] == PROBES_OFF else "o"
+            marker = "D" if client in NATIVE else "s" if client == REFERENCE else "^" if client[0] == NO_LOADED_LATENCY else "o"
             if highlighted:
                 ax.scatter(center, y, s=116, facecolor="none", edgecolor=color, linewidth=1.3, marker=marker, zorder=5)
             ax.scatter(center, y, color=color, s=43, edgecolor="white", linewidth=.75, marker=marker, zorder=6)
@@ -535,7 +538,7 @@ idle_table = table(
 )
 loaded_fields = (("loadedLatencyDownMs", "down"), ("loadedLatencyUpMs", "up"))
 loaded_clients = [client for client in [*CHROME, *FIREFOX, *NATIVE]
-                  if client[0] in ("graphite-meter", PROBES_OFF, "graphite-meter-client")]
+                  if client[0] in ("graphite-meter", NO_LOADED_LATENCY, "graphite-meter-client")]
 fifo_table = table(
     ["Tool or client", "During download (ms)", "During upload (ms)"],
     [[client_name(client), *(
@@ -717,7 +720,7 @@ if all(fifo_checks):
                   f"**{fifo_checks[1][0]}/{fifo_checks[1][1]} Firefox** passes.")
 
 probes_comparison = ""
-if PROBES_OFF in releases:
+if NO_LOADED_LATENCY in releases:
     probe_metrics = [
         ("Download (Mbit/s)", rate(DOWNLOAD), 1),
         ("Upload (Mbit/s)", rate(UPLOAD), 1),
@@ -726,16 +729,16 @@ if PROBES_OFF in releases:
         ("Total server CPU (s)", total_server_cpu, 2),
     ]
     probe_rows = [
-        [browser.capitalize(), *(interval_label(list(paired_vms(PLAIN, (PROBES_OFF, browser),
+        [browser.capitalize(), *(interval_label(list(paired_vms(PLAIN, (NO_LOADED_LATENCY, browser),
                                                                 ("graphite-meter", browser), metric).values()),
                                                digits, signed=True)
                                  for _, metric, digits in probe_metrics)]
         for browser in ("chrome", "firefox")
     ]
     probes_comparison = (
-        f"### Graphite Meter with latency probes off\n\n"
-        "Both profiles use the same server build and browser settings at 1 Gbit/s. The probes-off profile skips the "
-        "app’s idle-latency stage and loaded probes. Each cell is **probes off minus default** on the same VM and pass, "
+        f"### Graphite Meter without loaded latency\n\n"
+        "Both profiles use the same server build and browser settings at 1 Gbit/s. This profile skips the "
+        "app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, "
         "summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.\n\n"
         + table(["Browser", *(label for label, _, _ in probe_metrics)], probe_rows) + "\n\n"
     )

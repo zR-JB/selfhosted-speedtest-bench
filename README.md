@@ -252,7 +252,7 @@ path. The connection counts are configured settings. The harness does not count 
 | LibreSpeed CLI | 3 concurrent HTTP requests | 15 s | Idle only | Payload rate |
 
 Graphite Meter runs latency probes during throughput and includes their cost in its defaults. A probes-on/off
-comparison uses the same server release and browser transport. The **Graphite Meter · probes off** profile skips
+comparison uses the same server release and browser transport. The **Graphite Meter without loaded latency** profile skips
 the app’s idle-latency stage and its loaded probes. The harness still measures idle path RTT independently. The separate transport
 variants use the documented settings above. The LibreSpeed web worker’s display factor defaults to 1.06, and
 the OpenSpeedTest page defaults to 1.04. The harness uses each application's adjustment for payload-rate display.
