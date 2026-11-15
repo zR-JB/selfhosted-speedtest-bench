@@ -73,7 +73,7 @@ LibreSpeed deployments spanned **-7.3% to -6.1%**.
 
 [![Upload agreement with same-pass iperf3, grouped by Chrome, Firefox, and native terminal.](results/2026-11-14-ci-run-43601751633/agreement-upload.png)](results/2026-11-14-ci-run-43601751633/agreement-upload.png)
 
-<details>
+<details open>
 <summary>View download agreement</summary>
 
 [![View download agreement](results/2026-11-14-ci-run-43601751633/agreement-download.png)](results/2026-11-14-ci-run-43601751633/agreement-download.png)
@@ -94,7 +94,7 @@ Graphite Meter Terminal had a higher upload rate than iperf3 on **11 of 15 VMs**
 
 [![Unshaped download medians and spread by tool and client.](results/2026-11-14-ci-run-43601751633/unshaped-download.png)](results/2026-11-14-ci-run-43601751633/unshaped-download.png)
 
-<details>
+<details open>
 <summary>View unshaped upload throughput</summary>
 
 [![View unshaped upload throughput](results/2026-11-14-ci-run-43601751633/unshaped-upload.png)](results/2026-11-14-ci-run-43601751633/unshaped-upload.png)
@@ -119,14 +119,14 @@ Graphite Meter Terminal used **6.849 CPU s/GB** on upload at **956.5 Mbit/s**. L
 
 [![Server CPU during upload at 1 Gbit/s for Chrome and terminal tests.](results/2026-11-14-ci-run-43601751633/server-upload-cpu.png)](results/2026-11-14-ci-run-43601751633/server-upload-cpu.png)
 
-<details>
+<details open>
 <summary>View server CPU during download</summary>
 
 [![View server CPU during download](results/2026-11-14-ci-run-43601751633/server-download-cpu.png)](results/2026-11-14-ci-run-43601751633/server-download-cpu.png)
 
 </details>
 
-<details>
+<details open>
 <summary>View peak server memory</summary>
 
 [![View peak server memory](results/2026-11-14-ci-run-43601751633/server-peak-memory.png)](results/2026-11-14-ci-run-43601751633/server-peak-memory.png)

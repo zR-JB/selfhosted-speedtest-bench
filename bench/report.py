@@ -289,7 +289,7 @@ def figure(filename, description):
 
 
 def companion(filename, description):
-    return f"<details>\n<summary>{description}</summary>\n\n{figure(filename, description)}\n\n</details>"
+    return f"<details open>\n<summary>{description}</summary>\n\n{figure(filename, description)}\n\n</details>"
 
 
 def case_link(scenario):
@@ -386,8 +386,10 @@ def render_chart(filename, title, groups, compute, *, unit, digits=1, preference
             continue
         client, series, highlighted = row
         color = COLORS[client[0]]
-        ax.text(-.72, y, show_version(client), transform=transform, ha="left", va="center",
-                fontsize=9.6, linespacing=.85, color=color)
+        label = ax.text(-.72, y, show_version(client), transform=transform, ha="left", va="center",
+                        fontsize=9.6, color=color)
+        if client[0] == NO_LOADED_LATENCY:
+            label.set_linespacing(.85)
         ax.axhline(y + .5, color="#edf1f5", linewidth=.65)
         value = "—"
         if series:
