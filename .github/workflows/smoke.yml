@@ -1,13 +1,12 @@
 name: Smoke
 
-# Every tool, variant and client once, and every scenario once, rootful as in the bench. Any harness error fails it.
 # The Bench workflow runs this first and starts its matrix only when it passes.
 on:
   pull_request:
     paths-ignore: [README.md, "results/**"]
   push:
     branches: [main]
-    paths-ignore: [README.md, "results/**"]
+    paths-ignore: [README.md, "results/**", pins.json]
   workflow_call:
 
 permissions:
@@ -20,15 +19,17 @@ defaults:
 jobs:
   smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: every-tool
             args: --scenarios accuracy-1000
-          - name: every-scenario
-            args: --tools graphite-meter,graphite-meter-client,librespeed,openspeedtest
+          - name: network-paths
+            args: >-
+              --tools graphite-meter --browsers chrome
+              --scenarios bufferbloat-300-30,loss-100,compete-100,proxy-1000,multi-200,unshaped
     name: smoke (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v5

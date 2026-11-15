@@ -299,10 +299,12 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
   run in it (Graphite Meter, through its documented server catalogue); the others test one server at a time.
 - After every run the harness checks that nothing was left behind (browser processes, helper containers, sampler
   loops) and stops the job otherwise; three harness errors in a row also stop it. A full bench only starts after a
-  [smoke](.github/workflows/smoke.yml) of every tool and every scenario passes with no harness error.
+  [smoke](.github/workflows/smoke.yml) passes with no harness error. It runs every eligible tool and client on the
+  1 Gbit/s path, including both pinned browsers where supported. Graphite Meter in Chrome and the iperf3 control
+  also exercise the FIFO queue, packet loss, competing traffic, nginx proxy, two-server setup, and unshaped path.
 - Bench verifies the committed pins against the current stable releases before starting smoke tests. The
   [release watcher](.github/workflows/watch.yml) checks every Monday at 04:00 UTC and can also run on demand.
-  It proposes pin updates in a pull request. Merging a pin update starts a new Bench run. The regular benchmark
+  It proposes pin updates in a pull request. Pin-only pushes run smoke through Bench. The regular benchmark
   runs on the first of each month at 03:00 UTC. The [report workflow](.github/workflows/publish-report.yml) publishes
   updated tables and charts after each successful full run.
 
