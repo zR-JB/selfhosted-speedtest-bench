@@ -15,10 +15,16 @@ measurements and generated configs while GitHub retains the artifacts. Correctio
 
 ## Latest GitHub runner results
 
-**14 November 2026.** **4,530/4,530** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule).
+**14.11.2026.** **4,530/4,530** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule).
 The 25 and 40 Gbit/s shaped scenarios are skipped on these 4-vCPU runners. They require 8+ CPUs.
 
 [Full report and tested versions](results/2026-11-14-ci-run-43601751633) · [Benchmark source](https://github.com/zR-JB/selfhosted-speedtest-bench/tree/6f9063202cdedffd4c7957dedd57758cef9b9a44) · [Workflow run and raw artifacts](https://github.com/zR-JB/selfhosted-speedtest-bench/actions/runs/43601751633) · [Previous report](results/2026-11-01-ci-run-41295946781)
+
+**Browsers** · Chrome 157.0.8103.78 · Firefox 160.0
+
+**Tested tools** · Graphite Meter Browser 0.14.3 · LibreSpeed 6.3.1 · LibreSpeed Go backend 1.1.6 · LibreSpeed Rust backend 1.4.0 · OpenSpeedTest 2.5.4 · Graphite Meter Terminal 0.14.3 · LibreSpeed CLI 1.0.14
+
+[Exact pins and reference version](results/2026-11-14-ci-run-43601751633/#tested-versions)
 
 ### Shaped throughput
 
@@ -30,15 +36,17 @@ Graphite Meter Browser’s same-pass upload difference from OpenSpeedTest in Chr
 Each throughput cell shows **download / upload**. Browser rows use default Chrome. The two terminal
 clients use their native defaults. The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
 about 956 Mbit/s. The 10 Gbit/s test uses a 2 ms RTT and offloads. iperf3 uses four TCP streams.
+Bold marks the highest displayed median in each direction within browser or terminal, including rounded ties.
+The iperf3 row is a reference.
 
 | Tool or client | 1 Gbit/s (Mbit/s) | 10 Gbit/s (Gbit/s) | 1% loss (Mbit/s) |
 | --- | ---: | ---: | ---: |
-| Graphite Meter Browser | 956.1 / 954.4 | 9.56 / 4.19 | 13.4 / 13.9 |
+| Graphite Meter Browser | **956.1** / 954.4 | **9.56** / **4.19** | 13.4 / 13.9 |
 | LibreSpeed | 956.0 / 943.5 | 9.14 / 3.23 | 16.6 / 9.5 |
 | LibreSpeed Go backend | 954.5 / 946.5 | 9.20 / 3.22 | 16.9 / 9.5 |
 | LibreSpeed Rust backend | 954.0 / 947.0 | 9.39 / 3.17 | 16.9 / 9.6 |
-| OpenSpeedTest | 953.2 / 954.5 | 9.27 / 3.31 | 18.7 / 21.5 |
-| Graphite Meter Terminal | 956.4 / 956.5 | 9.56 / 9.56 | 20.0 / 20.0 |
+| OpenSpeedTest | 953.2 / **954.5** | 9.27 / 3.31 | **18.7** / **21.5** |
+| Graphite Meter Terminal | **956.4** / **956.5** | **9.56** / **9.56** | **20.0** / **20.0** |
 | LibreSpeed CLI | 943.8 / 871.5 | 9.36 / 7.88 | 11.2 / 11.8 |
 | iperf3 (reference) | 956.4 / 956.4 | 9.56 / 9.56 | 13.0 / 12.8 |
 
@@ -61,9 +69,16 @@ and OpenSpeedTest’s throughput compensation. [Deployment settings](#what-runs)
 Chrome’s median upload differences from iperf3 spanned **-1.3% to -0.2%**. In Firefox, the three
 LibreSpeed deployments spanned **-7.3% to -6.1%**.
 
-[Full-size agreement chart](results/2026-11-14-ci-run-43601751633/throughput.png) · [Agreement values for every tool](results/2026-11-14-ci-run-43601751633/#matched-1-gbits-agreement)
+[Agreement values for every tool](results/2026-11-14-ci-run-43601751633/#matched-1-gbits-agreement)
 
-[![Download and upload differences from same-VM, same-pass iperf3 for all browser and terminal tools.](results/2026-11-14-ci-run-43601751633/throughput.png)](results/2026-11-14-ci-run-43601751633/throughput.png)
+[![Upload agreement with same-pass iperf3, grouped by Chrome, Firefox, and native terminal.](results/2026-11-14-ci-run-43601751633/agreement-upload.png)](results/2026-11-14-ci-run-43601751633/agreement-upload.png)
+
+<details>
+<summary>View download agreement</summary>
+
+[![View download agreement](results/2026-11-14-ci-run-43601751633/agreement-download.png)](results/2026-11-14-ci-run-43601751633/agreement-download.png)
+
+</details>
 
 Zero matches the iperf3 receiver payload rate. Positive values mean the app reported a higher rate.
 The comparison reflects both the traffic each setup drove and its reporting method.
@@ -75,9 +90,16 @@ Median download / upload was **35.5 / 55.3 Gbit/s** for Graphite Meter Terminal,
 **28.3 / 18.6 Gbit/s** for LibreSpeed CLI and **31.4 / 44.5 Gbit/s** for iperf3.
 Graphite Meter Terminal had a higher upload rate than iperf3 on **11 of 15 VMs** after matching passes. The split was 0/4 on AWS-kernel VMs, 11/11 on Azure-kernel VMs.
 
-[Full-size unshaped chart](results/2026-11-14-ci-run-43601751633/uncapped.png) · [Unshaped medians, maxima and browser CPU](results/2026-11-14-ci-run-43601751633/#unshaped-throughput-and-browser-cpu)
+[Unshaped medians, maxima and browser CPU](results/2026-11-14-ci-run-43601751633/#unshaped-throughput-and-browser-cpu)
 
-[![Observed download and upload rates for Chrome, Firefox, the terminal clients and iperf3 on the same scale.](results/2026-11-14-ci-run-43601751633/uncapped.png)](results/2026-11-14-ci-run-43601751633/uncapped.png)
+[![Unshaped download medians and spread by tool and client.](results/2026-11-14-ci-run-43601751633/unshaped-download.png)](results/2026-11-14-ci-run-43601751633/unshaped-download.png)
+
+<details>
+<summary>View unshaped upload throughput</summary>
+
+[![View unshaped upload throughput](results/2026-11-14-ci-run-43601751633/unshaped-upload.png)](results/2026-11-14-ci-run-43601751633/unshaped-upload.png)
+
+</details>
 
 Unshaped runs remove the rate limit and artificial delay, with offloads enabled. The runner gives the
 server one vCPU and the client two. The tool, client, server and VM can all affect the observed rate.
@@ -93,9 +115,23 @@ With Chrome, Graphite Meter Browser’s median peak memory was **15.1 MB**. The 
 
 Graphite Meter Terminal used **6.849 CPU s/GB** on upload at **956.5 Mbit/s**. LibreSpeed CLI used **1.997 CPU s/GB** at **871.5 Mbit/s**.
 
-[Full-size resource chart](results/2026-11-14-ci-run-43601751633/server-load.png) · [Server resource values for Chrome, Firefox and terminals](results/2026-11-14-ci-run-43601751633/#server-resources-at-1-gbits)
+[Server resource values for Chrome, Firefox and terminals](results/2026-11-14-ci-run-43601751633/#server-resources-at-1-gbits)
 
-[![Server download and upload CPU per GB and peak server memory for Chrome tools, the terminal clients and iperf3.](results/2026-11-14-ci-run-43601751633/server-load.png)](results/2026-11-14-ci-run-43601751633/server-load.png)
+[![Server CPU during upload at 1 Gbit/s for Chrome and terminal tests.](results/2026-11-14-ci-run-43601751633/server-upload-cpu.png)](results/2026-11-14-ci-run-43601751633/server-upload-cpu.png)
+
+<details>
+<summary>View server CPU during download</summary>
+
+[![View server CPU during download](results/2026-11-14-ci-run-43601751633/server-download-cpu.png)](results/2026-11-14-ci-run-43601751633/server-download-cpu.png)
+
+</details>
+
+<details>
+<summary>View peak server memory</summary>
+
+[![View peak server memory](results/2026-11-14-ci-run-43601751633/server-peak-memory.png)](results/2026-11-14-ci-run-43601751633/server-peak-memory.png)
+
+</details>
 
 Server CPU is container CPU time per decimal GB of server-interface traffic during each phase,
 counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB.
@@ -104,15 +140,17 @@ measured separately on the client. Native client CPU is unavailable.
 
 Over the full Chrome test the median total server CPU time was **6.01 s** for OpenSpeedTest and **3.47 s** for Graphite Meter Browser. Total time reflects both the amount of data moved and the work per byte.
 
+Bold marks the lowest displayed median per resource within each client group.
+
 | Tool or client | Down / up (Mbit/s) | Down CPU (s/GB) | Up CPU (s/GB) | Peak RAM (MB) |
 | --- | ---: | ---: | ---: | ---: |
-| Graphite Meter Browser · Chrome | 956.1 / 954.4 | 0.368 | 3.949 | 15.1 |
+| Graphite Meter Browser · Chrome | 956.1 / 954.4 | 0.368 | 3.949 | **15.1** |
 | LibreSpeed · Chrome | 956.0 / 943.5 | 0.418 | 5.700 | 80.3 |
 | LibreSpeed Go backend · Chrome | 954.5 / 946.5 | 0.396 | 5.034 | 48.1 |
 | LibreSpeed Rust backend · Chrome | 954.0 / 947.0 | 0.322 | 3.846 | 22.5 |
-| OpenSpeedTest · Chrome | 953.2 / 954.5 | 0.182 | 3.672 | 29.3 |
-| Graphite Meter Terminal | 956.4 / 956.5 | 0.203 | 6.849 | 17.2 |
-| LibreSpeed CLI | 943.8 / 871.5 | 0.275 | 1.997 | 68.7 |
+| OpenSpeedTest · Chrome | 953.2 / 954.5 | **0.182** | **3.672** | 29.3 |
+| Graphite Meter Terminal | 956.4 / 956.5 | **0.203** | 6.849 | **17.2** |
+| LibreSpeed CLI | 943.8 / 871.5 | 0.275 | **1.997** | 68.7 |
 | iperf3 (reference) | 956.4 / 956.4 | 0.239 | 5.078 | 19.3 |
 
 [All server CPU phases](results/2026-11-14-ci-run-43601751633/server-cpu.md)

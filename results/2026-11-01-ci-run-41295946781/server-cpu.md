@@ -1,6 +1,6 @@
-# Server CPU by phase, 2026-11-01
+# Server CPU by phase, 01.11.2026
 
-[Full benchmark report](README.md)
+[Full benchmark report and tested versions](README.md)
 
 These tables pool retained passes. The overview gives each VM equal weight.
 

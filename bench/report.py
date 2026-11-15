@@ -43,8 +43,16 @@ UNCAPPED = "unshaped"
 DOWNLOAD = "downloadMbit"
 UPLOAD = "uploadMbit"
 INK, MUTED, LINE = "#192b3d", "#455b6e", "#dbe4eb"
-BROWSER_COLOR, NATIVE_COLOR, REF_COLOR = "#1c6f89", "#71448c", "#465563"
-BAND = {BROWSER_COLOR: "#f5f9fb", NATIVE_COLOR: "#f7f3fa", REF_COLOR: "#f1f4f7"}
+COLORS = {
+    "graphite-meter": "#1458be",
+    "librespeed": "#087164",
+    "librespeed-go": "#a14d0d",
+    "librespeed-rust": "#7e4697",
+    "openspeedtest": "#ae3455",
+    "graphite-meter-client": "#1458be",
+    "librespeed-cli": "#087164",
+    "iperf3": "#566274",
+}
 
 plt.rcParams.update({
     "figure.facecolor": "#ffffff",
@@ -148,7 +156,10 @@ else:
 source, pins, jobs = (provenance[key] for key in ("benchmarkRevision", "pins", "jobs"))
 scenarios = {s["id"]: s for s in provenance["scenarios"]}
 date = min(datetime.fromisoformat(job["startedAt"]) for job in jobs).date().isoformat()
-report_date = datetime.fromisoformat(date).strftime("%-d %B %Y")
+report_date = datetime.fromisoformat(date).strftime("%d.%m.%Y")
+releases = pins["tools"] | pins["clients"]
+reference_versions = {job["host"].get("iperf3") for job in jobs}
+reference_version = "Unrecorded" if None in reference_versions else ", ".join(sorted(reference_versions))
 report = Path(f"results/{date}-ci-run-{run}")
 repo = "https://github.com/zR-JB/selfhosted-speedtest-bench"
 run_url = f"{repo}/actions/runs/{run}"
@@ -270,8 +281,12 @@ def rate_pair(scenario, client, divisor, digits):
 
 
 def figure(filename, description):
-    asset = f"{report}/{filename}"
+    asset = f"{report}/{filename}.png"
     return f"[![{description}]({asset})]({asset})"
+
+
+def companion(filename, description):
+    return f"<details>\n<summary>{description}</summary>\n\n{figure(filename, description)}\n\n</details>"
 
 
 def case_link(scenario):
@@ -306,130 +321,165 @@ def results_range(scenario, clients, metric, digits=1, signed=False):
     return low if low == high else f"{low}–{high}"
 
 
-def render_chart(filename, title, subtitle, groups, panels, *, differences=False, show_vms=False, labels=False):
-    rows = []
-    bands = []
-    y = 0
-    for heading, clients, color in groups:
-        bands.append((y, y + len(clients) + .51, heading, color))
-        y += .92
-        for client in clients:
-            rows.append((y, client, color))
-            y += 1
-        y += .75
-    height = 1.65 + .29 * y
-    fig, axes = plt.subplots(1, len(panels), figsize=(8.8, height))
-    fig.subplots_adjust(left=.290, right=.970, top=1 - 1.19 / height, bottom=.50 / height,
-                        wspace=.2 if len(panels) == 2 else .27)
-    values = [[compute(client) for _, client, _ in rows] for _, _, compute in panels]
-    if differences:
-        extent = [value for panel in values for series in panel for value in series]
-        left, right = min([-1, *extent]), max([1, *extent])
-        padding = (right - left) * .08
-        limits = [(left - padding, right + padding)] * len(panels)
-    elif len({unit for _, unit, _ in panels}) == 1:
-        right = max((max(series) if show_vms else spread(series)[2]
-                     for panel in values for series in panel if series), default=1)
-        limits = [(0, right * (1.25 if labels else 1.08))] * len(panels)
+def leaders(values, digits, preference):
+    if preference == "closest":
+        scores = {client: abs(round(value, digits)) for client, value in values.items()}
     else:
-        limits = [(0, max((spread(series)[2] for series in panel if series), default=1) * 1.24) for panel in values]
-    for panel_index, (ax, (heading, unit, _), panel, limit) in enumerate(zip(axes, panels, values, limits, strict=True)):
-        ax.set_xlim(limit)
-        ax.set_ylim(rows[-1][0] + .60, -.50)
-        ax.set_title(heading, loc="left", fontsize=13, pad=13)
-        ax.set_xlabel(unit, fontsize=10, labelpad=6)
-        ax.set_axisbelow(True)
-        ax.set_yticks([])
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5 if len(axes) == 2 else 4))
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:+g}%" if value else "0%") if differences
-                                     else FuncFormatter(lambda value, _: f"{value:g}"))
-        ax.tick_params(axis="x", length=3, color=LINE, labelsize=10, pad=4)
-        ax.grid(axis="x", color=LINE, linewidth=.75)
-        if labels:
-            ax.text(.99, 1.01, "Median", transform=ax.transAxes, ha="right", va="bottom", fontsize=8.5, color=MUTED)
-        ax.axvline(0, color=MUTED, linewidth=1.1, zorder=2)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        for top, bottom, label, color in bands:
-            ax.axhspan(top - .42, bottom, color=BAND[color], linewidth=0, zorder=0)
-            if panel_index == 0:
-                ax.text(-.045, top, label, transform=ax.get_yaxis_transform(), ha="right", va="center",
-                        fontsize=11, color=color, weight="bold")
-        for (row_y, client, color), series in zip(rows, panel, strict=True):
-            if panel_index == 0:
-                ax.text(-.045, row_y, TOOLS[client[0]], transform=ax.get_yaxis_transform(),
-                        ha="right", va="center", fontsize=10.75)
-            if not series:
-                ax.text(.035, row_y, "—", transform=ax.get_yaxis_transform(), color=MUTED, va="center")
-                continue
+        direction = -1 if preference == "highest" else 1
+        scores = {client: direction * round(value, digits) for client, value in values.items()}
+    best = min(scores.values(), default=None)
+    return {client for client, value in scores.items() if value == best}
+
+
+def show_version(client):
+    tool, _ = client
+    if client == REFERENCE:
+        return "iperf3" if reference_version == "Unrecorded" else f"iperf3 {reference_version}"
+    return f"{TOOLS[tool]} {releases[tool]['version']}"
+
+
+def render_chart(filename, title, groups, compute, *, unit, digits=1, preference="highest"):
+    difference = preference == "closest"
+    rows, sections = [], []
+    for heading, clients in groups:
+        sections.append((len(rows), heading))
+        rows.append(None)
+        series = {client: compute(client) for client in clients}
+        best = leaders({client: median(values) for client, values in series.items() if client != REFERENCE and values},
+                       digits, preference)
+        rows.extend((client, values, client in best) for client, values in series.items())
+
+    height = 1.47 + .295 * len(rows)
+    fig, ax = plt.subplots(figsize=(7, height))
+    fig.subplots_adjust(left=.39, right=.858, top=1 - 1.02 / height, bottom=.53 / height)
+    extent = [value for row in rows if row for value in row[1]]
+    left = min([-1, *extent]) if difference else 0
+    right = max([1, *extent])
+    padding = (right - left) * .07
+    ax.set_xlim(left - padding if difference else left, right + padding)
+    ax.set_ylim(len(rows) - .45, -.65)
+    ax.set_xlabel(unit, fontsize=9.5, labelpad=5)
+    ax.set_axisbelow(True)
+    ax.set_yticks([])
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+    if difference:
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:+g}%" if value else "0%"))
+        ax.axvline(0, color=MUTED, linewidth=1, zorder=2)
+    ax.tick_params(axis="x", length=3, color=LINE, labelsize=9, pad=4)
+    ax.grid(axis="x", color=LINE, linewidth=.75)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    transform = ax.get_yaxis_transform()
+    ax.text(1.23, -.65, "MEDIAN", transform=transform, ha="right", va="bottom", fontsize=8, color=MUTED, weight="bold")
+    for y, heading in sections:
+        ax.axhline(y + .42, color=LINE, linewidth=.8)
+        ax.text(-.755, y, heading, transform=transform, ha="left", va="center", fontsize=10.5,
+                color=INK, weight="bold")
+    for y, row in enumerate(rows):
+        if row is None:
+            continue
+        client, series, highlighted = row
+        color = COLORS[client[0]]
+        ax.text(-.72, y, show_version(client), transform=transform, ha="left", va="center",
+                fontsize=9.6, color=color)
+        ax.axhline(y + .5, color="#edf1f5", linewidth=.65)
+        value = "—"
+        if series:
             center, low, high = spread(series)
-            if differences or show_vms:
-                offsets = [row_y + ((index % 5) - 2) * .103 for index in range(len(series))]
-                ax.scatter(series, offsets, color=color, s=15, alpha=.70, linewidth=0, zorder=3)
-            ax.hlines(row_y, low, high, color=color, linewidth=3.2, zorder=4)
-            ax.scatter(center, row_y, color=color, s=47, edgecolor="white", linewidth=.8, zorder=5,
-                       marker="D" if client in NATIVE else "s" if client == REFERENCE else "o")
-            if labels:
-                ax.text(.99, row_y, number(center, 1), transform=ax.get_yaxis_transform(), ha="right",
-                        va="center", fontsize=10, color=INK)
-    fig.text(.02, 1 - .24 / height, title, fontsize=18, weight="bold", va="top")
-    fig.text(.02, 1 - .59 / height, subtitle, fontsize=10.5, color=MUTED, va="top")
-    fig.savefig(report / filename, dpi=170)
+            offsets = [y + ((index % 5) - 2) * .073 for index in range(len(series))]
+            ax.scatter(series, offsets, color=color, s=13, alpha=.50, linewidth=0, zorder=3)
+            ax.hlines(y, low, high, color=color, linewidth=2.9, zorder=4)
+            marker = "D" if client in NATIVE else "s" if client == REFERENCE else "o"
+            if highlighted:
+                ax.scatter(center, y, s=116, facecolor="none", edgecolor=color, linewidth=1.3, marker=marker, zorder=5)
+            ax.scatter(center, y, color=color, s=43, edgecolor="white", linewidth=.75, marker=marker, zorder=6)
+            value = number(center, digits, signed=difference) + ("%" if difference else "")
+        ax.text(1.23, y, value, transform=transform, ha="right", va="center", fontsize=10,
+                color=INK if highlighted else MUTED, weight="bold" if highlighted else "normal")
+
+    fig.text(.034, 1 - .14 / height, f"BENCHMARK  /  {report_date}", color=MUTED, fontsize=8.5, weight="bold", va="top")
+    fig.text(.034, 1 - .34 / height, title, fontsize=19, weight="bold", va="top")
+    highlight = {"closest": "closest to zero", "highest": "highest median", "lowest": "lowest median"}[preference]
+    fig.text(.034, 1 - .71 / height, f"Dots: runner VMs  ·  Line: middle 50%  ·  Outline and bold: {highlight} in each group",
+             fontsize=8.2, color=MUTED, va="top")
+    fig.savefig(report / filename, dpi=175)
     plt.close(fig)
 
 
-browser_terminal_groups = [("Chrome", CHROME, BROWSER_COLOR), ("Firefox", FIREFOX, BROWSER_COLOR),
-                           ("Native terminal", NATIVE, NATIVE_COLOR)]
-reference_group = [("TCP reference", [REFERENCE], REF_COLOR)]
-render_chart(
-    "throughput.png", "Agreement with iperf3 at 1 Gbit/s", "Matched within the same VM and pass. Zero matches the reference.",
-    browser_terminal_groups,
-    [(heading, "Difference from iperf3", lambda client, field=field: measure(PLAIN, client, lambda row: paired(row, field)))
-     for heading, field in (("Download", DOWNLOAD), ("Upload", UPLOAD))], differences=True,
-)
-render_chart(
-    "uncapped.png", "Observed throughput without shaping", "Gbit/s on the runner’s virtual network, one test at a time",
-    browser_terminal_groups + reference_group,
-    [(heading, "Gbit/s", lambda client, field=field: measure(UNCAPPED, client, rate(field, 1000)))
-     for heading, field in (("Download", DOWNLOAD), ("Upload", UPLOAD))], show_vms=True, labels=True,
-)
-resource_metrics = [
-    ("Download CPU", "CPU s/GB", phase_cpu("down"), 3),
-    ("Upload CPU", "CPU s/GB", phase_cpu("up"), 3),
-    ("Peak memory", "MB", peak_memory, 1),
-]
-render_chart(
-    "server-load.png", "Server resources at 1 Gbit/s", "Chrome and native clients on the same shaped link. Each panel has its own scale.",
-    [browser_terminal_groups[0], browser_terminal_groups[2], *reference_group],
-    [(heading, unit, lambda client, metric=metric: measure(PLAIN, client, metric))
-     for heading, unit, metric, _ in resource_metrics],
-)
+chrome_group = (f"Chrome {pins['browsers']['chrome']['version']}", CHROME)
+firefox_group = (f"Firefox {pins['browsers']['firefox']['version']}", FIREFOX)
+native_group = ("Native terminal", NATIVE)
+reference_group = ("TCP reference", [REFERENCE])
+client_groups = [chrome_group, firefox_group, native_group]
+for direction, field in (("Download", DOWNLOAD), ("Upload", UPLOAD)):
+    render_chart(
+        f"agreement-{direction.lower()}.png", f"{direction} agreement at 1 Gbit/s", client_groups,
+        lambda client: measure(PLAIN, client, lambda row: paired(row, field)), unit="Difference from same-pass iperf3",
+        preference="closest",
+    )
+    render_chart(
+        f"unshaped-{direction.lower()}.png", f"Unshaped {direction.lower()} throughput",
+        [*client_groups, reference_group], lambda client: measure(UNCAPPED, client, rate(field, 1000)), unit="Gbit/s",
+    )
 
-version_rows = [[TOOLS[tool], (pins["tools"] | pins["clients"])[tool]["version"]] for tool in TOOLS if tool != "iperf3"]
+resource_metrics = [
+    ("Server CPU during download at 1 Gbit/s", "download-cpu", "CPU seconds per GB", phase_cpu("down"), 3),
+    ("Server CPU during upload at 1 Gbit/s", "upload-cpu", "CPU seconds per GB", phase_cpu("up"), 3),
+    ("Peak server memory at 1 Gbit/s", "peak-memory", "MB", peak_memory, 1),
+]
+for heading, filename, unit, metric, digits in resource_metrics:
+    render_chart(f"server-{filename}.png", heading, [chrome_group, native_group, reference_group],
+                 lambda client: measure(PLAIN, client, metric), unit=unit, digits=digits, preference="lowest")
+
+
+def group_leaders(values, digits, preference):
+    return set().union(*(leaders({client: values[client] for client in group if values.get(client) is not None},
+                                 digits, preference) for _, group in client_groups))
+
+
+def ranked_values(clients, scenario, metric, digits, preference):
+    values = {client: point(measure(scenario, client, metric)) for client in clients}
+    best = group_leaders(values, digits, preference)
+    return {client: f"**{number(value, digits)}**" if client in best else number(value, digits)
+            for client, value in values.items()}
+
+
+def ranked_rates(clients, scenario, divisor, digits):
+    down, up = (ranked_values(clients, scenario, rate(field, divisor), digits, "highest") for field in (DOWNLOAD, UPLOAD))
+    return {client: f"{down[client]} / {up[client]}" for client in clients}
+
+
+version_rows = [[TOOLS[tool], releases[tool]["version"]] for tool in TOOLS if tool != "iperf3"]
+browser_versions = " · ".join(f"{browser.capitalize()} {pin['version']}" for browser, pin in pins["browsers"].items())
 version_rows += [[browser.capitalize(), pin["version"]] for browser, pin in pins["browsers"].items()]
+version_rows.append([TOOLS[REFERENCE[0]], reference_version])
 bench_links = (f"[Full report and tested versions]({report}) · [Benchmark source]({repo}/tree/{source}) · "
                f"[Workflow run and raw artifacts]({run_url})")
 if previous:
     bench_links += f" · [Previous report]({previous})"
 tool_versions = table(["Tested release", "Version"], version_rows)
-shape_rows = [
-    [TOOLS[client[0]], *(rate_pair(scenario, client, divisor, digits)
-                         for scenario, divisor, digits in ((PLAIN, 1, 1), (FAST, 1000, 2), (LOSS, 1, 1)))]
-    for client in CLIENTS
-]
+tested_tools = " · ".join(f"{name} {version}" for name, version in version_rows[:len(TOOLS) - 1])
+shape_rates = [ranked_rates(CLIENTS, scenario, divisor, digits)
+               for scenario, divisor, digits in ((PLAIN, 1, 1), (FAST, 1000, 2), (LOSS, 1, 1))]
+shape_rows = [[TOOLS[client[0]], *(rates[client] for rates in shape_rates)] for client in CLIENTS]
 shape_table = table(["Tool or client", "1 Gbit/s (Mbit/s)", "10 Gbit/s (Gbit/s)", "1% loss (Mbit/s)"], shape_rows)
+all_clients = [*CHROME, *FIREFOX, *NATIVE, REFERENCE]
+uncapped_rates = ranked_rates(all_clients, UNCAPPED, 1000, 1)
 uncapped_table = table(
     ["Tool or client", "Median down / up (Gbit/s)", "Max down / up (Gbit/s)", "Browser CPU (s/GB)"],
-    [[client_name(client), rate_pair(UNCAPPED, client, 1000, 1),
+    [[client_name(client), uncapped_rates[client],
       " / ".join(number(max((row["reported"][field] / 1000 for row in groups[UNCAPPED, client]
                              if field in row["reported"]), default=None)) for field in (DOWNLOAD, UPLOAD)),
       latest_value(UNCAPPED, client, browser_cpu, 2)]
-     for client in [*CHROME, *FIREFOX, *NATIVE, REFERENCE]],
+     for client in all_clients],
 )
 resource_headers = ["Tool or client", "Down / up (Mbit/s)", "Down CPU (s/GB)", "Up CPU (s/GB)", "Peak RAM (MB)"]
+resource_clients = [*CLIENTS, *FIREFOX]
+resource_rankings = [ranked_values(resource_clients, PLAIN, metric, digits, "lowest")
+                     for _, _, _, metric, digits in resource_metrics]
 resource_rows = [[client_name(client), rate_pair(PLAIN, client, 1, 1),
-                  *(latest_value(PLAIN, client, metric, digits) for _, _, metric, digits in resource_metrics)]
-                 for client in [*CHROME, *NATIVE, REFERENCE, *FIREFOX]]
+                  *(ranking[client] for ranking in resource_rankings)]
+                 for client in resource_clients]
 resource_table = table(resource_headers, resource_rows)
 
 absolute_cpu = table(
@@ -440,11 +490,14 @@ absolute_cpu = table(
      for client in [*CLIENTS, *FIREFOX]],
 )
 
-def interval_label(values, digits=1, signed=False):
+def interval_label(values, digits=1, signed=False, bold=False):
     if not values:
         return "—"
     center, low, high = spread(values)
-    return f"{number(center, digits, signed)} [{number(low, digits, signed)}, {number(high, digits, signed)}] (n={len(values)})"
+    center_text = number(center, digits, signed)
+    if bold:
+        center_text = f"**{center_text}**"
+    return f"{center_text} [{number(low, digits, signed)}, {number(high, digits, signed)}] (n={len(values)})"
 
 
 start_gaps = [gap for client in [*CHROME, *FIREFOX, *NATIVE] for row in groups[PLAIN, client]
@@ -453,11 +506,15 @@ match_timing = ""
 if start_gaps:
     match_timing = (f"Tests ran sequentially. App and iperf3 start times were a median of "
                     f"{number(median(start_gaps))} minutes apart (maximum {number(max(start_gaps))}).")
+agreement_clients = [*CHROME, *FIREFOX, *NATIVE]
+agreement_metrics = [lambda row, field=field: paired(row, field) for field in (DOWNLOAD, UPLOAD)]
+agreement_leaders = [group_leaders({client: point(measure(PLAIN, client, metric)) for client in agreement_clients},
+                                   1, "closest") for metric in agreement_metrics]
 agreement_table = table(
     ["Tool or client", "Download difference (%)", "Upload difference (%)"],
-    [[client_name(client), *(interval_label(measure(PLAIN, client, lambda row: paired(row, field)), signed=True)
-                             for field in (DOWNLOAD, UPLOAD))]
-     for client in [*CHROME, *FIREFOX, *NATIVE]],
+    [[client_name(client), *(interval_label(measure(PLAIN, client, metric), signed=True, bold=client in best)
+                             for metric, best in zip(agreement_metrics, agreement_leaders, strict=True))]
+     for client in agreement_clients],
 )
 fast_upload_table = table(
     ["Tool or client", "Upload (Gbit/s)", "Paired difference from iperf3 (%)"],
@@ -704,6 +761,12 @@ overview = f"""## Latest GitHub runner results
 
 {bench_links}
 
+**Browsers** · {browser_versions}
+
+**Tested tools** · {tested_tools}
+
+[Exact pins and reference version]({report}/#tested-versions)
+
 ### Shaped throughput
 
 On the 10 Gbit/s path, reported median uploads ranged from **{browser_fast} Gbit/s in Chrome** and
@@ -714,6 +777,8 @@ reported **{terminal_fast[0]} Gbit/s** and LibreSpeed CLI **{terminal_fast[1]} G
 Each throughput cell shows **download / upload**. Browser rows use default Chrome. The two terminal
 clients use their native defaults. The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
 about 956 Mbit/s. The 10 Gbit/s test uses a 2 ms RTT and offloads. iperf3 uses four TCP streams.
+Bold marks the highest displayed median in each direction within browser or terminal, including rounded ties.
+The iperf3 row is a reference.
 
 {shape_table}
 
@@ -731,9 +796,11 @@ Connection counts and test windows can change rates on lossy paths.
 Chrome’s median upload differences from iperf3 spanned **{chrome_upload}**. In Firefox, the three
 LibreSpeed deployments spanned **{firefox_upload}**.
 
-[Full-size agreement chart]({report}/throughput.png) · [Agreement values for every tool]({report}/#matched-1-gbits-agreement)
+[Agreement values for every tool]({report}/#matched-1-gbits-agreement)
 
-{figure("throughput.png", "Download and upload differences from same-VM, same-pass iperf3 for all browser and terminal tools.")}
+{figure("agreement-upload", "Upload agreement with same-pass iperf3, grouped by Chrome, Firefox, and native terminal.")}
+
+{companion("agreement-download", "View download agreement")}
 
 Zero matches the iperf3 receiver payload rate. Positive values mean the app reported a higher rate.
 The comparison reflects both the traffic each setup drove and its reporting method.
@@ -745,9 +812,11 @@ Median download / upload was **{terminal_rates[0]} Gbit/s** for Graphite Meter T
 **{terminal_rates[1]} Gbit/s** for LibreSpeed CLI and **{terminal_rates[2]} Gbit/s** for iperf3.
 {native_comparison}
 
-[Full-size unshaped chart]({report}/uncapped.png) · [Unshaped medians, maxima and browser CPU]({report}/#unshaped-throughput-and-browser-cpu)
+[Unshaped medians, maxima and browser CPU]({report}/#unshaped-throughput-and-browser-cpu)
 
-{figure("uncapped.png", "Observed download and upload rates for Chrome, Firefox, the terminal clients and iperf3 on the same scale.")}
+{figure("unshaped-download", "Unshaped download medians and spread by tool and client.")}
+
+{companion("unshaped-upload", "View unshaped upload throughput")}
 
 {uncapped_method}
 
@@ -760,13 +829,19 @@ the receiver in both directions. [Native upload by runner hardware]({report}/#un
 
 {terminal_resource_notes}
 
-[Full-size resource chart]({report}/server-load.png) · [Server resource values for Chrome, Firefox and terminals]({report}/#server-resources-at-1-gbits)
+[Server resource values for Chrome, Firefox and terminals]({report}/#server-resources-at-1-gbits)
 
-{figure("server-load.png", "Server download and upload CPU per GB and peak server memory for Chrome tools, the terminal clients and iperf3.")}
+{figure("server-upload-cpu", "Server CPU during upload at 1 Gbit/s for Chrome and terminal tests.")}
+
+{companion("server-download-cpu", "View server CPU during download")}
+
+{companion("server-peak-memory", "View peak server memory")}
 
 {resource_method}
 
 {total_cpu_notes}
+
+Bold marks the lowest displayed median per resource within each client group.
 
 {table(resource_headers, resource_rows[:len(CLIENTS)])}
 
@@ -803,7 +878,7 @@ if not args.from_archive:
     (report / "provenance.json").write_text(json.dumps(provenance, separators=(",", ":"), ensure_ascii=False) + "\n")
     (report / "measurements.json.gz").write_bytes(gzip.compress(archive, compresslevel=9, mtime=0))
     (report / "server-cpu.md").write_text(
-        f"# Server CPU by phase, {date}\n\n[Full benchmark report](README.md)\n\n"
+        f"# Server CPU by phase, {report_date}\n\n[Full benchmark report and tested versions](README.md)\n\n"
         "These tables pool retained passes. The overview gives each VM equal weight.\n\n" + phases.split("\n\n", 1)[1]
     )
 scenario_labels = {
@@ -825,7 +900,7 @@ archive_links = "\n".join([
 ])
 if previous:
     archive_links += f" · [Previous report](../{Path(previous).name})"
-(report / "README.md").write_text(f"""# GitHub runner benchmark, {date}
+(report / "README.md").write_text(f"""# GitHub runner benchmark, {report_date}
 
 {bench_count}
 {runner_scope}
@@ -842,6 +917,8 @@ The renderer uses Python 3 with Matplotlib. When this is the latest run, the com
 the root README. Regenerating the detailed pass tables requires all 15 job artifacts, Node.js 22 or later,
 and the benchmark source revision in local Git history. Use
 `python3 bench/report.py {run} /path/to/artifacts --rerender` while they remain available.
+
+## Tested versions
 
 {tool_versions}
 

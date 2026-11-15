@@ -93,7 +93,9 @@ export async function prepare(pins, root) {
       () => true,
       () => false,
     ));
-  return { cpusets: cpusets ? CPUS : null, rootful: ROOTFUL };
+  const version = await podman("run", "--rm", "--network", "none", TOOLS_IMAGE, "iperf3", "--version");
+  const iperf3 = /^iperf (\S+)/m.exec(version)?.[1] ?? null;
+  return { cpusets: cpusets ? CPUS : null, rootful: ROOTFUL, iperf3 };
 }
 
 export async function up(pins, { browsers, driver, results }) {

@@ -1,4 +1,4 @@
-# GitHub runner benchmark, 2026-11-14
+# GitHub runner benchmark, 14.11.2026
 
 **4,530/4,530** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule).
 The 25 and 40 Gbit/s shaped scenarios are skipped on these 4-vCPU runners. They require 8+ CPUs.
@@ -17,6 +17,8 @@ the root README. Regenerating the detailed pass tables requires all 15 job artif
 and the benchmark source revision in local Git history. Use
 `python3 bench/report.py 43601751633 /path/to/artifacts --rerender` while they remain available.
 
+## Tested versions
+
 | Tested release | Version |
 | --- | ---: |
 | Graphite Meter Browser | 0.14.3 |
@@ -28,6 +30,7 @@ and the benchmark source revision in local Git history. Use
 | LibreSpeed CLI | 1.0.14 |
 | Chrome | 157.0.8103.78 |
 | Firefox | 160.0 |
+| iperf3 (reference) | Unrecorded |
 
 ## Overview data
 
@@ -42,12 +45,12 @@ Download / upload medians. Browser rows use Chrome. The loss test uses a 100 Mbi
 
 | Tool or client | 1 Gbit/s (Mbit/s) | 10 Gbit/s (Gbit/s) | 1% loss (Mbit/s) |
 | --- | ---: | ---: | ---: |
-| Graphite Meter Browser | 956.1 / 954.4 | 9.56 / 4.19 | 13.4 / 13.9 |
+| Graphite Meter Browser | **956.1** / 954.4 | **9.56** / **4.19** | 13.4 / 13.9 |
 | LibreSpeed | 956.0 / 943.5 | 9.14 / 3.23 | 16.6 / 9.5 |
 | LibreSpeed Go backend | 954.5 / 946.5 | 9.20 / 3.22 | 16.9 / 9.5 |
 | LibreSpeed Rust backend | 954.0 / 947.0 | 9.39 / 3.17 | 16.9 / 9.6 |
-| OpenSpeedTest | 953.2 / 954.5 | 9.27 / 3.31 | 18.7 / 21.5 |
-| Graphite Meter Terminal | 956.4 / 956.5 | 9.56 / 9.56 | 20.0 / 20.0 |
+| OpenSpeedTest | 953.2 / **954.5** | 9.27 / 3.31 | **18.7** / **21.5** |
+| Graphite Meter Terminal | **956.4** / **956.5** | **9.56** / **9.56** | **20.0** / **20.0** |
 | LibreSpeed CLI | 943.8 / 871.5 | 9.36 / 7.88 | 11.2 / 11.8 |
 | iperf3 (reference) | 956.4 / 956.4 | 9.56 / 9.56 | 13.0 / 12.8 |
 
@@ -79,17 +82,17 @@ Signed percentage differences from iperf3 on the same VM and pass. Each cell sho
 
 | Tool or client | Download difference (%) | Upload difference (%) |
 | --- | ---: | ---: |
-| Graphite Meter Browser · Chrome | 0.0 [-0.1, 0.0] (n=15) | -0.2 [-0.3, -0.1] (n=15) |
-| LibreSpeed · Chrome | 0.0 [-0.2, +0.1] (n=15) | -1.3 [-1.5, -0.8] (n=15) |
+| Graphite Meter Browser · Chrome | **0.0** [-0.1, 0.0] (n=15) | **-0.2** [-0.3, -0.1] (n=15) |
+| LibreSpeed · Chrome | **0.0** [-0.2, +0.1] (n=15) | -1.3 [-1.5, -0.8] (n=15) |
 | LibreSpeed Go backend · Chrome | -0.2 [-0.3, -0.1] (n=15) | -1.0 [-1.3, -0.1] (n=15) |
 | LibreSpeed Rust backend · Chrome | -0.2 [-0.3, -0.1] (n=15) | -1.0 [-1.2, -0.4] (n=15) |
-| OpenSpeedTest · Chrome | -0.3 [-0.6, -0.3] (n=15) | -0.2 [-0.7, 0.0] (n=15) |
-| Graphite Meter Browser · Firefox | -0.1 [-0.1, 0.0] (n=15) | -0.5 [-0.7, -0.4] (n=15) |
+| OpenSpeedTest · Chrome | -0.3 [-0.6, -0.3] (n=15) | **-0.2** [-0.7, 0.0] (n=15) |
+| Graphite Meter Browser · Firefox | **-0.1** [-0.1, 0.0] (n=15) | **-0.5** [-0.7, -0.4] (n=15) |
 | LibreSpeed · Firefox | -3.3 [-5.2, -1.6] (n=15) | -6.1 [-9.7, -5.0] (n=15) |
 | LibreSpeed Go backend · Firefox | -3.5 [-4.4, -1.3] (n=15) | -7.3 [-8.4, -5.4] (n=15) |
 | LibreSpeed Rust backend · Firefox | -2.9 [-5.2, -1.0] (n=15) | -6.2 [-7.3, -5.6] (n=15) |
 | OpenSpeedTest · Firefox | -0.6 [-0.8, -0.3] (n=15) | -0.7 [-1.2, -0.5] (n=15) |
-| Graphite Meter Terminal | 0.0 [0.0, 0.0] (n=15) | 0.0 [0.0, 0.0] (n=15) |
+| Graphite Meter Terminal | **0.0** [0.0, 0.0] (n=15) | **0.0** [0.0, 0.0] (n=15) |
 | LibreSpeed CLI | -1.3 [-1.8, -1.3] (n=15) | -8.9 [-9.1, -8.8] (n=15) |
 
 ### Unshaped throughput and browser CPU
@@ -102,17 +105,17 @@ Each maximum is the fastest retained pass in that direction. The two maxima can 
 
 | Tool or client | Median down / up (Gbit/s) | Max down / up (Gbit/s) | Browser CPU (s/GB) |
 | --- | ---: | ---: | ---: |
-| Graphite Meter Browser · Chrome | 16.7 / 4.7 | 25.7 / 12.4 | 1.48 |
+| Graphite Meter Browser · Chrome | **16.7** / **4.7** | 25.7 / 12.4 | 1.48 |
 | LibreSpeed · Chrome | 10.2 / 4.1 | 16.7 / 11.2 | 2.11 |
 | LibreSpeed Go backend · Chrome | 10.0 / 4.1 | 17.0 / 11.3 | 2.12 |
 | LibreSpeed Rust backend · Chrome | 10.1 / 4.1 | 16.5 / 11.4 | 2.14 |
 | OpenSpeedTest · Chrome | 9.2 / 4.3 | 17.3 / 11.9 | 2.14 |
-| Graphite Meter Browser · Firefox | 3.5 / 5.8 | 6.0 / 17.1 | 2.62 |
+| Graphite Meter Browser · Firefox | **3.5** / **5.8** | 6.0 / 17.1 | 2.62 |
 | LibreSpeed · Firefox | 2.2 / 3.2 | 3.6 / 5.4 | 5.80 |
 | LibreSpeed Go backend · Firefox | 2.2 / 3.4 | 3.5 / 5.5 | 5.74 |
 | LibreSpeed Rust backend · Firefox | 2.0 / 3.3 | 3.5 / 5.6 | 5.66 |
 | OpenSpeedTest · Firefox | 2.6 / 3.2 | 6.3 / 5.2 | 5.69 |
-| Graphite Meter Terminal | 35.5 / 55.3 | 63.5 / 105.5 | — |
+| Graphite Meter Terminal | **35.5** / **55.3** | 63.5 / 105.5 | — |
 | LibreSpeed CLI | 28.3 / 18.6 | 55.3 / 28.2 | — |
 | iperf3 (reference) | 31.4 / 44.5 | 63.9 / 100.6 | — |
 
@@ -139,19 +142,19 @@ measured separately on the client. Native client CPU is unavailable.
 
 | Tool or client | Down / up (Mbit/s) | Down CPU (s/GB) | Up CPU (s/GB) | Peak RAM (MB) |
 | --- | ---: | ---: | ---: | ---: |
-| Graphite Meter Browser · Chrome | 956.1 / 954.4 | 0.368 | 3.949 | 15.1 |
+| Graphite Meter Browser · Chrome | 956.1 / 954.4 | 0.368 | 3.949 | **15.1** |
 | LibreSpeed · Chrome | 956.0 / 943.5 | 0.418 | 5.700 | 80.3 |
 | LibreSpeed Go backend · Chrome | 954.5 / 946.5 | 0.396 | 5.034 | 48.1 |
 | LibreSpeed Rust backend · Chrome | 954.0 / 947.0 | 0.322 | 3.846 | 22.5 |
-| OpenSpeedTest · Chrome | 953.2 / 954.5 | 0.182 | 3.672 | 29.3 |
-| Graphite Meter Terminal | 956.4 / 956.5 | 0.203 | 6.849 | 17.2 |
-| LibreSpeed CLI | 943.8 / 871.5 | 0.275 | 1.997 | 68.7 |
+| OpenSpeedTest · Chrome | 953.2 / 954.5 | **0.182** | **3.672** | 29.3 |
+| Graphite Meter Terminal | 956.4 / 956.5 | **0.203** | 6.849 | **17.2** |
+| LibreSpeed CLI | 943.8 / 871.5 | 0.275 | **1.997** | 68.7 |
 | iperf3 (reference) | 956.4 / 956.4 | 0.239 | 5.078 | 19.3 |
-| Graphite Meter Browser · Firefox | 955.6 / 950.7 | 0.303 | 4.698 | 14.9 |
+| Graphite Meter Browser · Firefox | 955.6 / 950.7 | 0.303 | 4.698 | **14.9** |
 | LibreSpeed · Firefox | 924.5 / 897.5 | 0.486 | 5.441 | 85.8 |
 | LibreSpeed Go backend · Firefox | 923.0 / 886.5 | 0.443 | 4.934 | 52.0 |
-| LibreSpeed Rust backend · Firefox | 929.0 / 897.0 | 0.404 | 3.278 | 26.4 |
-| OpenSpeedTest · Firefox | 951.1 / 949.5 | 0.231 | 3.568 | 29.4 |
+| LibreSpeed Rust backend · Firefox | 929.0 / 897.0 | 0.404 | **3.278** | 26.4 |
+| OpenSpeedTest · Firefox | 951.1 / 949.5 | **0.231** | 3.568 | 29.4 |
 
 Absolute server CPU time for the complete 1 Gbit/s test and each transfer phase.
 
