@@ -18,8 +18,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
+PROBES_OFF = "graphite-meter-probes-off"
 TOOLS = {
     "graphite-meter": "Graphite Meter Browser",
+    PROBES_OFF: "Graphite Meter · probes off",
     "librespeed": "LibreSpeed",
     "librespeed-go": "LibreSpeed Go backend",
     "librespeed-rust": "LibreSpeed Rust backend",
@@ -29,12 +31,6 @@ TOOLS = {
     "iperf3": "iperf3 (reference)",
 }
 TERMINAL = ("graphite-meter-client", "librespeed-cli")
-BROWSER = tuple(tool for tool in TOOLS if tool not in (*TERMINAL, "iperf3"))
-CHROME = [(tool, "chrome") for tool in BROWSER]
-FIREFOX = [(tool, "firefox") for tool in BROWSER]
-NATIVE = [(tool, None) for tool in TERMINAL]
-REFERENCE = ("iperf3", None)
-CLIENTS = [*CHROME, *NATIVE, REFERENCE]
 PLAIN = "accuracy-1000"
 FAST = "accuracy-10000"
 LOSS = "loss-100"
@@ -45,6 +41,7 @@ UPLOAD = "uploadMbit"
 INK, MUTED, LINE = "#192b3d", "#455b6e", "#dbe4eb"
 COLORS = {
     "graphite-meter": "#1458be",
+    PROBES_OFF: "#4b659c",
     "librespeed": "#087164",
     "librespeed-go": "#a14d0d",
     "librespeed-rust": "#7e4697",
@@ -158,6 +155,12 @@ scenarios = {s["id"]: s for s in provenance["scenarios"]}
 date = min(datetime.fromisoformat(job["startedAt"]) for job in jobs).date().isoformat()
 report_date = datetime.fromisoformat(date).strftime("%d.%m.%Y")
 releases = pins["tools"] | pins["clients"]
+BROWSER = tuple(tool for tool in TOOLS if tool in pins["tools"])
+CHROME = [(tool, "chrome") for tool in BROWSER]
+FIREFOX = [(tool, "firefox") for tool in BROWSER]
+NATIVE = [(tool, None) for tool in TERMINAL]
+REFERENCE = ("iperf3", None)
+CLIENTS = [*CHROME, *NATIVE, REFERENCE]
 reference_versions = {job["host"].get("iperf3") for job in jobs}
 reference_version = "Unrecorded" if None in reference_versions else ", ".join(sorted(reference_versions))
 report = Path(f"results/{date}-ci-run-{run}")
@@ -389,7 +392,7 @@ def render_chart(filename, title, groups, compute, *, unit, digits=1, preference
             offsets = [y + ((index % 5) - 2) * .073 for index in range(len(series))]
             ax.scatter(series, offsets, color=color, s=13, alpha=.50, linewidth=0, zorder=3)
             ax.hlines(y, low, high, color=color, linewidth=2.9, zorder=4)
-            marker = "D" if client in NATIVE else "s" if client == REFERENCE else "o"
+            marker = "D" if client in NATIVE else "s" if client == REFERENCE else "^" if client[0] == PROBES_OFF else "o"
             if highlighted:
                 ax.scatter(center, y, s=116, facecolor="none", edgecolor=color, linewidth=1.3, marker=marker, zorder=5)
             ax.scatter(center, y, color=color, s=43, edgecolor="white", linewidth=.75, marker=marker, zorder=6)
@@ -449,7 +452,8 @@ def ranked_rates(clients, scenario, divisor, digits):
     return {client: f"{down[client]} / {up[client]}" for client in clients}
 
 
-version_rows = [[TOOLS[tool], releases[tool]["version"]] for tool in TOOLS if tool != "iperf3"]
+tested_versions = [[TOOLS[tool], releases[tool]["version"]] for tool in TOOLS if tool in releases]
+version_rows = list(tested_versions)
 browser_versions = " · ".join(f"{browser.capitalize()} {pin['version']}" for browser, pin in pins["browsers"].items())
 version_rows += [[browser.capitalize(), pin["version"]] for browser, pin in pins["browsers"].items()]
 version_rows.append([TOOLS[REFERENCE[0]], reference_version])
@@ -458,7 +462,7 @@ bench_links = (f"[Full report and tested versions]({report}) · [Benchmark sourc
 if previous:
     bench_links += f" · [Previous report]({previous})"
 tool_versions = table(["Tested release", "Version"], version_rows)
-tested_tools = " · ".join(f"{name} {version}" for name, version in version_rows[:len(TOOLS) - 1])
+tested_tools = " · ".join(f"{name} {version}" for name, version in tested_versions)
 shape_rates = [ranked_rates(CLIENTS, scenario, divisor, digits)
                for scenario, divisor, digits in ((PLAIN, 1, 1), (FAST, 1000, 2), (LOSS, 1, 1))]
 shape_rows = [[TOOLS[client[0]], *(rates[client] for rates in shape_rates)] for client in CLIENTS]
@@ -530,7 +534,8 @@ idle_table = table(
      for client in [*CHROME, *FIREFOX, *NATIVE]],
 )
 loaded_fields = (("loadedLatencyDownMs", "down"), ("loadedLatencyUpMs", "up"))
-loaded_clients = [("graphite-meter", "chrome"), ("graphite-meter", "firefox"), ("graphite-meter-client", None)]
+loaded_clients = [client for client in [*CHROME, *FIREFOX, *NATIVE]
+                  if client[0] in ("graphite-meter", PROBES_OFF, "graphite-meter-client")]
 fifo_table = table(
     ["Tool or client", "During download (ms)", "During upload (ms)"],
     [[client_name(client), *(
@@ -688,7 +693,7 @@ hardware_table = table(
 )
 resource_notes = (
     f"With Chrome, Graphite Meter Browser’s median peak memory was **{latest_value(PLAIN, gm_browser, peak_memory, 1)} MB**. "
-    f"The LibreSpeed deployments ranged from {results_range(PLAIN, CHROME[1:4], peak_memory)} MB. "
+    f"The LibreSpeed deployments ranged from {results_range(PLAIN, [client for client in CHROME if client[0].startswith("librespeed")], peak_memory)} MB. "
     f"OpenSpeedTest used **{latest_value(PLAIN, ost[0], phase_cpu('down'), 3)} CPU s/GB** on download and "
     f"**{latest_value(PLAIN, ost[0], phase_cpu('up'), 3)} CPU s/GB** on upload."
 )
@@ -710,6 +715,30 @@ if all(fifo_checks):
     fifo_notes = (f"On the FIFO path, OpenSpeedTest’s reported rate exceeded the matched iperf3 receiver rate in "
                   f"**{fifo_checks[0][0]}/{fifo_checks[0][1]} Chrome** and "
                   f"**{fifo_checks[1][0]}/{fifo_checks[1][1]} Firefox** passes.")
+
+probes_comparison = ""
+if PROBES_OFF in releases:
+    probe_metrics = [
+        ("Download (Mbit/s)", rate(DOWNLOAD), 1),
+        ("Upload (Mbit/s)", rate(UPLOAD), 1),
+        ("Download server CPU (s/GB)", phase_cpu("down"), 3),
+        ("Upload server CPU (s/GB)", phase_cpu("up"), 3),
+        ("Total server CPU (s)", total_server_cpu, 2),
+    ]
+    probe_rows = [
+        [browser.capitalize(), *(interval_label(list(paired_vms(PLAIN, (PROBES_OFF, browser),
+                                                                ("graphite-meter", browser), metric).values()),
+                                               digits, signed=True)
+                                 for _, metric, digits in probe_metrics)]
+        for browser in ("chrome", "firefox")
+    ]
+    probes_comparison = (
+        f"### Graphite Meter with latency probes off\n\n"
+        "Both profiles use the same server build and browser settings at 1 Gbit/s. The probes-off profile skips the "
+        "app’s idle-latency stage and loaded probes. Each cell is **probes off minus default** on the same VM and pass, "
+        "summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.\n\n"
+        + table(["Browser", *(label for label, _, _ in probe_metrics)], probe_rows) + "\n\n"
+    )
 
 summary_heading = "\n\n".join([
     "### Shaped throughput",
@@ -740,6 +769,7 @@ summary_heading = "\n\n".join([
     resource_table,
     "Absolute server CPU time for the complete 1 Gbit/s test and each transfer phase.",
     absolute_cpu,
+    *([probes_comparison.rstrip()] if probes_comparison else []),
     "### Upload counter checks",
     receiver_method,
     *(f"**{title}**\n\n{upload_check(scenario, [*CHROME, *FIREFOX, *NATIVE, REFERENCE])}"
@@ -847,7 +877,7 @@ Bold marks the lowest displayed median per resource within each client group.
 
 [All server CPU phases]({report}/server-cpu.md)
 
-### OpenSpeedTest upload check
+{probes_comparison}### OpenSpeedTest upload check
 
 {fifo_notes}
 

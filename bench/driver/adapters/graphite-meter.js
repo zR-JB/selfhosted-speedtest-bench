@@ -37,6 +37,11 @@ export async function run(page, url, deadline, options = {}) {
   const record = await until(page, readLatest(startedAt), deadline);
   const result = record.result;
   const latency = result.latencyByStage ?? {};
+  const config = options.config;
+  if (config?.stages?.latency === false && config.skipLoadedLatencyWhenStageOff &&
+      [latency.latency, latency.download, latency.upload].some((stage) => stage?.p50Ms != null)) {
+    throw new Error("Graphite Meter recorded latency with probes disabled");
+  }
   return {
     outcome: result.outcome,
     downloadMbit: mbit(result.download),
