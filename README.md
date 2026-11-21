@@ -112,6 +112,13 @@ Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** 
 
 </details>
 
+<details open>
+<summary>View VM-to-VM consistency and runner hardware breakdown</summary>
+
+[![View VM-to-VM consistency and runner hardware breakdown](results/2026-11-15-ci-run-43720854999/consistency-overview.png)](results/2026-11-15-ci-run-43720854999/consistency-overview.png)
+
+</details>
+
 Unshaped runs remove the rate limit and artificial delay, with offloads enabled. The runner gives the
 server one vCPU and the client two. The tool, client, server and VM can all affect the observed rate.
 These are single-test results on a virtual link. Production capacity also depends on the network and
@@ -187,6 +194,8 @@ Within each client, both profiles use the same server build, automatic connectio
 ### OpenSpeedTest upload check
 
 On the FIFO path, OpenSpeedTest’s reported rate exceeded the matched iperf3 receiver rate in **30/30 Chrome** and **30/30 Firefox** passes.
+
+[![App-reported upload compared against shaper busy rate and passive server RX interface counters.](results/2026-11-15-ci-run-43720854999/upload-check.png)](results/2026-11-15-ci-run-43720854999/upload-check.png)
 
 **1 Gbit/s path**
 

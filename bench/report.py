@@ -425,6 +425,24 @@ charts.render_latency_chart(
     rate=rate,
     fifo_latency=fifo_latency,
 )
+charts.render_consistency_chart(
+    report / "consistency-overview.png",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    by_vm=by_vm,
+    rate=rate,
+    jobs=jobs,
+)
+charts.render_upload_check_chart(
+    report / "upload-check.png",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    rate=rate,
+    shaper_upload=lambda row: row["queues"]["up"].get("medianOwnLinkMbit"),
+    server_rx=server_rx,
+)
 history_entries = charts.render_historic_trends(Path("results"), Path("results/history-trends.png"))
 
 
@@ -865,6 +883,8 @@ Median download / upload was **{terminal_rates[0]} Gbit/s** for Graphite Meter T
 
 {companion("unshaped-upload", "View unshaped upload throughput")}
 
+{companion("consistency-overview", "View VM-to-VM consistency and runner hardware breakdown")}
+
 {uncapped_method}
 
 Graphite Meter Terminal times downloads at the client and uploads at the server. iperf3 reports
@@ -899,6 +919,8 @@ Bold marks the lowest displayed median per resource within each client group.
 {probes_comparison}### OpenSpeedTest upload check
 
 {fifo_notes}
+
+{figure("upload-check", "App-reported upload compared against shaper busy rate and passive server RX interface counters.")}
 
 {receiver_check}
 

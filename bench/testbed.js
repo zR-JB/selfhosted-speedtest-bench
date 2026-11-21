@@ -86,8 +86,12 @@ async function start(name, role, image, args = [], command = []) {
 export async function prepare(pins, root) {
   await podman("build", "-q", "-t", TOOLS_IMAGE, `${root}/images/tools`);
   // Locally built images (localhost/...) are used as they are; everything else is pulled by its pinned digest.
-  for (const image of [pins.client, pins.proxy.image, ...Object.values(pins.tools).flatMap((tool) => tool.image ?? [])])
-    if (!image.startsWith("localhost/")) await podman("pull", "-q", image);
+  const images = [
+    ...new Set([pins.client, pins.proxy.image, ...Object.values(pins.tools).flatMap((tool) => tool.image ?? [])]),
+  ].filter((image) => !image.startsWith("localhost/"));
+  // Pull up to 3 images in parallel to cut cold-runner setup time without thrashing I/O.
+  for (let i = 0; i < images.length; i += 3)
+    await Promise.all(images.slice(i, i + 3).map((image) => podman("pull", "-q", image)));
   // Pinning needs one CPU each for shaper and server and two for the browser; smaller hosts run unpinned.
   cpusets =
     os.availableParallelism() >= 4 &&
@@ -95,9 +99,13 @@ export async function prepare(pins, root) {
       () => true,
       () => false,
     ));
-  const version = await podman("run", "--rm", "--network", "none", TOOLS_IMAGE, "iperf3", "--version");
-  const iperf3 = /^iperf (\S+)/m.exec(version)?.[1] ?? null;
-  return { cpusets: cpusets ? CPUS : null, rootful: ROOTFUL, iperf3 };
+  const [iperfVersion, tcVersion] = await Promise.all([
+    podman("run", "--rm", "--network", "none", TOOLS_IMAGE, "iperf3", "--version"),
+    podman("run", "--rm", "--network", "none", TOOLS_IMAGE, "tc", "-V").catch(() => ""),
+  ]);
+  const iperf3 = /^iperf (\S+)/m.exec(iperfVersion)?.[1] ?? null;
+  const iproute2 = /iproute2-(\S+)/.exec(tcVersion)?.[1] ?? (tcVersion || null);
+  return { cpusets: cpusets ? CPUS : null, rootful: ROOTFUL, iperf3, ...(iproute2 ? { iproute2 } : {}) };
 }
 
 export async function up(pins, { browsers, driver, results }) {

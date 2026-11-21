@@ -518,9 +518,11 @@ def render_transports_chart(out_path, *, report_date, vm_count, measure, rate):
 
 
 def render_resource_overview(out_path, *, report_date, vm_count, measure, phase_cpu, peak_memory, client_cpu):
-    """3-panel comprehensive resource efficiency chart: 1G Server CPU, Peak RAM, Client CPU."""
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14.4, 5.8))
-    fig.subplots_adjust(left=0.125, right=0.985, top=0.73, bottom=0.12, wspace=0.56)
+    """2x2 comprehensive resource efficiency chart: 1G CPU, 10G/Unshaped Upload CPU, Peak RAM, Client CPU."""
+    fig, axes = plt.subplots(2, 2, figsize=(12.6, 8.9))
+    fig.subplots_adjust(left=0.165, right=0.975, top=0.835, bottom=0.065, wspace=0.44, hspace=0.40)
+    ax1, ax1b = axes[0, 0], axes[0, 1]
+    ax2, ax3 = axes[1, 0], axes[1, 1]
 
     items1 = [
         ("GM Browser · Chrome", ("graphite-meter", "chrome")),
@@ -533,7 +535,7 @@ def render_resource_overview(out_path, *, report_date, vm_count, measure, phase_
         ("iperf3 (reference)", REFERENCE),
     ]
 
-    # Panel 1: 1 Gbit/s Server CPU (Download vs Upload s/GB)
+    # Top-Left: 1 Gbit/s Server CPU (Download vs Upload s/GB, offloads off)
     _style_axis(ax1, "x")
     r1 = []
     for lbl, cl in items1:
@@ -547,18 +549,42 @@ def render_resource_overview(out_path, *, report_date, vm_count, measure, phase_
     ax1.barh(y1 - h / 2, [x[2] for x in r1], height=h, color="#0284c7", alpha=0.90, label="Download", zorder=3)
     ax1.barh(y1 + h / 2, [x[3] for x in r1], height=h, color="#e11d48", alpha=0.82, label="Upload", zorder=3)
     for i, (_, _, dv, uv) in enumerate(r1):
-        ax1.text(dv + m1 * 0.02, i - h / 2, f"{dv:.3f}", va="center", ha="left", fontsize=7.4, color="#0369a1")
-        ax1.text(uv + m1 * 0.02, i + h / 2, f"{uv:.3f}", va="center", ha="left", fontsize=7.4, color="#9f1239", weight="bold")
+        ax1.text(dv + m1 * 0.018, i - h / 2, f"{dv:.3f}", va="center", ha="left", fontsize=7.5, color="#0369a1")
+        ax1.text(uv + m1 * 0.018, i + h / 2, f"{uv:.3f}", va="center", ha="left", fontsize=7.5, color="#9f1239", weight="bold")
     ax1.axhline(4.5, color=DIVIDER, linestyle=":", linewidth=0.9)
     ax1.set_yticks(y1)
-    ax1.set_yticklabels([x[0] for x in r1], fontsize=8.0)
+    ax1.set_yticklabels([x[0] for x in r1], fontsize=8.1)
     ax1.invert_yaxis()
-    ax1.set_xlim(0, m1 * 1.24)
+    ax1.set_xlim(0, m1 * 1.22)
     ax1.set_xlabel("Server CPU (s/GB, lower is better)", fontsize=8.2)
-    ax1.set_title("1 Gbit/s Server CPU by Phase", fontsize=10.2, loc="left", pad=22)
-    ax1.legend(loc="upper left", bbox_to_anchor=(0.0, 1.07), ncol=2, frameon=False, fontsize=7.7, handlelength=1.1)
+    ax1.set_title("1 Gbit/s Server CPU by Phase (offloads off)", fontsize=10.3, loc="left", pad=22)
+    ax1.legend(loc="upper left", bbox_to_anchor=(0.0, 1.09), ncol=2, frameon=False, fontsize=7.8, handlelength=1.1)
 
-    # Panel 2: Peak Server Memory (1 Gbit/s vs Unshaped)
+    # Top-Right: 10 Gbit/s & Unshaped Server Upload CPU (offloads on)
+    _style_axis(ax1b, "x")
+    r1b = []
+    for lbl, cl in items1:
+        u10 = measure(FAST, cl, phase_cpu("up"))
+        uun = measure(UNCAPPED, cl, phase_cpu("up"))
+        if u10 or uun:
+            r1b.append((lbl, cl, median(u10) if u10 else 0.0, median(uun) if uun else 0.0))
+    y1b = np.arange(len(r1b))
+    m1b = max([x[2] for x in r1b] + [x[3] for x in r1b] + [0.5])
+    ax1b.barh(y1b - h / 2, [x[2] for x in r1b], height=h, color="#d97706", alpha=0.88, label="10 Gbit/s Upload", zorder=3)
+    ax1b.barh(y1b + h / 2, [x[3] for x in r1b], height=h, color="#0f766e", alpha=0.84, label="Unshaped Upload", zorder=3)
+    for i, (_, _, v10, vun) in enumerate(r1b):
+        ax1b.text(v10 + m1b * 0.018, i - h / 2, f"{v10:.3f}", va="center", ha="left", fontsize=7.5, color="#92400e")
+        ax1b.text(vun + m1b * 0.018, i + h / 2, f"{vun:.3f}", va="center", ha="left", fontsize=7.5, color="#115e59", weight="bold")
+    ax1b.axhline(4.5, color=DIVIDER, linestyle=":", linewidth=0.9)
+    ax1b.set_yticks(y1b)
+    ax1b.set_yticklabels([x[0] for x in r1b], fontsize=8.1)
+    ax1b.invert_yaxis()
+    ax1b.set_xlim(0, m1b * 1.24)
+    ax1b.set_xlabel("Server CPU (s/GB, lower is better)", fontsize=8.2)
+    ax1b.set_title("10 Gbit/s & Unshaped Server Upload CPU (offloads on)", fontsize=10.3, loc="left", pad=22)
+    ax1b.legend(loc="upper left", bbox_to_anchor=(0.0, 1.09), ncol=2, frameon=False, fontsize=7.8, handlelength=1.1)
+
+    # Bottom-Left: Peak Server Memory (1 Gbit/s vs Unshaped)
     _style_axis(ax2, "x")
     r2 = []
     for lbl, cl in items1:
@@ -571,18 +597,18 @@ def render_resource_overview(out_path, *, report_date, vm_count, measure, phase_
     ax2.barh(y2 - h / 2, [x[2] for x in r2], height=h, color="#4f46e5", alpha=0.86, label="1 Gbit/s", zorder=3)
     ax2.barh(y2 + h / 2, [x[3] for x in r2], height=h, color="#94a3b8", alpha=0.72, label="Unshaped", zorder=3)
     for i, (_, _, v1, v2) in enumerate(r2):
-        ax2.text(v1 + m2 * 0.02, i - h / 2, f"{v1:.1f}", va="center", ha="left", fontsize=7.4, color="#3730a3", weight="bold")
-        ax2.text(v2 + m2 * 0.02, i + h / 2, f"{v2:.1f}", va="center", ha="left", fontsize=7.4, color=MUTED)
+        ax2.text(v1 + m2 * 0.018, i - h / 2, f"{v1:.1f}", va="center", ha="left", fontsize=7.5, color="#3730a3", weight="bold")
+        ax2.text(v2 + m2 * 0.018, i + h / 2, f"{v2:.1f}", va="center", ha="left", fontsize=7.5, color=MUTED)
     ax2.axhline(4.5, color=DIVIDER, linestyle=":", linewidth=0.9)
     ax2.set_yticks(y2)
-    ax2.set_yticklabels([x[0] for x in r2], fontsize=8.0)
+    ax2.set_yticklabels([x[0] for x in r2], fontsize=8.1)
     ax2.invert_yaxis()
-    ax2.set_xlim(0, m2 * 1.24)
+    ax2.set_xlim(0, m2 * 1.22)
     ax2.set_xlabel("Peak container memory (MB, lower is better)", fontsize=8.2)
-    ax2.set_title("Peak Server Memory", fontsize=10.2, loc="left", pad=22)
-    ax2.legend(loc="upper left", bbox_to_anchor=(0.0, 1.07), ncol=2, frameon=False, fontsize=7.7, handlelength=1.1)
+    ax2.set_title("Peak Server Memory (1G vs Unshaped)", fontsize=10.3, loc="left", pad=22)
+    ax2.legend(loc="upper left", bbox_to_anchor=(0.0, 1.09), ncol=2, frameon=False, fontsize=7.8, handlelength=1.1)
 
-    # Panel 3: Client CPU on Unshaped (Chrome, Firefox, and Native when available)
+    # Bottom-Right: Client CPU on Unshaped (Chrome, Firefox, and Native when available)
     _style_axis(ax3, "x")
     items3 = [
         ("GM Browser · Chrome", ("graphite-meter", "chrome")),
@@ -616,13 +642,172 @@ def render_resource_overview(out_path, *, report_date, vm_count, measure, phase_
     ax3.invert_yaxis()
     ax3.set_xlim(0, m3 * 1.24)
     ax3.set_xlabel("Client CPU (s/GB, bar=median, line=IQR)", fontsize=8.2)
-    ax3.set_title("Client CPU Efficiency (Unshaped)", fontsize=10.2, loc="left", pad=22)
+    ax3.set_title("Client CPU Efficiency (Unshaped)", fontsize=10.3, loc="left", pad=22)
 
     _header(
-        fig, 5.8,
+        fig, 8.9,
         f"RESOURCE EFFICIENCY OVERVIEW  ·  {report_date}  ·  {vm_count} VMs",
-        "Server CPU per GB, peak memory & client-side CPU",
+        "Server CPU (offloads off vs on), peak memory & client CPU",
         "Server metrics from cgroup v2 per run  ·  Client CPU includes browser process tree (and native cgroup CPU where recorded)",
+    )
+    fig.savefig(out_path, dpi=200, bbox_inches="tight", pad_inches=0.14)
+    plt.close(fig)
+
+
+def render_consistency_chart(out_path, *, report_date, vm_count, measure, by_vm, rate, jobs):
+    """Side-by-side VM-to-VM consistency (IQR/Median %) and runner hardware split (Azure EPYC vs AWS Xeon)."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12.4, 5.6))
+    fig.subplots_adjust(left=0.165, right=0.975, top=0.73, bottom=0.12, wspace=0.42)
+
+    # Left: Relative VM spread (IQR / median %) across 1G, 10G, and Unshaped Upload
+    _style_axis(ax1, "x")
+    items = [
+        ("GM Browser · Chrome", ("graphite-meter", "chrome")),
+        ("LibreSpeed PHP · Chrome", ("librespeed", "chrome")),
+        ("LibreSpeed Go · Chrome", ("librespeed-go", "chrome")),
+        ("LibreSpeed Rust · Chrome", ("librespeed-rust", "chrome")),
+        ("OpenSpeedTest · Chrome", ("openspeedtest", "chrome")),
+        ("GM Browser · Firefox", ("graphite-meter", "firefox")),
+        ("OpenSpeedTest · Firefox", ("openspeedtest", "firefox")),
+        ("GM Terminal", ("graphite-meter-client", None)),
+        ("LibreSpeed CLI", ("librespeed-cli", None)),
+        ("iperf3 (reference)", REFERENCE),
+    ]
+
+    def rel_iqr(scen, cl):
+        vals = measure(scen, cl, rate(UPLOAD))
+        if len(vals) < 2:
+            return None
+        med, lo, hi = spread(vals)
+        return 100.0 * (hi - lo) / med if med > 0 else None
+
+    rows = []
+    for lbl, cl in items:
+        v1 = rel_iqr(PLAIN, cl)
+        v10 = rel_iqr(FAST, cl)
+        vu = rel_iqr(UNCAPPED, cl)
+        if any(v is not None for v in (v1, v10, vu)):
+            rows.append((lbl, v1 or 0.0, v10 or 0.0, vu or 0.0))
+    y1 = np.arange(len(rows))
+    h = 0.25
+    m1 = max([max(r[1], r[2], r[3]) for r in rows] + [20.0])
+    ax1.barh(y1 - h, [r[1] for r in rows], height=h, color="#0f766e", alpha=0.88, label="1 Gbit/s", zorder=3)
+    ax1.barh(y1, [r[2] for r in rows], height=h, color="#2563eb", alpha=0.86, label="10 Gbit/s", zorder=3)
+    ax1.barh(y1 + h, [r[3] for r in rows], height=h, color="#d97706", alpha=0.82, label="Unshaped", zorder=3)
+    ax1.set_yticks(y1)
+    ax1.set_yticklabels([r[0] for r in rows], fontsize=8.0)
+    ax1.invert_yaxis()
+    ax1.set_xlim(0, m1 * 1.15)
+    ax1.set_xlabel("Relative VM spread: IQR / median (% · lower is steadier)", fontsize=8.1)
+    ax1.set_title("Upload Consistency Across Runner VMs", fontsize=10.3, loc="left", pad=22)
+    ax1.legend(loc="upper left", bbox_to_anchor=(0.0, 1.08), ncol=3, frameon=False, fontsize=7.6, handlelength=1.1)
+
+    # Right: Unshaped Upload by Runner CPU / Cloud Kernel
+    _style_axis(ax2, "x")
+    by_hw = defaultdict(list)
+    for j in jobs:
+        host = j["host"]
+        cpu = re.sub(r"\(R\)|\(TM\)|Processor|CPU|\b\d+-Core\b", "", host.get("cpu", "Unknown")).strip()
+        cpu = re.sub(r"\s+", " ", cpu)
+        kern = host.get("kernel", "")
+        cloud = "AWS" if kern.endswith("-aws") else "Azure" if kern.endswith("-azure") else "Other"
+        by_hw[(cloud, cpu)].append(j["job"])
+
+    hw_groups = sorted(by_hw.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    hw_clients = [
+        ("GM Terminal", ("graphite-meter-client", None), COLORS["graphite-meter-client"]),
+        ("iperf3 (ref)", REFERENCE, COLORS["iperf3"]),
+        ("LibreSpeed CLI", ("librespeed-cli", None), COLORS["librespeed-cli"]),
+    ]
+    vm_maps = {lbl: by_vm(UNCAPPED, cl, rate(UPLOAD, 1000)) for lbl, cl, _ in hw_clients}
+    y2 = np.arange(len(hw_groups))
+    h2 = 0.25
+    all_hw_vals = []
+    for idx, (lbl, _, col) in enumerate(hw_clients):
+        offset = (idx - 1) * h2
+        xs_bar = []
+        for _, jnames in hw_groups:
+            vs = [vm_maps[lbl][jn] for jn in jnames if jn in vm_maps[lbl]]
+            val = median(vs) if vs else 0.0
+            xs_bar.append(val)
+            all_hw_vals.append(val)
+        ax2.barh(y2 + offset, xs_bar, height=h2, color=col, alpha=0.86, label=lbl, zorder=3)
+        for i, v in enumerate(xs_bar):
+            if v > 0:
+                ax2.text(v + 1.0, i + offset, f"{v:.1f}", va="center", ha="left", fontsize=7.3, color=col, weight="bold")
+
+    ax2.set_yticks(y2)
+    ax2.set_yticklabels([f"{cloud} · {cpu}\n(n={len(jnames)} VM{'s' if len(jnames) != 1 else ''})"
+                         for (cloud, cpu), jnames in hw_groups], fontsize=7.8)
+    ax2.invert_yaxis()
+    ax2.set_xlim(0, max(all_hw_vals or [60.0]) * 1.18)
+    ax2.set_xlabel("Unshaped upload median (Gbit/s)", fontsize=8.2)
+    ax2.set_title("Unshaped Native Upload by Runner Hardware", fontsize=10.3, loc="left", pad=22)
+    ax2.legend(loc="upper left", bbox_to_anchor=(0.0, 1.08), ncol=3, frameon=False, fontsize=7.6, handlelength=1.1)
+
+    _header(
+        fig, 5.6,
+        f"CONSISTENCY & RUNNER HARDWARE  ·  {report_date}  ·  {vm_count} VMs",
+        "VM-to-VM spread & GitHub runner CPU heterogeneity",
+        "Left: middle-50% span divided by median across VMs  ·  Right: native unshaped upload grouped by runner CPU & cloud kernel",
+    )
+    fig.savefig(out_path, dpi=200, bbox_inches="tight", pad_inches=0.14)
+    plt.close(fig)
+
+
+def render_upload_check_chart(out_path, *, report_date, vm_count, measure, rate, shaper_upload, server_rx):
+    """Side-by-side App Reported vs Shaper vs Server RX on 30 Mbit/s FIFO and 1 Gbit/s upload."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12.2, 5.3))
+    fig.subplots_adjust(left=0.175, right=0.975, top=0.73, bottom=0.12, wspace=0.38)
+
+    items = [
+        ("OpenSpeedTest · Chrome", ("openspeedtest", "chrome")),
+        ("OpenSpeedTest · Firefox", ("openspeedtest", "firefox")),
+        ("GM Browser · Chrome", ("graphite-meter", "chrome")),
+        ("GM Browser · Firefox", ("graphite-meter", "firefox")),
+        ("LibreSpeed PHP · Chrome", ("librespeed", "chrome")),
+        ("GM Terminal", ("graphite-meter-client", None)),
+        ("iperf3 (reference)", REFERENCE),
+    ]
+
+    def draw_panel(ax, scen, title_p, ceiling_x, xlim_lo, xlim_hi):
+        _style_axis(ax, "x")
+        rows = []
+        for lbl, cl in items:
+            app = measure(scen, cl, rate(UPLOAD))
+            shp = measure(scen, cl, shaper_upload)
+            rx = measure(scen, cl, server_rx)
+            if app:
+                rows.append((lbl, median(app), median(shp) if shp else None, median(rx) if rx else None))
+        y = np.arange(len(rows))
+        h = 0.24
+        ax.barh(y - h, [r[1] for r in rows], height=h, color="#1d4ed8", alpha=0.88, label="App reported", zorder=3)
+        ax.barh(y, [r[2] or 0.0 for r in rows], height=h, color="#64748b", alpha=0.72, label="Shaper busy rate", zorder=3)
+        if any(r[3] is not None for r in rows):
+            ax.barh(y + h, [r[3] or 0.0 for r in rows], height=h, color="#0f766e", alpha=0.78, label="Server RX interface", zorder=3)
+        ax.axvline(ceiling_x, color="#dc2626", linestyle="--", linewidth=1.0, zorder=4)
+        for i, (_, av, sv, rv) in enumerate(rows):
+            ax.text(av + (xlim_hi - xlim_lo) * 0.012, i - h, f"{av:.1f}", va="center", ha="left",
+                    fontsize=7.4, color="#1e3a8a", weight="bold")
+            if rv is not None:
+                ax.text(rv + (xlim_hi - xlim_lo) * 0.012, i + h, f"{rv:.1f}", va="center", ha="left",
+                        fontsize=7.2, color="#115e59")
+        ax.set_yticks(y)
+        ax.set_yticklabels([r[0] for r in rows], fontsize=8.1)
+        ax.invert_yaxis()
+        ax.set_xlim(xlim_lo, xlim_hi)
+        ax.set_xlabel("Upload rate (Mbit/s)  ·  Red dashed line = TCP payload ceiling", fontsize=8.0)
+        ax.set_title(title_p, fontsize=10.3, loc="left", pad=22)
+        ax.legend(loc="upper left", bbox_to_anchor=(0.0, 1.08), ncol=3, frameon=False, fontsize=7.4, handlelength=1.1)
+
+    draw_panel(ax1, FIFO, "30 Mbit/s Upload · 200 ms Deep FIFO", 28.69, 20, 33.5)
+    draw_panel(ax2, PLAIN, "1 Gbit/s Upload · 20 ms RTT (fq_codel)", 956.4, 880, 1005)
+
+    _header(
+        fig, 5.3,
+        f"UPLOAD COUNTER INTEGRITY CHECK  ·  {report_date}  ·  {vm_count} VMs",
+        "App-reported upload vs independent shaper & server-interface counters",
+        "Shaper and server RX include L2/IP/TCP framing overhead; payload-reporting apps stay at or below the TCP payload ceiling",
     )
     fig.savefig(out_path, dpi=200, bbox_inches="tight", pad_inches=0.14)
     plt.close(fig)
@@ -838,6 +1023,32 @@ def render_historic_trends(results_root, out_path):
         v = r.get("serverMemoryPeakBytes")
         return v / 1e6 if v is not None else None
 
+    # Precompute per-run same-pass iperf3 lookup for 1G upload agreement trend
+    ref_1g_by_entry = []
+    for e in entries:
+        ref_map = {}
+        for r in e["runs"]:
+            if r.get("scenario") == PLAIN and r.get("tool") == "iperf3" and r.get("reported", {}).get("outcome") == "complete":
+                ref_map[(r.get("job", "0"), r.get("rep"))] = r["reported"].get(UPLOAD)
+        ref_1g_by_entry.append(ref_map)
+
+    def make_upload_agree_summary(entry_idx, tool, browser):
+        e = entries[entry_idx]
+        ref_map = ref_1g_by_entry[entry_idx]
+        per_job = defaultdict(list)
+        for r in e["runs"]:
+            if r.get("scenario") != PLAIN or r.get("tool") != tool or r.get("browser") != browser:
+                continue
+            if r.get("reported", {}).get("outcome") != "complete":
+                continue
+            val = r["reported"].get(UPLOAD)
+            base = ref_map.get((r.get("job", "0"), r.get("rep")))
+            if val is not None and base and base > 0:
+                per_job[r.get("job", "0")].append(100.0 * (val / base - 1.0))
+        if not per_job:
+            return None
+        return spread([median(vs) for vs in per_job.values()])
+
     panels = [
         (
             "Unshaped Download · Chrome",
@@ -850,6 +1061,7 @@ def render_historic_trends(results_root, out_path):
                 ("LibreSpeed PHP", "librespeed", "chrome", COLORS["librespeed"], "^", "-"),
                 ("OpenSpeedTest", "openspeedtest", "chrome", COLORS["openspeedtest"], "D", "-"),
             ],
+            False,
             False,
         ),
         (
@@ -864,6 +1076,7 @@ def render_historic_trends(results_root, out_path):
                 ("LibreSpeed Rust", "librespeed-rust", "chrome", COLORS["librespeed-rust"], "s", "-"),
             ],
             False,
+            False,
         ),
         (
             "Unshaped Upload · Native Clients",
@@ -875,6 +1088,7 @@ def render_historic_trends(results_root, out_path):
                 ("iperf3 (ref)", "iperf3", None, COLORS["iperf3"], "s", "--"),
                 ("LibreSpeed CLI", "librespeed-cli", None, COLORS["librespeed-cli"], "^", "-"),
             ],
+            False,
             False,
         ),
         (
@@ -888,6 +1102,38 @@ def render_historic_trends(results_root, out_path):
                 ("LibreSpeed Go", "librespeed-go", "chrome", COLORS["librespeed-go"], "^", "-"),
                 ("LibreSpeed Rust", "librespeed-rust", "chrome", COLORS["librespeed-rust"], "s", "-"),
             ],
+            False,
+            False,
+        ),
+        (
+            "1 Gbit/s Upload Agreement vs iperf3",
+            "% diff (closer to 0% is tighter)",
+            PLAIN,
+            None,
+            [
+                ("GM Browser (Chrome)", "graphite-meter", "chrome", COLORS["graphite-meter"], "o", "-"),
+                ("GM Browser (Firefox)", "graphite-meter", "firefox", "#60a5fa", "v", "--"),
+                ("OpenSpeedTest (Chrome)", "openspeedtest", "chrome", COLORS["openspeedtest"], "D", "-"),
+                ("LibreSpeed PHP (Firefox)", "librespeed", "firefox", COLORS["librespeed"], "^", "--"),
+                ("GM Terminal", "graphite-meter-client", None, "#1e3a8a", "s", ":"),
+            ],
+            False,
+            True,
+        ),
+        (
+            "Server Download CPU · 1 Gbit/s",
+            "CPU s/GB (lower is better)",
+            PLAIN,
+            srv_cpu("down"),
+            [
+                ("GM Browser (Chrome)", "graphite-meter", "chrome", COLORS["graphite-meter"], "o", "-"),
+                ("GM Terminal", "graphite-meter-client", None, "#60a5fa", "D", "--"),
+                ("OpenSpeedTest", "openspeedtest", "chrome", COLORS["openspeedtest"], "v", "-"),
+                ("LibreSpeed Rust", "librespeed-rust", "chrome", COLORS["librespeed-rust"], "s", "-"),
+                ("LibreSpeed CLI", "librespeed-cli", None, COLORS["librespeed-cli"], "^", "--"),
+                ("iperf3 (ref)", "iperf3", None, COLORS["iperf3"], "P", ":"),
+            ],
+            True,
             False,
         ),
         (
@@ -904,6 +1150,7 @@ def render_historic_trends(results_root, out_path):
                 ("iperf3 (ref)", "iperf3", None, COLORS["iperf3"], "P", ":"),
             ],
             True,
+            False,
         ),
         (
             "Peak Server Memory · 1 Gbit/s",
@@ -920,22 +1167,27 @@ def render_historic_trends(results_root, out_path):
                 ("iperf3 (ref)", "iperf3", None, COLORS["iperf3"], "P", ":"),
             ],
             False,
+            False,
         ),
     ]
 
-    fig, axes = plt.subplots(2, 3, figsize=(14.0, 8.9))
-    fig.subplots_adjust(left=0.055, right=0.985, top=0.845, bottom=0.095, wspace=0.22, hspace=0.42)
+    # 2 columns x 4 rows: 50% larger per panel on GitHub's README width!
+    fig, axes = plt.subplots(4, 2, figsize=(12.6, 14.2))
+    fig.subplots_adjust(left=0.068, right=0.985, top=0.905, bottom=0.048, wspace=0.18, hspace=0.38)
 
-    max_ticks = 8
+    max_ticks = 9
     if len(entries) <= max_ticks:
         tick_idxs = list(range(len(entries)))
     else:
         step = max(1, math.ceil(len(entries) / max_ticks))
         tick_idxs = sorted(set(list(range(0, len(entries), step)) + [len(entries) - 1]))
 
-    for ax, (ptitle, ylabel, scen, fn, series_spec, phase_note) in zip(axes.flat, panels, strict=True):
+    for ax, (ptitle, ylabel, scen, fn, series_spec, phase_note, is_signed) in zip(axes.flat, panels, strict=True):
         _style_axis(ax, "y")
         ax.grid(axis="x", color="#f1f5f9", linewidth=0.6, zorder=0)
+        if is_signed:
+            ax.axhspan(-1.0, 1.0, color=GOOD_BAND, alpha=0.85, zorder=0)
+            ax.axhline(0.0, color=GOOD_EDGE, linewidth=1.0, zorder=1)
         for v_idx, _ in version_markers:
             if v_idx > 0:
                 ax.axvline(v_idx, color=DIVIDER, linestyle=":", linewidth=0.9, zorder=1)
@@ -946,7 +1198,7 @@ def render_historic_trends(results_root, out_path):
         for slbl, tool, br, col, mk, ls in series_spec:
             px, py, plo, phi = [], [], [], []
             for i, e in enumerate(entries):
-                sp = _vm_summary(e["runs"], scen, tool, br, fn)
+                sp = make_upload_agree_summary(i, tool, br) if is_signed else _vm_summary(e["runs"], scen, tool, br, fn)
                 if sp is not None:
                     px.append(i)
                     py.append(sp[0])
@@ -958,41 +1210,51 @@ def render_historic_trends(results_root, out_path):
             if not px:
                 continue
             ax.fill_between(px, plo, phi, color=col, alpha=0.08, zorder=2)
-            ax.plot(px, py, color=col, linestyle=ls, linewidth=1.9, marker=mk, markersize=4.8,
+            ax.plot(px, py, color=col, linestyle=ls, linewidth=2.0, marker=mk, markersize=5.0,
                     markeredgecolor="#ffffff", markeredgewidth=0.6, label=slbl, zorder=4)
-            txt = f"{py[-1]:.2f}" if ylabel.startswith("CPU") else f"{py[-1]:.1f}"
+            if is_signed:
+                txt = f"{py[-1]:+.1f}%" if abs(round(py[-1], 1)) > 0 else "0.0%"
+            elif ylabel.startswith("CPU"):
+                txt = f"{py[-1]:.2f}"
+            else:
+                txt = f"{py[-1]:.1f}"
             end_labels.append((py[-1], txt, col))
 
-        y_top = max(all_y) * 1.22 if all_y else 10.0
-        ax.set_ylim(0, y_top)
-        # De-conflict right-side end labels so closely spaced lines remain crisp and readable
-        placed = _deconflict_labels(end_labels, y_top * 0.03, y_top * 0.96, y_top * 0.068)
+        if is_signed:
+            y_lo = min([-2.0, *(all_y or [-2.0])]) * 1.15
+            y_hi = max([2.0, *(all_y or [2.0])]) + (abs(y_lo) * 0.45)
+        else:
+            y_lo = 0.0
+            y_hi = max(all_y) * 1.24 if all_y else 10.0
+        ax.set_ylim(y_lo, y_hi)
+        y_span = y_hi - y_lo
+        placed = _deconflict_labels(end_labels, y_lo + y_span * 0.04, y_hi - y_span * 0.04, y_span * 0.082)
         for orig_y, adj_y, txt, col in placed:
-            if abs(adj_y - orig_y) > y_top * 0.012:
+            if abs(adj_y - orig_y) > y_span * 0.014:
                 ax.plot([last_x + 0.08, last_x + 0.24], [orig_y, adj_y], color=col, alpha=0.45, linewidth=0.75, zorder=3)
-            ax.text(last_x + 0.26, adj_y, txt, va="center", ha="left", fontsize=7.2, color=col, weight="bold")
+            ax.text(last_x + 0.26, adj_y, txt, va="center", ha="left", fontsize=7.6, color=col, weight="bold")
 
         if phase_note and first_valid and first_valid > 0:
             ax.axvspan(-0.35, first_valid - 0.35, color="#f8fafc", alpha=0.92, zorder=1)
-            ax.text((first_valid - 0.7) / 2, 0.45, "Phase CPU\ntracking\nadded\nNov 2026",
+            ax.text((first_valid - 0.7) / 2, 0.44, "Phase CPU\ntracking\nadded\nNov 2026",
                     transform=ax.get_xaxis_transform(), ha="center", va="center",
-                    fontsize=7.2, color=FAINT, style="italic")
+                    fontsize=7.6, color=FAINT, style="italic")
 
         ax.set_xticks(tick_idxs)
-        ax.set_xticklabels([x_labels[i] for i in tick_idxs], fontsize=7.2)
-        ax.set_xlim(-0.35, len(entries) - 1 + max(1.05, 0.17 * len(entries)))
-        ax.set_ylabel(ylabel, fontsize=8.0, color=TEXT)
-        ax.set_title(ptitle, fontsize=10.2, loc="left", pad=8)
+        ax.set_xticklabels([x_labels[i] for i in tick_idxs], fontsize=7.6)
+        ax.set_xlim(-0.35, len(entries) - 1 + max(0.95, 0.16 * len(entries)))
+        ax.set_ylabel(ylabel, fontsize=8.2, color=TEXT)
+        ax.set_title(ptitle, fontsize=10.5, loc="left", pad=8)
         ax.legend(loc="upper left", frameon=True, facecolor="#ffffff", framealpha=0.92,
-                  edgecolor=GRID, fontsize=6.8, ncol=2 if len(series_spec) > 4 else 1,
+                  edgecolor=GRID, fontsize=7.1, ncol=2 if len(series_spec) > 3 else 1,
                   handlelength=1.4, borderpad=0.35, labelspacing=0.24)
 
     first_d = datetime.fromisoformat(entries[0]["date"]).strftime("%d.%m.%Y")
     last_d = datetime.fromisoformat(entries[-1]["date"]).strftime("%d.%m.%Y")
     _header(
-        fig, 8.9,
+        fig, 14.2,
         f"HISTORIC BENCHMARK TRENDS  ·  {len(entries)} PUBLISHED CI RUNS ({first_d} – {last_d})",
-        "Performance & server resource trends across all runner campaigns",
+        "Performance, accuracy & server resource trends across all runner campaigns",
         "Points: median across runner VMs  ·  Shaded bands: VM middle 50% (IQR)  ·  Dotted lines: Graphite Meter release changes  ·  Auto-updated each run",
     )
     fig.savefig(out_path, dpi=200, bbox_inches="tight", pad_inches=0.14)

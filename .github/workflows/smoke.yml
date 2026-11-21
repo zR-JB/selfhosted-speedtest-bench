@@ -63,12 +63,22 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Check JS syntax
-        run: node --check bench/*.js bench/driver/*.js bench/driver/adapters/*.js
+      - name: Check JS syntax & unit tests
+        run: |
+          node --check bench/*.js bench/driver/*.js bench/driver/adapters/*.js
+          node --test bench/test.js
       - name: Verify report renderer on latest archive
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends python3-matplotlib
+          python3 -m py_compile bench/charts.py bench/report.py
           latest=$(ls -d results/*-ci-run-* | sort | tail -n 1)
           run_id=${latest##*-ci-run-}
           /usr/bin/python3 bench/report.py "$run_id" --from-archive --rerender
+          test -s results/history-trends.png
+          for f in agreement-download agreement-upload unshaped-download unshaped-upload \
+                   server-download-cpu server-upload-cpu server-peak-memory \
+                   shaped-paths transports-10g resource-overview latency-overview \
+                   consistency-overview upload-check; do
+            test -s "$latest/$f.png"
+          done
