@@ -75,10 +75,14 @@ jobs:
           latest=$(ls -d results/*-ci-run-* | sort | tail -n 1)
           run_id=${latest##*-ci-run-}
           /usr/bin/python3 bench/report.py "$run_id" --from-archive --rerender
-          test -s results/history-trends.png
+          for f in results/history-trends-dark.png results/history-trends-light.png; do
+            test -s "$f"
+          done
           for f in agreement-download agreement-upload unshaped-download unshaped-upload \
                    server-download-cpu server-upload-cpu server-peak-memory \
-                   shaped-paths transports-10g resource-overview latency-overview \
-                   consistency-overview upload-check; do
+                   dashboard-overview-dark dashboard-overview-light \
+                   dashboard-resources-dark dashboard-resources-light \
+                   dashboard-accuracy-dark dashboard-accuracy-light \
+                   dashboard-consistency-dark dashboard-consistency-light; do
             test -s "$latest/$f.png"
           done

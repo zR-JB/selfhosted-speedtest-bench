@@ -274,8 +274,19 @@ def figure(filename, description):
     return f"[![{description}]({asset})]({asset})"
 
 
-def companion(filename, description):
-    return f"<details open>\n<summary>{description}</summary>\n\n{figure(filename, description)}\n\n</details>"
+def picture_figure(stem, description, base=None):
+    prefix = f"{base or report}/{stem}"
+    return (
+        "<picture>\n"
+        f'  <source media="(prefers-color-scheme: dark)" srcset="{prefix}-dark.png">\n'
+        f'  <img src="{prefix}-light.png" alt="{description}" width="100%">\n'
+        "</picture>"
+    )
+
+
+def companion(filename, description, *, open_by_default=False):
+    tag = "<details open>" if open_by_default else "<details>"
+    return f"{tag}\n<summary>{description}</summary>\n\n{figure(filename, description)}\n\n</details>"
 
 
 def case_link(scenario):
@@ -390,43 +401,41 @@ for heading, filename, unit, metric, digits, rate_field in resource_metrics:
         context_fn=ctx_fn,
     )
 
-charts.render_shaped_paths_dashboard(
-    report / "shaped-paths.png",
+charts.render_overview_bento(
+    report / "dashboard-overview",
     report_date=report_date,
     vm_count=vm_count,
     measure=measure,
     rate=rate,
-    chrome=CHROME,
-    firefox=FIREFOX,
-    native=NATIVE,
+    paired=paired,
+    total_server_cpu=total_server_cpu,
+    peak_memory=peak_memory,
 )
-charts.render_transports_chart(
-    report / "transports-10g.png",
+charts.render_resources_bento(
+    report / "dashboard-resources",
     report_date=report_date,
     vm_count=vm_count,
-    measure=measure,
-    rate=rate,
-)
-charts.render_resource_overview(
-    report / "resource-overview.png",
-    report_date=report_date,
-    vm_count=vm_count,
+    groups=groups,
     measure=measure,
     phase_cpu=phase_cpu,
+    total_server_cpu=total_server_cpu,
     peak_memory=peak_memory,
     client_cpu=client_cpu,
 )
-charts.render_latency_chart(
-    report / "latency-overview.png",
+charts.render_accuracy_bento(
+    report / "dashboard-accuracy",
     report_date=report_date,
     vm_count=vm_count,
     measure=measure,
-    idle_delta=idle_delta,
+    paired=paired,
     rate=rate,
+    shaper_upload=lambda row: row["queues"]["up"].get("medianOwnLinkMbit"),
+    server_rx=server_rx,
+    idle_delta=idle_delta,
     fifo_latency=fifo_latency,
 )
-charts.render_consistency_chart(
-    report / "consistency-overview.png",
+charts.render_consistency_bento(
+    report / "dashboard-consistency",
     report_date=report_date,
     vm_count=vm_count,
     measure=measure,
@@ -434,16 +443,7 @@ charts.render_consistency_chart(
     rate=rate,
     jobs=jobs,
 )
-charts.render_upload_check_chart(
-    report / "upload-check.png",
-    report_date=report_date,
-    vm_count=vm_count,
-    measure=measure,
-    rate=rate,
-    shaper_upload=lambda row: row["queues"]["up"].get("medianOwnLinkMbit"),
-    server_rx=server_rx,
-)
-history_entries = charts.render_historic_trends(Path("results"), Path("results/history-trends.png"))
+history_entries = charts.render_historic_trends(Path("results"), Path("results/history-trends"))
 
 
 def group_leaders(values, digits, preference):
@@ -843,9 +843,7 @@ The iperf3 row is a reference.
 
 {shape_table}
 
-{figure("shaped-paths", "Throughput across 10 Gbit/s upload, 1% loss, 160 ms RTT, and behind-nginx paths.")}
-
-{companion("transports-10g", "View HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput")}
+{picture_figure("dashboard-overview", "Campaign overview: KPIs, 10 Gbit/s and unshaped throughput with server CPU and RAM, and challenging network paths.")}
 
 The loss test uses a 100 Mbit/s link, 1% loss in each direction and 40 ms RTT. Chrome reported
 **{latest_value(LOSS, ost[0], rate(UPLOAD))} Mbit/s** upload with OpenSpeedTest and
@@ -863,9 +861,11 @@ LibreSpeed deployments spanned **{firefox_upload}**.
 
 [Agreement values for every tool]({report}/#matched-1-gbits-agreement)
 
-{figure("agreement-upload", "Upload agreement with same-pass iperf3, grouped by Chrome, Firefox, and native terminal.")}
+{picture_figure("dashboard-accuracy", "1 Gbit/s upload agreement against iperf3, 30 Mbit/s FIFO upload counter integrity check, and bufferbloat loaded latency.")}
 
-{companion("agreement-download", "View download agreement")}
+{companion("agreement-upload", "View per-VM 1 Gbit/s upload agreement")}
+
+{companion("agreement-download", "View per-VM 1 Gbit/s download agreement")}
 
 Zero matches the iperf3 receiver payload rate. Positive values mean the app reported a higher rate.
 The comparison reflects both the traffic each setup drove and its reporting method.
@@ -879,11 +879,11 @@ Median download / upload was **{terminal_rates[0]} Gbit/s** for Graphite Meter T
 
 [Unshaped medians, maxima and browser CPU]({report}/#unshaped-throughput-and-browser-cpu)
 
-{figure("unshaped-download", "Unshaped download medians and spread by tool and client.")}
+{picture_figure("dashboard-consistency", "Spread and directional asymmetry across scenarios, plus unshaped native upload grouped by GitHub runner CPU and cloud kernel.")}
 
-{companion("unshaped-upload", "View unshaped upload throughput")}
+{companion("unshaped-download", "View per-VM unshaped download throughput")}
 
-{companion("consistency-overview", "View VM-to-VM consistency and runner hardware breakdown")}
+{companion("unshaped-upload", "View per-VM unshaped upload throughput")}
 
 {uncapped_method}
 
@@ -898,7 +898,7 @@ the receiver in both directions. [Native upload by runner hardware]({report}/#un
 
 [Server resource values for Chrome, Firefox and terminals]({report}/#server-resources-at-1-gbits)
 
-{figure("resource-overview", "Server CPU per GB, peak server memory, and client-side CPU efficiency.")}
+{picture_figure("dashboard-resources", "All implementations ranked by server CPU per GB at 1 Gbit/s, 10 Gbit/s and unshaped, peak server RAM across direct/H2/proxy, and client-side CPU.")}
 
 {companion("server-upload-cpu", "View per-VM server CPU during upload at 1 Gbit/s")}
 
@@ -920,8 +920,6 @@ Bold marks the lowest displayed median per resource within each client group.
 
 {fifo_notes}
 
-{figure("upload-check", "App-reported upload compared against shaper busy rate and passive server RX interface counters.")}
-
 {receiver_check}
 
 {receiver_method}
@@ -936,8 +934,6 @@ Graphite Meter reports loaded latency during download and upload in this run. On
 with a 200 ms FIFO, each cell shows the app’s median followed by the queue-based estimate.
 
 {fifo_table}
-
-{figure("latency-overview", "Idle latency overhead against ICMP and loaded latency tracking on the 300/30 Mbit/s FIFO path.")}
 
 On the 10 Gbit/s path, Graphite Meter Browser in Chrome reported median upload of
 **{transport_upload[0]} Gbit/s over HTTP/1.1**, **{transport_upload[1]} over HTTP/2**,
@@ -1024,8 +1020,8 @@ if not historical:
             f"Automatically updated after every full 15-job GitHub runner campaign (**{len(history_entries)} runs** "
             f"from **{first_d}** to **{last_d}**). Points show per-VM medians across each campaign; shaded bands show "
             "the middle 50% (IQR) across runner VMs; dotted vertical lines mark Graphite Meter release transitions.\n\n"
-            "[![Performance and server resource trends across all published GitHub runner campaigns.](results/history-trends.png)](results/history-trends.png)\n"
-            "<!-- historic-trends-end -->"
+            + picture_figure("history-trends", "Performance, accuracy and server resource trends across all published GitHub runner campaigns.", base="results")
+            + "\n<!-- historic-trends-end -->"
         )
         if "<!-- historic-trends-start -->" in updated and "<!-- historic-trends-end -->" in updated:
             h_start = updated.index("<!-- historic-trends-start -->")

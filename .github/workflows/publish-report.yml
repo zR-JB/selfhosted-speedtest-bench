@@ -71,7 +71,7 @@ jobs:
           REPORT: ${{ steps.report.outputs.report }}
         run: |
           git add README.md "$REPORT/README.md" "$REPORT/server-cpu.md" \
-            "$REPORT"/*.png results/history-trends.png \
+            "$REPORT"/*.png results/history-trends-*.png \
             "$REPORT/provenance.json" "$REPORT/measurements.json.gz"
           git diff --cached --check
           git diff --cached --quiet && exit 0

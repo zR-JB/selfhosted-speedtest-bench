@@ -52,14 +52,10 @@ The iperf3 row is a reference.
 | LibreSpeed CLI | 943.2 / 871.0 | 9.36 / 8.16 | 11.2 / 11.3 |
 | iperf3 (reference) | 956.4 / 956.4 | 9.56 / 9.56 | 12.9 / 12.8 |
 
-[![Throughput across 10 Gbit/s upload, 1% loss, 160 ms RTT, and behind-nginx paths.](results/2026-11-15-ci-run-43720854999/shaped-paths.png)](results/2026-11-15-ci-run-43720854999/shaped-paths.png)
-
-<details open>
-<summary>View HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput</summary>
-
-[![View HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput](results/2026-11-15-ci-run-43720854999/transports-10g.png)](results/2026-11-15-ci-run-43720854999/transports-10g.png)
-
-</details>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-overview-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/dashboard-overview-light.png" alt="Campaign overview: KPIs, 10 Gbit/s and unshaped throughput with server CPU and RAM, and challenging network paths." width="100%">
+</picture>
 
 The loss test uses a 100 Mbit/s link, 1% loss in each direction and 40 ms RTT. Chrome reported
 **21.4 Mbit/s** upload with OpenSpeedTest and
@@ -82,12 +78,22 @@ LibreSpeed deployments spanned **-6.1% to -5.0%**.
 
 [Agreement values for every tool](results/2026-11-15-ci-run-43720854999/#matched-1-gbits-agreement)
 
-[![Upload agreement with same-pass iperf3, grouped by Chrome, Firefox, and native terminal.](results/2026-11-15-ci-run-43720854999/agreement-upload.png)](results/2026-11-15-ci-run-43720854999/agreement-upload.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-accuracy-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/dashboard-accuracy-light.png" alt="1 Gbit/s upload agreement against iperf3, 30 Mbit/s FIFO upload counter integrity check, and bufferbloat loaded latency." width="100%">
+</picture>
 
-<details open>
-<summary>View download agreement</summary>
+<details>
+<summary>View per-VM 1 Gbit/s upload agreement</summary>
 
-[![View download agreement](results/2026-11-15-ci-run-43720854999/agreement-download.png)](results/2026-11-15-ci-run-43720854999/agreement-download.png)
+[![View per-VM 1 Gbit/s upload agreement](results/2026-11-15-ci-run-43720854999/agreement-upload.png)](results/2026-11-15-ci-run-43720854999/agreement-upload.png)
+
+</details>
+
+<details>
+<summary>View per-VM 1 Gbit/s download agreement</summary>
+
+[![View per-VM 1 Gbit/s download agreement](results/2026-11-15-ci-run-43720854999/agreement-download.png)](results/2026-11-15-ci-run-43720854999/agreement-download.png)
 
 </details>
 
@@ -103,19 +109,22 @@ Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** 
 
 [Unshaped medians, maxima and browser CPU](results/2026-11-15-ci-run-43720854999/#unshaped-throughput-and-browser-cpu)
 
-[![Unshaped download medians and spread by tool and client.](results/2026-11-15-ci-run-43720854999/unshaped-download.png)](results/2026-11-15-ci-run-43720854999/unshaped-download.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-consistency-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/dashboard-consistency-light.png" alt="Spread and directional asymmetry across scenarios, plus unshaped native upload grouped by GitHub runner CPU and cloud kernel." width="100%">
+</picture>
 
-<details open>
-<summary>View unshaped upload throughput</summary>
+<details>
+<summary>View per-VM unshaped download throughput</summary>
 
-[![View unshaped upload throughput](results/2026-11-15-ci-run-43720854999/unshaped-upload.png)](results/2026-11-15-ci-run-43720854999/unshaped-upload.png)
+[![View per-VM unshaped download throughput](results/2026-11-15-ci-run-43720854999/unshaped-download.png)](results/2026-11-15-ci-run-43720854999/unshaped-download.png)
 
 </details>
 
-<details open>
-<summary>View VM-to-VM consistency and runner hardware breakdown</summary>
+<details>
+<summary>View per-VM unshaped upload throughput</summary>
 
-[![View VM-to-VM consistency and runner hardware breakdown](results/2026-11-15-ci-run-43720854999/consistency-overview.png)](results/2026-11-15-ci-run-43720854999/consistency-overview.png)
+[![View per-VM unshaped upload throughput](results/2026-11-15-ci-run-43720854999/unshaped-upload.png)](results/2026-11-15-ci-run-43720854999/unshaped-upload.png)
 
 </details>
 
@@ -135,23 +144,26 @@ Graphite Meter Terminal used **7.098 CPU s/GB** on upload at **956.4 Mbit/s**. L
 
 [Server resource values for Chrome, Firefox and terminals](results/2026-11-15-ci-run-43720854999/#server-resources-at-1-gbits)
 
-[![Server CPU per GB, peak server memory, and client-side CPU efficiency.](results/2026-11-15-ci-run-43720854999/resource-overview.png)](results/2026-11-15-ci-run-43720854999/resource-overview.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-resources-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/dashboard-resources-light.png" alt="All implementations ranked by server CPU per GB at 1 Gbit/s, 10 Gbit/s and unshaped, peak server RAM across direct/H2/proxy, and client-side CPU." width="100%">
+</picture>
 
-<details open>
+<details>
 <summary>View per-VM server CPU during upload at 1 Gbit/s</summary>
 
 [![View per-VM server CPU during upload at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)
 
 </details>
 
-<details open>
+<details>
 <summary>View per-VM server CPU during download at 1 Gbit/s</summary>
 
 [![View per-VM server CPU during download at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)
 
 </details>
 
-<details open>
+<details>
 <summary>View per-VM peak server memory at 1 Gbit/s</summary>
 
 [![View per-VM peak server memory at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)
@@ -194,8 +206,6 @@ Within each client, both profiles use the same server build, automatic connectio
 ### OpenSpeedTest upload check
 
 On the FIFO path, OpenSpeedTest’s reported rate exceeded the matched iperf3 receiver rate in **30/30 Chrome** and **30/30 Firefox** passes.
-
-[![App-reported upload compared against shaper busy rate and passive server RX interface counters.](results/2026-11-15-ci-run-43720854999/upload-check.png)](results/2026-11-15-ci-run-43720854999/upload-check.png)
 
 **1 Gbit/s path**
 
@@ -241,8 +251,6 @@ with a 200 ms FIFO, each cell shows the app’s median followed by the queue-bas
 | Graphite Meter without loaded latency · Firefox | — / 141.9 | — / 180.4 |
 | Graphite Meter Terminal | 176.0 / 169.5 | 198.0 / 192.7 |
 | Graphite Meter Terminal without loaded latency | — / 169.2 | — / 192.7 |
-
-[![Idle latency overhead against ICMP and loaded latency tracking on the 300/30 Mbit/s FIFO path.](results/2026-11-15-ci-run-43720854999/latency-overview.png)](results/2026-11-15-ci-run-43720854999/latency-overview.png)
 
 On the 10 Gbit/s path, Graphite Meter Browser in Chrome reported median upload of
 **4.29 Gbit/s over HTTP/1.1**, **2.63 over HTTP/2**,
@@ -444,5 +452,8 @@ way. Shorter local runs are for development.
 
 Automatically updated after every full 15-job GitHub runner campaign (**7 runs** from **18.10.2026** to **15.11.2026**). Points show per-VM medians across each campaign; shaded bands show the middle 50% (IQR) across runner VMs; dotted vertical lines mark Graphite Meter release transitions.
 
-[![Performance and server resource trends across all published GitHub runner campaigns.](results/history-trends.png)](results/history-trends.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results/history-trends-dark.png">
+  <img src="results/history-trends-light.png" alt="Performance, accuracy and server resource trends across all published GitHub runner campaigns." width="100%">
+</picture>
 <!-- historic-trends-end -->
