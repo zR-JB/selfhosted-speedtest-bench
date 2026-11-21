@@ -113,7 +113,7 @@ These are single-test results on a virtual link. Production capacity also depend
 simultaneous demand.
 Each maximum is the fastest retained pass in that direction. The two maxima can come from different passes. Browser CPU measures the client process tree over the full run per GB at the shaper.
 
-| Tool or client | Median down / up (Gbit/s) | Max down / up (Gbit/s) | Browser CPU (s/GB) |
+| Tool or client | Median down / up (Gbit/s) | Max down / up (Gbit/s) | Client CPU (s/GB) |
 | --- | ---: | ---: | ---: |
 | Graphite Meter Browser · Chrome | 17.7 / 5.0 | 25.3 / 12.3 | 1.40 |
 | Graphite Meter without loaded latency · Chrome | **18.4** / **5.3** | 23.5 / 12.5 | 1.29 |
@@ -147,10 +147,7 @@ Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** 
 
 ### Server resources at 1 Gbit/s
 
-Server CPU is container CPU time per decimal GB of server-interface traffic during each phase,
-counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB.
-The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is
-measured separately on the client. Native client CPU is unavailable.
+Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run.
 
 | Tool or client | Down / up (Mbit/s) | Down CPU (s/GB) | Up CPU (s/GB) | Peak RAM (MB) |
 | --- | ---: | ---: | ---: | ---: |

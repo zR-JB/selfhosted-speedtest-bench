@@ -52,6 +52,15 @@ The iperf3 row is a reference.
 | LibreSpeed CLI | 943.2 / 871.0 | 9.36 / 8.16 | 11.2 / 11.3 |
 | iperf3 (reference) | 956.4 / 956.4 | 9.56 / 9.56 | 12.9 / 12.8 |
 
+[![Throughput across 10 Gbit/s upload, 1% loss, 160 ms RTT, and behind-nginx paths.](results/2026-11-15-ci-run-43720854999/shaped-paths.png)](results/2026-11-15-ci-run-43720854999/shaped-paths.png)
+
+<details open>
+<summary>View HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput</summary>
+
+[![View HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput](results/2026-11-15-ci-run-43720854999/transports-10g.png)](results/2026-11-15-ci-run-43720854999/transports-10g.png)
+
+</details>
+
 The loss test uses a 100 Mbit/s link, 1% loss in each direction and 40 ms RTT. Chrome reported
 **21.4 Mbit/s** upload with OpenSpeedTest and
 **13.8 Mbit/s** with Graphite Meter Browser.
@@ -119,26 +128,30 @@ Graphite Meter Terminal used **7.098 CPU s/GB** on upload at **956.4 Mbit/s**. L
 
 [Server resource values for Chrome, Firefox and terminals](results/2026-11-15-ci-run-43720854999/#server-resources-at-1-gbits)
 
-[![Server CPU during upload at 1 Gbit/s for Chrome and terminal tests.](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)
+[![Server CPU per GB, peak server memory, and client-side CPU efficiency.](results/2026-11-15-ci-run-43720854999/resource-overview.png)](results/2026-11-15-ci-run-43720854999/resource-overview.png)
 
 <details open>
-<summary>View server CPU during download</summary>
+<summary>View per-VM server CPU during upload at 1 Gbit/s</summary>
 
-[![View server CPU during download](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)
+[![View per-VM server CPU during upload at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)
 
 </details>
 
 <details open>
-<summary>View peak server memory</summary>
+<summary>View per-VM server CPU during download at 1 Gbit/s</summary>
 
-[![View peak server memory](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)
+[![View per-VM server CPU during download at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)
 
 </details>
 
-Server CPU is container CPU time per decimal GB of server-interface traffic during each phase,
-counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB.
-The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is
-measured separately on the client. Native client CPU is unavailable.
+<details open>
+<summary>View per-VM peak server memory at 1 Gbit/s</summary>
+
+[![View per-VM peak server memory at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)
+
+</details>
+
+Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run.
 
 Over the full Chrome test the median total server CPU time was **6.03 s** for OpenSpeedTest and **3.74 s** for Graphite Meter Browser. Total time reflects both the amount of data moved and the work per byte.
 
@@ -219,6 +232,8 @@ with a 200 ms FIFO, each cell shows the app’s median followed by the queue-bas
 | Graphite Meter without loaded latency · Firefox | — / 141.9 | — / 180.4 |
 | Graphite Meter Terminal | 176.0 / 169.5 | 198.0 / 192.7 |
 | Graphite Meter Terminal without loaded latency | — / 169.2 | — / 192.7 |
+
+[![Idle latency overhead against ICMP and loaded latency tracking on the 300/30 Mbit/s FIFO path.](results/2026-11-15-ci-run-43720854999/latency-overview.png)](results/2026-11-15-ci-run-43720854999/latency-overview.png)
 
 On the 10 Gbit/s path, Graphite Meter Browser in Chrome reported median upload of
 **4.29 Gbit/s over HTTP/1.1**, **2.63 over HTTP/2**,
@@ -303,8 +318,8 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 - CPU sets and memory caps are fixed per role (shaper, server, client) and the same for every tool.
 - Every runner job tests every eligible tool and browser and an iperf3 reference on the same VM. The first pass visits every scenario. The next pass reverses the tool order within each scenario.
   Each VM uses a separate seed. The overview takes a median per VM before summarizing across VMs. The full scenario
-  tables pool retained passes. Both leave out a whole pass when its pre-pass CPU probe takes more than 125% of that
-  VM’s median. The probe samples host load before a pass and can miss later variation.
+  tables pool retained passes. Both leave out a whole pass when its pre-pass or post-pass CPU probe takes more than 125% of that
+  VM’s median, when hypervisor CPU steal exceeds 5% during the pass, or when the pass’s iperf3 control collapses below 75% of the modeled ceiling on a clean shaped link.
 - The iperf3 reference records receiver payload with four parallel TCP streams and a 10-second measured window,
   after omitting the first two seconds. The tools image installs the distro’s iperf3 and traffic-control packages.
   The historical manifests record the runner image and kernel. They do not record the exact versions of those packages.
@@ -339,7 +354,7 @@ Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, 
 | Latency under load | Idle ICMP baseline plus the FIFO queue delay sampled every 100 ms during the transfer. This is an estimate of path RTT. The benchmark has no equivalent loaded reference under `fq_codel`. |
 | Independent transfer rate | Passive server interface byte counter over sustained intervals for each direction. It includes transport overhead and is separate from the app’s own reporting window. Skipped for competing traffic, where another flow shares that interface. |
 | Server CPU and memory | The server container's cgroup: CPU seconds per GB moved, peak memory; each run also splits that CPU by 100 ms samples into download, upload and other phases, which `bench/phases.js` tables |
-| Browser CPU (client side) | CPU seconds per GB of the browser's process tree, reported in the full uncapped tables. Native client CPU is not collected. |
+| Client CPU (browser & native) | CPU seconds per GB moved: browser process-tree CPU for browser runs, and container cgroup v2 CPU + peak memory for native terminal clients and iperf3 (recorded on campaigns from November 2026 onward). |
 
 Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 20 ms RTT; 10, 25 and 40 Gbit/s at
 2 ms (25 and 40 only on hosts with at least 8 CPUs); 300/30 Mbit/s behind a 200 ms FIFO; 1 % and 0.1 % loss at 40 ms;
@@ -414,3 +429,11 @@ node bench/phases.js results/local-*
 Published numbers come from the [Bench workflow](.github/workflows/bench.yml) on GitHub-hosted runners, where every
 log is public, and from full campaigns on a named local machine, whose raw data and manifests are committed the same
 way. Shorter local runs are for development.
+
+<!-- historic-trends-start -->
+## Historic trends
+
+Automatically updated after every full 15-job GitHub runner campaign (**7 runs** from **18.10.2026** to **15.11.2026**). Points show per-VM medians across each campaign; shaded bands show the middle 50% (IQR) across runner VMs; dotted vertical lines mark Graphite Meter release transitions.
+
+[![Performance and server resource trends across all published GitHub runner campaigns.](results/history-trends.png)](results/history-trends.png)
+<!-- historic-trends-end -->

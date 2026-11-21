@@ -13,10 +13,9 @@ from pathlib import Path
 from statistics import median, quantiles
 from tempfile import TemporaryDirectory
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, MaxNLocator
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import charts
+charts.configure_matplotlib()
 
 NO_LOADED_LATENCY = "graphite-meter-no-loaded-latency"
 TERMINAL_NO_LOADED_LATENCY = "graphite-meter-client-no-loaded-latency"
@@ -40,30 +39,6 @@ FIFO = "bufferbloat-300-30"
 UNCAPPED = "unshaped"
 DOWNLOAD = "downloadMbit"
 UPLOAD = "uploadMbit"
-INK, MUTED, LINE = "#192b3d", "#455b6e", "#dbe4eb"
-COLORS = {
-    "graphite-meter": "#1458be",
-    NO_LOADED_LATENCY: "#4b659c",
-    "librespeed": "#087164",
-    "librespeed-go": "#a14d0d",
-    "librespeed-rust": "#7e4697",
-    "openspeedtest": "#ae3455",
-    "graphite-meter-client": "#1458be",
-    TERMINAL_NO_LOADED_LATENCY: "#4b659c",
-    "librespeed-cli": "#087164",
-    "iperf3": "#566274",
-}
-
-plt.rcParams.update({
-    "figure.facecolor": "#ffffff",
-    "axes.facecolor": "#ffffff",
-    "font.family": "DejaVu Sans",
-    "text.color": INK,
-    "axes.labelcolor": INK,
-    "xtick.color": MUTED,
-    "ytick.color": INK,
-    "axes.titleweight": "bold",
-})
 
 parser = ArgumentParser()
 parser.add_argument("run")
@@ -137,7 +112,7 @@ else:
         "scenarios": scenario_defs,
         "jobs": [{"job": job.name,
                   **{key: manifest[key] for key in ("host", "seed", "startedAt", "endedAt", "reps", "skipped")},
-                  "blocks": [{key: block[key] for key in ("scenario", "rep", "order", "noise", "baseRttMs")}
+                  "blocks": [{key: block[key] for key in ("scenario", "rep", "order", "noise", "noiseAfter", "startedAt", "endedAt", "baseRttMs") if key in block}
                              for block in manifest["blocks"]]}
                  for job, manifest in zip(jobs, manifests, strict=True)],
     }
@@ -250,6 +225,14 @@ def browser_cpu(row):
     return cpu * 1e9 / link if cpu is not None and link else None
 
 
+def client_cpu(row):
+    cpu = row["reported"].get("browserCpuSeconds")
+    if cpu is None:
+        cpu = row["reported"].get("clientCpuSeconds")
+    link = sum(row["linkBytes"].values())
+    return cpu * 1e9 / link if cpu is not None and link else None
+
+
 def server_rx(row, divisor=1):
     phase = row["serverPhases"]["up"]
     byte_count, ms = phase.get("directionBytes"), phase.get("milliseconds")
@@ -349,100 +332,100 @@ def show_version(client):
     return f"{TOOLS[tool]} {version}"
 
 
-def render_chart(filename, title, groups, compute, *, unit, digits=1, preference="highest"):
-    difference = preference == "closest"
-    rows, sections = [], []
-    for heading, clients in groups:
-        sections.append((len(rows), heading))
-        rows.append(None)
-        series = {client: compute(client) for client in clients}
-        best = leaders({client: median(values) for client, values in series.items() if client != REFERENCE and values},
-                       digits, preference)
-        rows.extend((client, values, client in best) for client, values in series.items())
-
-    height = 1.47 + .295 * len(rows)
-    fig, ax = plt.subplots(figsize=(7, height))
-    fig.subplots_adjust(left=.39, right=.858, top=1 - 1.02 / height, bottom=.53 / height)
-    extent = [value for row in rows if row for value in row[1]]
-    left = min([-1, *extent]) if difference else 0
-    right = max([1, *extent])
-    padding = (right - left) * .07
-    ax.set_xlim(left - padding if difference else left, right + padding)
-    ax.set_ylim(len(rows) - .45, -.65)
-    ax.set_xlabel(unit, fontsize=9.5, labelpad=5)
-    ax.set_axisbelow(True)
-    ax.set_yticks([])
-    ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
-    if difference:
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:+g}%" if value else "0%"))
-        ax.axvline(0, color=MUTED, linewidth=1, zorder=2)
-    ax.tick_params(axis="x", length=3, color=LINE, labelsize=9, pad=4)
-    ax.grid(axis="x", color=LINE, linewidth=.75)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    transform = ax.get_yaxis_transform()
-    ax.text(1.23, -.65, "MEDIAN", transform=transform, ha="right", va="bottom", fontsize=8, color=MUTED, weight="bold")
-    for y, heading in sections:
-        ax.axhline(y + .42, color=LINE, linewidth=.8)
-        ax.text(-.755, y, heading, transform=transform, ha="left", va="center", fontsize=10.5,
-                color=INK, weight="bold")
-    for y, row in enumerate(rows):
-        if row is None:
-            continue
-        client, series, highlighted = row
-        color = COLORS[client[0]]
-        label = ax.text(-.72, y, show_version(client), transform=transform, ha="left", va="center",
-                        fontsize=9.6, color=color)
-        if client[0] in (NO_LOADED_LATENCY, TERMINAL_NO_LOADED_LATENCY):
-            label.set_linespacing(.85)
-        ax.axhline(y + .5, color="#edf1f5", linewidth=.65)
-        value = "—"
-        if series:
-            center, low, high = spread(series)
-            offsets = [y + ((index % 5) - 2) * .073 for index in range(len(series))]
-            ax.scatter(series, offsets, color=color, s=13, alpha=.50, linewidth=0, zorder=3)
-            ax.hlines(y, low, high, color=color, linewidth=2.9, zorder=4)
-            marker = "D" if client in NATIVE else "s" if client == REFERENCE else "^" if client[0] == NO_LOADED_LATENCY else "o"
-            if highlighted:
-                ax.scatter(center, y, s=116, facecolor="none", edgecolor=color, linewidth=1.3, marker=marker, zorder=5)
-            ax.scatter(center, y, color=color, s=43, edgecolor="white", linewidth=.75, marker=marker, zorder=6)
-            value = number(center, digits, signed=difference) + ("%" if difference else "")
-        ax.text(1.23, y, value, transform=transform, ha="right", va="center", fontsize=10,
-                color=INK if highlighted else MUTED, weight="bold" if highlighted else "normal")
-
-    fig.text(.034, 1 - .14 / height, f"BENCHMARK  /  {report_date}", color=MUTED, fontsize=8.5, weight="bold", va="top")
-    fig.text(.034, 1 - .34 / height, title, fontsize=19, weight="bold", va="top")
-    highlight = {"closest": "closest to zero", "highest": "highest median", "lowest": "lowest median"}[preference]
-    fig.text(.034, 1 - .71 / height, f"Dots: runner VMs  ·  Line: middle 50%  ·  Outline and bold: {highlight} in each group",
-             fontsize=8.2, color=MUTED, va="top")
-    fig.savefig(report / filename, dpi=175)
-    plt.close(fig)
-
-
 chrome_group = (f"Chrome {pins['browsers']['chrome']['version']}", CHROME)
 firefox_group = (f"Firefox {pins['browsers']['firefox']['version']}", FIREFOX)
 native_group = ("Native terminal", NATIVE)
 reference_group = ("TCP reference", [REFERENCE])
 client_groups = [chrome_group, firefox_group, native_group]
+vm_count = len(jobs)
+
 for direction, field in (("Download", DOWNLOAD), ("Upload", UPLOAD)):
-    render_chart(
-        f"agreement-{direction.lower()}.png", f"{direction} agreement at 1 Gbit/s", client_groups,
-        lambda client: measure(PLAIN, client, lambda row: paired(row, field)), unit="Difference from same-pass iperf3",
+    charts.render_dot_strip_chart(
+        report / f"agreement-{direction.lower()}.png",
+        f"{direction} agreement at 1 Gbit/s",
+        client_groups,
+        lambda client, f=field: measure(PLAIN, client, lambda row: paired(row, f)),
+        report_date=report_date,
+        vm_count=vm_count,
+        show_version=show_version,
+        native_clients=NATIVE,
+        unit="Difference from same-pass iperf3 (%)",
         preference="closest",
     )
-    render_chart(
-        f"unshaped-{direction.lower()}.png", f"Unshaped {direction.lower()} throughput",
-        [*client_groups, reference_group], lambda client: measure(UNCAPPED, client, rate(field, 1000)), unit="Gbit/s",
+    charts.render_dot_strip_chart(
+        report / f"unshaped-{direction.lower()}.png",
+        f"Unshaped {direction.lower()} throughput",
+        [*client_groups, reference_group],
+        lambda client, f=field: measure(UNCAPPED, client, rate(f, 1000)),
+        report_date=report_date,
+        vm_count=vm_count,
+        show_version=show_version,
+        native_clients=NATIVE,
+        unit="Throughput (Gbit/s)",
+        show_max=True,
     )
 
 resource_metrics = [
-    ("Server CPU during download at 1 Gbit/s", "download-cpu", "CPU seconds per GB", phase_cpu("down"), 3),
-    ("Server CPU during upload at 1 Gbit/s", "upload-cpu", "CPU seconds per GB", phase_cpu("up"), 3),
-    ("Peak server memory at 1 Gbit/s", "peak-memory", "MB", peak_memory, 1),
+    ("Server CPU during download at 1 Gbit/s", "download-cpu", "CPU seconds per GB (lower is better)", phase_cpu("down"), 3, DOWNLOAD),
+    ("Server CPU during upload at 1 Gbit/s", "upload-cpu", "CPU seconds per GB (lower is better)", phase_cpu("up"), 3, UPLOAD),
+    ("Peak server memory at 1 Gbit/s", "peak-memory", "Peak container memory (MB, lower is better)", peak_memory, 1, None),
 ]
-for heading, filename, unit, metric, digits in resource_metrics:
-    render_chart(f"server-{filename}.png", heading, [chrome_group, native_group, reference_group],
-                 lambda client: measure(PLAIN, client, metric), unit=unit, digits=digits, preference="lowest")
+for heading, filename, unit, metric, digits, rate_field in resource_metrics:
+    ctx_fn = (
+        (lambda client, rf=rate_field: f"{latest_value(PLAIN, client, rate(rf), 0)} Mbit/s")
+        if rate_field else None
+    )
+    charts.render_dot_strip_chart(
+        report / f"server-{filename}.png",
+        heading,
+        [chrome_group, firefox_group, native_group, reference_group],
+        lambda client, m=metric: measure(PLAIN, client, m),
+        report_date=report_date,
+        vm_count=vm_count,
+        show_version=show_version,
+        native_clients=NATIVE,
+        unit=unit,
+        digits=digits,
+        preference="lowest",
+        context_fn=ctx_fn,
+    )
+
+charts.render_shaped_paths_dashboard(
+    report / "shaped-paths.png",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    rate=rate,
+    chrome=CHROME,
+    firefox=FIREFOX,
+    native=NATIVE,
+)
+charts.render_transports_chart(
+    report / "transports-10g.png",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    rate=rate,
+)
+charts.render_resource_overview(
+    report / "resource-overview.png",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    phase_cpu=phase_cpu,
+    peak_memory=peak_memory,
+    client_cpu=client_cpu,
+)
+charts.render_latency_chart(
+    report / "latency-overview.png",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    idle_delta=idle_delta,
+    rate=rate,
+    fifo_latency=fifo_latency,
+)
+history_entries = charts.render_historic_trends(Path("results"), Path("results/history-trends.png"))
 
 
 def group_leaders(values, digits, preference):
@@ -480,17 +463,17 @@ shape_table = table(["Tool or client", "1 Gbit/s (Mbit/s)", "10 Gbit/s (Gbit/s)"
 all_clients = [*CHROME, *FIREFOX, *NATIVE, REFERENCE]
 uncapped_rates = ranked_rates(all_clients, UNCAPPED, 1000, 1)
 uncapped_table = table(
-    ["Tool or client", "Median down / up (Gbit/s)", "Max down / up (Gbit/s)", "Browser CPU (s/GB)"],
+    ["Tool or client", "Median down / up (Gbit/s)", "Max down / up (Gbit/s)", "Client CPU (s/GB)"],
     [[client_name(client), uncapped_rates[client],
       " / ".join(number(max((row["reported"][field] / 1000 for row in groups[UNCAPPED, client]
                              if field in row["reported"]), default=None)) for field in (DOWNLOAD, UPLOAD)),
-      latest_value(UNCAPPED, client, browser_cpu, 2)]
+      latest_value(UNCAPPED, client, client_cpu, 2)]
      for client in all_clients],
 )
 resource_headers = ["Tool or client", "Down / up (Mbit/s)", "Down CPU (s/GB)", "Up CPU (s/GB)", "Peak RAM (MB)"]
 resource_clients = [*CLIENTS, *FIREFOX]
 resource_rankings = [ranked_values(resource_clients, PLAIN, metric, digits, "lowest")
-                     for _, _, _, metric, digits in resource_metrics]
+                     for _, _, _, metric, digits, _ in resource_metrics]
 resource_rows = [[client_name(client), rate_pair(PLAIN, client, 1, 1),
                   *(ranking[client] for ranking in resource_rankings)]
                  for client in resource_clients]
@@ -643,10 +626,19 @@ uncapped_method = """Unshaped runs remove the rate limit and artificial delay, w
 server one vCPU and the client two. The tool, client, server and VM can all affect the observed rate.
 These are single-test results on a virtual link. Production capacity also depends on the network and
 simultaneous demand."""
-resource_method = """Server CPU is container CPU time per decimal GB of server-interface traffic during each phase,
-counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB.
-The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is
-measured separately on the client. Native client CPU is unavailable."""
+has_native_client_cpu = any(
+    row["reported"].get("clientCpuSeconds") is not None for row in completed
+)
+resource_method = (
+    "Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, "
+    "counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. "
+    "The adjacent reported rates show how much of the same shaped link each setup used. "
+    + (
+        "Client CPU is measured separately from the browser process tree or native client cgroup."
+        if has_native_client_cpu
+        else "Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run."
+    )
+)
 gm_browser = ("graphite-meter", "chrome")
 gm_terminal = ("graphite-meter-client", None)
 ls_terminal = ("librespeed-cli", None)
@@ -833,6 +825,10 @@ The iperf3 row is a reference.
 
 {shape_table}
 
+{figure("shaped-paths", "Throughput across 10 Gbit/s upload, 1% loss, 160 ms RTT, and behind-nginx paths.")}
+
+{companion("transports-10g", "View HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput")}
+
 The loss test uses a 100 Mbit/s link, 1% loss in each direction and 40 ms RTT. Chrome reported
 **{latest_value(LOSS, ost[0], rate(UPLOAD))} Mbit/s** upload with OpenSpeedTest and
 **{latest_value(LOSS, gm_browser, rate(UPLOAD))} Mbit/s** with Graphite Meter Browser.
@@ -882,11 +878,13 @@ the receiver in both directions. [Native upload by runner hardware]({report}/#un
 
 [Server resource values for Chrome, Firefox and terminals]({report}/#server-resources-at-1-gbits)
 
-{figure("server-upload-cpu", "Server CPU during upload at 1 Gbit/s for Chrome and terminal tests.")}
+{figure("resource-overview", "Server CPU per GB, peak server memory, and client-side CPU efficiency.")}
 
-{companion("server-download-cpu", "View server CPU during download")}
+{companion("server-upload-cpu", "View per-VM server CPU during upload at 1 Gbit/s")}
 
-{companion("server-peak-memory", "View peak server memory")}
+{companion("server-download-cpu", "View per-VM server CPU during download at 1 Gbit/s")}
+
+{companion("server-peak-memory", "View per-VM peak server memory at 1 Gbit/s")}
 
 {resource_method}
 
@@ -916,6 +914,8 @@ Graphite Meter reports loaded latency during download and upload in this run. On
 with a 200 ms FIFO, each cell shows the app’s median followed by the queue-based estimate.
 
 {fifo_table}
+
+{figure("latency-overview", "Idle latency overhead against ICMP and loaded latency tracking on the 300/30 Mbit/s FIFO path.")}
 
 On the 10 Gbit/s path, Graphite Meter Browser in Chrome reported median upload of
 **{transport_upload[0]} Gbit/s over HTTP/1.1**, **{transport_upload[1]} over HTTP/2**,
@@ -992,7 +992,26 @@ Below-ceiling rates can reflect any constraint on the end-to-end transfer.
 <!-- pooled-pass-tables -->
 {summary}""")
 if not historical:
-    readme.write_text(original[:start] + overview + original[end:])
+    updated = original[:start] + overview + original[end:]
+    if history_entries:
+        first_d = datetime.fromisoformat(history_entries[0]["date"]).strftime("%d.%m.%Y")
+        last_d = datetime.fromisoformat(history_entries[-1]["date"]).strftime("%d.%m.%Y")
+        history_block = (
+            "<!-- historic-trends-start -->\n"
+            "## Historic trends\n\n"
+            f"Automatically updated after every full 15-job GitHub runner campaign (**{len(history_entries)} runs** "
+            f"from **{first_d}** to **{last_d}**). Points show per-VM medians across each campaign; shaded bands show "
+            "the middle 50% (IQR) across runner VMs; dotted vertical lines mark Graphite Meter release transitions.\n\n"
+            "[![Performance and server resource trends across all published GitHub runner campaigns.](results/history-trends.png)](results/history-trends.png)\n"
+            "<!-- historic-trends-end -->"
+        )
+        if "<!-- historic-trends-start -->" in updated and "<!-- historic-trends-end -->" in updated:
+            h_start = updated.index("<!-- historic-trends-start -->")
+            h_end = updated.index("<!-- historic-trends-end -->") + len("<!-- historic-trends-end -->")
+            updated = updated[:h_start] + history_block + updated[h_end:]
+        else:
+            updated = updated.rstrip() + "\n\n" + history_block + "\n"
+    readme.write_text(updated)
 if (output := os.environ.get("GITHUB_OUTPUT")) and not args.from_archive and not historical:
     with Path(output).open("a") as stream:
         print(f"report={report}", file=stream)

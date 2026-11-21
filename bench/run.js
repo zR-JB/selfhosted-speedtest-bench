@@ -223,13 +223,18 @@ async function runClient(name) {
   // A non-zero exit still prints a report (a partial run); the parser decides what it means.
   const [binary, ...args] = client.release.command;
   const dir = `${releaseDir}/${client.variantOf ?? name}-${client.version}`;
-  const text = await bed
-    .clientRun(
-      ["-v", `${dir}:/opt/tool:ro`, "-v", `${config}:/config:ro`, "-w", "/opt/tool"],
-      [client.binary ?? binary, ...(client.args ?? args), ...(client.extraArgs ?? [])],
-    )
-    .catch((error) => error.stdout ?? "");
-  return { ...PARSERS[client.parse](text), report: text, startedAt, endedAt: Date.now() };
+  const { stdout: text, clientCpuSeconds, clientMemoryPeakBytes } = await bed.clientRunMeasured(
+    ["-v", `${dir}:/opt/tool:ro`, "-v", `${config}:/config:ro`, "-w", "/opt/tool"],
+    [client.binary ?? binary, ...(client.args ?? args), ...(client.extraArgs ?? [])],
+  );
+  return {
+    ...PARSERS[client.parse](text),
+    ...(clientCpuSeconds != null ? { clientCpuSeconds } : {}),
+    ...(clientMemoryPeakBytes != null ? { clientMemoryPeakBytes } : {}),
+    report: text,
+    startedAt,
+    endedAt: Date.now(),
+  };
 }
 
 // A fixed amount of hashing; a block that takes much longer than the job's median ran on a busy host.
@@ -249,15 +254,30 @@ async function baseRtt() {
 }
 
 async function iperf(reverse, host = bed.NET.server) {
-  const json = JSON.parse(
-    await bed.clientTool("iperf3", "-c", host, "-P", "4", "-t", "10", "-O", "2", "-J", ...(reverse ? ["-R"] : [])),
+  const { stdout, failed, clientCpuSeconds, clientMemoryPeakBytes } = await bed.clientRunMeasured(
+    [],
+    ["iperf3", "-c", host, "-P", "4", "-t", "10", "-O", "2", "-J", ...(reverse ? ["-R"] : [])],
   );
-  return json.end.sum_received.bits_per_second / 1e6;
+  if (failed) throw failed;
+  const json = JSON.parse(stdout);
+  return {
+    mbit: json.end.sum_received.bits_per_second / 1e6,
+    clientCpuSeconds,
+    clientMemoryPeakBytes,
+  };
 }
 
 // With two servers the reference measures both paths at once, as the tools do.
-const iperfAll = async (reverse, hosts) =>
-  (await Promise.all(hosts.map((host) => iperf(reverse, host)))).reduce((sum, mbit) => sum + mbit, 0);
+async function iperfAll(reverse, hosts) {
+  const parts = await Promise.all(hosts.map((host) => iperf(reverse, host)));
+  const cpus = parts.map((p) => p.clientCpuSeconds).filter((v) => v != null);
+  const mems = parts.map((p) => p.clientMemoryPeakBytes).filter((v) => v != null);
+  return {
+    mbit: parts.reduce((sum, p) => sum + p.mbit, 0),
+    clientCpuSeconds: cpus.length === parts.length ? cpus.reduce((a, b) => a + b, 0) : null,
+    clientMemoryPeakBytes: mems.length ? Math.max(...mems) : null,
+  };
+}
 
 const toolUrl = (name, proxied) =>
   proxied
@@ -306,9 +326,22 @@ async function measure(unit, scenario, file) {
     let reported;
     if (isReference) {
       const startedAt = Date.now();
-      const downloadMbit = await iperfAll(true, hosts);
-      const uploadMbit = await iperfAll(false, hosts);
-      reported = { outcome: "complete", downloadMbit, uploadMbit, startedAt, endedAt: Date.now() };
+      const down = await iperfAll(true, hosts);
+      const up = await iperfAll(false, hosts);
+      const clientCpuSeconds =
+        down.clientCpuSeconds != null && up.clientCpuSeconds != null
+          ? down.clientCpuSeconds + up.clientCpuSeconds
+          : null;
+      const mems = [down.clientMemoryPeakBytes, up.clientMemoryPeakBytes].filter((v) => v != null);
+      reported = {
+        outcome: "complete",
+        downloadMbit: down.mbit,
+        uploadMbit: up.mbit,
+        ...(clientCpuSeconds != null ? { clientCpuSeconds } : {}),
+        ...(mems.length ? { clientMemoryPeakBytes: Math.max(...mems) } : {}),
+        startedAt,
+        endedAt: Date.now(),
+      };
     } else if (client) {
       reported = await runClient(unit.tool);
     } else {
@@ -423,7 +456,13 @@ try {
       });
       const order = rep % 2 ? shuffle(eligible) : [...orders.get(scenario.id)].reverse();
       orders.set(scenario.id, order);
-      const block = { scenario: scenario.id, rep, order: order.map((u) => `${u.tool}/${u.browser}`), noise: noise() };
+      const block = {
+        scenario: scenario.id,
+        rep,
+        order: order.map((u) => `${u.tool}/${u.browser}`),
+        noise: noise(),
+        startedAt: Date.now(),
+      };
       // A block whose base RTT cannot be measured still runs; its runs carry no base RTT instead of ending the job.
       try {
         await bed.serve(bed.TOOLS_IMAGE, {}, ["sleep", "infinity"]);
@@ -454,6 +493,9 @@ try {
         failures = result.reported.outcome === "harness-error" ? failures + 1 : 0;
         if (failures >= FAIL_FAST) throw new Error(`${FAIL_FAST} harness errors in a row, last in ${file}`);
       }
+      block.noiseAfter = noise();
+      block.endedAt = Date.now();
+      writeManifest();
     }
   }
 } finally {

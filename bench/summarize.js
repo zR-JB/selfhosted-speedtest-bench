@@ -25,7 +25,7 @@ if (published) {
     job: basename(run.job),
     reported: fields(run.reported, [
       "outcome", "startedAt", "endedAt", "downloadMbit", "uploadMbit", "idleLatencyMs", "loadedLatencyDownMs",
-      "loadedLatencyUpMs", "browserCpuSeconds",
+      "loadedLatencyUpMs", "browserCpuSeconds", "clientCpuSeconds", "clientMemoryPeakBytes",
     ]),
     linkBytes: fields(run.linkBytes, ["down", "up"]),
     serverPhases: directions(run.serverPhases, ["bytes", "cpuSeconds", "directionBytes", "milliseconds"]),
@@ -81,12 +81,12 @@ for (let scenario of scenarios) {
       ? "Unshaped single-test throughput on the runner’s virtual link. Rates show median [25th, 75th percentile]."
       : "No shaping: the host's CPU is the limit, so rates show how far each tool gets on it, not a network's capacity. Rates show median [25th, 75th percentile].");
     out();
-    out("| Tool | Runs ok | Download Mbit/s | Upload Mbit/s | Server CPU s/GB | Server peak MB | Browser CPU s/GB |");
+    out("| Tool | Runs ok | Download Mbit/s | Upload Mbit/s | Server CPU s/GB | Server peak MB | Client CPU s/GB |");
     out("| --- | --- | --- | --- | --- | --- | --- |");
     const gb = (run) => (run.linkBytes.down + run.linkBytes.up) / 1e9;
     for (const group of groups.values())
       out(
-        `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${spread(group, (r) => r.reported.downloadMbit)} | ${spread(group, (r) => r.reported.uploadMbit)} | ${fmt(pick(group, (r) => r.serverCpuSeconds / gb(r)), 2)} | ${fmt(pick(group, (r) => r.serverMemoryPeakBytes / 1e6), 0)} | ${fmt(pick(group, (r) => (r.reported.browserCpuSeconds ?? NaN) / gb(r)), 2)} |`,
+        `| ${label(group[0])} | ${completed(group).length}/${group.length} | ${spread(group, (r) => r.reported.downloadMbit)} | ${spread(group, (r) => r.reported.uploadMbit)} | ${fmt(pick(group, (r) => r.serverCpuSeconds / gb(r)), 2)} | ${fmt(pick(group, (r) => r.serverMemoryPeakBytes / 1e6), 0)} | ${fmt(pick(group, (r) => (r.reported.browserCpuSeconds ?? r.reported.clientCpuSeconds ?? NaN) / gb(r)), 2)} |`,
       );
     continue;
   }

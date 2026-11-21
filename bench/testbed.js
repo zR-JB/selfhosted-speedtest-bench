@@ -1,8 +1,10 @@
 // One host, three roles in their own network namespaces: client <-> shaper <-> server, joined by direct veth pairs.
 // Podman's bridges are not used: they hand the shaper 64 KB GSO packets, which tbf drops and netem loses whole.
 import { execFile } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
@@ -235,6 +237,44 @@ export const clientTool = (...command) => clientRun([], command);
 
 export const clientRun = (args, command) =>
   podman("run", "--rm", "--network", `container:${C.client}`, ...cpuArgs("client"), ...args, TOOLS_IMAGE, ...command);
+
+// Runs a native client or iperf3 in the client namespace and records its container cgroup v2 CPU and peak memory.
+export async function clientRunMeasured(args, command) {
+  const statsDir = mkdtempSync(join(os.tmpdir(), "sb-cli-"));
+  chmodSync(statsDir, 0o777);
+  try {
+    const wrapper = [
+      "sh",
+      "-c",
+      'rc=0; "$@" || rc=$?; ' +
+        "cat /sys/fs/cgroup/cpu.stat > /sb-stats/cpu.stat 2>/dev/null || true; " +
+        "cat /sys/fs/cgroup/memory.peak > /sb-stats/memory.peak 2>/dev/null || true; " +
+        'exit "$rc"',
+      "sb-measure",
+      ...command,
+    ];
+    let stdout = "";
+    let failed = null;
+    try {
+      stdout = await clientRun(["-v", `${statsDir}:/sb-stats`, ...args], wrapper);
+    } catch (error) {
+      failed = error;
+      stdout = error.stdout ?? "";
+    }
+    const stat = await readFile(`${statsDir}/cpu.stat`, "utf8").catch(() => null);
+    const peak = await readFile(`${statsDir}/memory.peak`, "utf8").catch(() => null);
+    const cpuUsec = stat ? Number(/usage_usec (\d+)/.exec(stat)?.[1] ?? NaN) : NaN;
+    const memoryPeakBytes = peak ? Number(peak.trim()) : NaN;
+    return {
+      stdout,
+      failed,
+      clientCpuSeconds: Number.isFinite(cpuUsec) ? cpuUsec / 1e6 : null,
+      clientMemoryPeakBytes: Number.isFinite(memoryPeakBytes) ? memoryPeakBytes : null,
+    };
+  } finally {
+    rmSync(statsDir, { recursive: true, force: true });
+  }
+}
 
 const queue = (s, rateMbit) => {
   const bytesPerMs = (rateMbit * 1e6) / 8 / 1000;
