@@ -2,8 +2,8 @@
   "tools": {
     "graphite-meter": {
       "name": "Graphite Meter",
-      "version": "0.14.3",
-      "image": "ghcr.io/zr-jb/graphite-meter:0.14.3@sha256:a29ed8742e7d6119e0b60459b03ecf5256de7a5f2fd456b59fb8639e94458c2b",
+      "version": "0.14.4",
+      "image": "ghcr.io/zr-jb/graphite-meter:0.14.4@sha256:1ead4b6b8fb0455530e3b78d35c22a426b632fece38e3e421cd9ee455cfad345",
       "port": 7246,
       "env": {},
       "source": "https://github.com/zR-JB/graphite-meter",
@@ -121,7 +121,7 @@
     "openspeedtest": {
       "name": "OpenSpeedTest",
       "version": "2.5.4",
-      "image": "docker.io/openspeedtest/latest:latest@sha256:1127de0693c36bcf8c297c73d09891df8ec243680d027a6b6fab13fa0954ff46",
+      "image": "docker.io/openspeedtest/latest:latest@sha256:ba63bc8396e5ea334b58b96d925cd173957649935abb88efc9d8ada112cc45f8",
       "port": 3000,
       "env": {},
       "source": "https://github.com/openspeedtest/Speed-Test",
@@ -387,15 +387,15 @@
   },
   "browsers": {
     "chrome": {
-      "version": "157.0.8103.78",
-      "url": "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.78/linux64/chrome-linux64.zip",
-      "sha256": "9223832977a13db3646201b1341c1f9cf08afa3ceae92540116d7b0c062364fb",
+      "version": "158.0.8127.36",
+      "url": "https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.36/linux64/chrome-linux64.zip",
+      "sha256": "dba9cc838e1ce269c33ea68170881127bd15d078fc3ca5891c90802819a4d7c7",
       "binary": "chrome-linux64/chrome"
     },
     "firefox": {
-      "version": "160.0",
-      "url": "https://ftp.mozilla.org/pub/firefox/releases/160.0/linux-x86_64/en-US/firefox-160.0.tar.xz",
-      "sha256": "fde774e9757c8878534c05ec210db592bf6a1b244c57941ffb2e364c04f35fcd",
+      "version": "160.0.1",
+      "url": "https://ftp.mozilla.org/pub/firefox/releases/160.0.1/linux-x86_64/en-US/firefox-160.0.1.tar.xz",
+      "sha256": "844d8a77aa4672a08ded949b6206f84d91bb82f6637c090fd58c3126e9d44119",
       "binary": "firefox/firefox"
     }
   },
@@ -403,13 +403,13 @@
   "clients": {
     "graphite-meter-client": {
       "name": "Graphite Meter terminal client",
-      "version": "0.14.3",
+      "version": "0.14.4",
       "server": "graphite-meter",
       "release": {
-        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.14.3/graphite-meter-client_0.14.3_linux_amd64.tar.gz",
-        "sha256": "556fdf6152af2ba65a458b3e126eed9ff47aada77ad12656005f168be8524430",
+        "url": "https://github.com/zR-JB/graphite-meter/releases/download/v0.14.4/graphite-meter-client_0.14.4_linux_amd64.tar.gz",
+        "sha256": "72ed06b592a8d6fd76a173cb67449b8db00382867199fe58b94160d488bad7f6",
         "command": [
-          "graphite-meter-client_0.14.3_linux_amd64/graphite-meter-client",
+          "graphite-meter-client_0.14.4_linux_amd64/graphite-meter-client",
           "--url",
           "http://10.71.2.10:7246",
           "--report"
@@ -434,7 +434,10 @@
     "graphite-meter-client-no-loaded-latency": {
       "variantOf": "graphite-meter-client",
       "name": "Graphite Meter Terminal without loaded latency",
-      "extraArgs": ["--stages", "download,upload"]
+      "extraArgs": [
+        "--stages",
+        "download,upload"
+      ]
     },
     "graphite-meter-client-h2": {
       "variantOf": "graphite-meter-client",
@@ -496,11 +499,11 @@
     },
     "librespeed-cli": {
       "name": "LibreSpeed CLI",
-      "version": "1.0.14",
+      "version": "1.0.15",
       "server": "librespeed",
       "release": {
-        "url": "https://github.com/librespeed/speedtest-cli/releases/download/v1.0.14/librespeed-cli_1.0.14_linux_amd64.tar.gz",
-        "sha256": "89800767ac14085c78a20847ebea23340f6c14a78de0a15c2ac7db8b565c961f",
+        "url": "https://github.com/librespeed/speedtest-cli/releases/download/v1.0.15/librespeed-cli_1.0.15_linux_amd64.tar.gz",
+        "sha256": "78c94e6e9cdd69bc4c3fb393ef12a132363a0e9b3f725c5cfd193de5b66e11de",
         "command": [
           "./librespeed-cli",
           "--local-json",
