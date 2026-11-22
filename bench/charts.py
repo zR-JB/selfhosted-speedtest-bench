@@ -516,6 +516,16 @@ def render_accuracy_chart(
                 agree_rows.append(("row", lbl, cl, measure(PLAIN, cl, lambda r: paired(r, UPLOAD))))
 
         all_a = [v for k, _, _, vs in agree_rows if k == "row" and vs for v in vs]
+        # Identify closest-to-0% median leader per browser/native group.
+        group_best_agree = {}
+        cur_sec = None
+        for idx, (kind, _, _, vs) in enumerate(agree_rows):
+            if kind == "sec":
+                cur_sec = idx
+            elif vs:
+                med = abs(spread(vs)[0])
+                if cur_sec not in group_best_agree or med < group_best_agree[cur_sec]:
+                    group_best_agree[cur_sec] = med
         ax1.axvspan(-1.0, 1.0, color=t["good_band"], alpha=0.88 if theme == "dark" else 0.75, zorder=0)
         ax1.axvline(0.0, color=t["good"], linewidth=1.2, zorder=2)
         bl1 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax1.transData)
@@ -523,24 +533,30 @@ def render_accuracy_chart(
                  fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
         ax1.text(0.962, -0.78, "IQR [p25, p75]", transform=bl1, ha="right", va="bottom",
                  fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        cur_sec = None
         for i, (kind, lbl, cl, vs) in enumerate(agree_rows):
             if kind == "sec":
+                cur_sec = i
                 if i > 0:
                     ax1.axhline(i - 0.50, color=t["divider"], linewidth=0.7, zorder=1)
                 ax1.text(0.036, i, lbl, transform=bl1, va="center", ha="left",
                          fontsize=9.1, weight="bold", color=t["ink"])
                 continue
             col = t["family"][_family_of(cl[0])]
+            is_best = bool(vs) and cur_sec in group_best_agree and abs(abs(spread(vs)[0]) - group_best_agree[cur_sec]) < 1e-9
             ax1.scatter(0.044, i, transform=bl1, color=col, s=26, clip_on=False, zorder=5)
-            ax1.text(0.058, i, lbl, transform=bl1, va="center", ha="left", fontsize=8.8, color=t["text"])
+            ax1.text(0.058, i, lbl, transform=bl1, va="center", ha="left", fontsize=8.8,
+                     color=t["ink"] if is_best else t["text"], weight="bold" if is_best else "normal")
             if vs:
                 med, lo, hi = spread(vs)
-                offs = [i + ((k % 5) - 2) * 0.065 for k in range(len(vs))]
-                ax1.scatter(vs, offs, color=col, s=18, alpha=0.62 if theme == "dark" else 0.48, linewidth=0, zorder=3)
-                ax1.plot([lo, hi], [i, i], color=col, linewidth=3.3, solid_capstyle="round", zorder=4)
-                ax1.scatter(med, i, color=col, s=48, edgecolor=t["card"], linewidth=1.0, zorder=5)
+                offs = [i + ((k % 5) - 2) * 0.075 for k in range(len(vs))]
+                ax1.scatter(vs, offs, color=col, s=16, alpha=0.45 if theme == "dark" else 0.36, linewidth=0, zorder=3)
+                ax1.plot([lo, hi], [i, i], color=t["muted"], alpha=0.62, linewidth=1.35,
+                         marker="|", markersize=5.2, markeredgewidth=1.05, zorder=4)
+                ax1.scatter(med, i, color=col, s=62, edgecolor=t["card"], linewidth=1.25, zorder=6)
                 ax1.text(0.832, i, f"{fmt_num(med, 1, True)}%", transform=bl1, ha="right", va="center",
-                         fontsize=8.6, family="DejaVu Sans Mono", color=t["ink"])
+                         fontsize=8.6, family="DejaVu Sans Mono",
+                         color=t["good"] if is_best else t["text"], weight="bold" if is_best else "normal")
                 ax1.text(0.962, i, f"[{fmt_num(lo, 1)}, {fmt_num(hi, 1)}]", transform=bl1, ha="right", va="center",
                          fontsize=8.2, family="DejaVu Sans Mono", color=t["muted"])
         ax1.set_yticks([])
@@ -580,16 +596,28 @@ def render_accuracy_chart(
             yc = np.arange(len(data))
             all_h = [v for _, dv, uv in data for v in (dv, uv) if v is not None]
             mx = max([*(all_h or [1.0]), ceil_x or 1.0])
+            # Identify group leaders (Chrome rows 0..4, Native rows 5..) separately.
+            def _best_in(rng, col_idx):
+                vals = [data[k][col_idx] for k in rng if k < len(data) and data[k][col_idx] is not None]
+                return max(vals) if vals else None
+            best_d_br, best_u_br = _best_in(range(0, 5), 1), _best_in(range(0, 5), 2)
+            best_d_na, best_u_na = _best_in(range(5, len(data)), 1), _best_in(range(5, len(data)), 2)
             for i, (_, dv, uv) in enumerate(data):
                 lb_box = dict(facecolor=t["card"], edgecolor="none", pad=0.5, alpha=0.85) if ceil_x else None
+                bd = best_d_br if i < 5 else best_d_na
+                bu = best_u_br if i < 5 else best_u_na
                 if dv is not None:
-                    axc.barh(i - 0.19, dv, height=0.34, color=t["dl"], alpha=0.90, zorder=3)
+                    is_bd = bd is not None and abs(dv - bd) < 1e-9
+                    axc.barh(i - 0.19, dv, height=0.34, color=t["dl"], alpha=0.92 if is_bd else 0.78, zorder=3)
                     axc.text(dv + mx * 0.024, i - 0.19, f"{dv:.1f}", va="center", ha="left",
-                             fontsize=8.3, family="DejaVu Sans Mono", color=t["dl_txt"], bbox=lb_box, zorder=5)
+                             fontsize=8.3, family="DejaVu Sans Mono", color=t["dl_txt"],
+                             weight="bold" if is_bd else "normal", bbox=lb_box, zorder=5)
                 if uv is not None:
-                    axc.barh(i + 0.19, uv, height=0.34, color=t["ul"], alpha=0.88, zorder=3)
+                    is_bu = bu is not None and abs(uv - bu) < 1e-9
+                    axc.barh(i + 0.19, uv, height=0.34, color=t["ul"], alpha=0.92 if is_bu else 0.78, zorder=3)
                     axc.text(uv + mx * 0.024, i + 0.19, f"{uv:.1f}", va="center", ha="left",
-                             fontsize=8.3, family="DejaVu Sans Mono", color=t["ul_txt"], bbox=lb_box, zorder=5)
+                             fontsize=8.3, family="DejaVu Sans Mono", color=t["ul_txt"],
+                             weight="bold" if is_bu else "normal", bbox=lb_box, zorder=5)
             if ceil_x:
                 axc.axvline(ceil_x, color=t["muted"], linestyle="--", linewidth=1.1, zorder=1)
             axc.axhline(4.5, color=t["divider"], linestyle=":", linewidth=0.9)
@@ -683,8 +711,9 @@ def render_accuracy_chart(
         all_d = [0.0]
         for i, (_, (med, lo, hi)) in enumerate(f_rows):
             all_d.extend([lo, hi])
-            ax5.plot([lo, hi], [i, i], color=t["dl"], linewidth=3.0, solid_capstyle="round", zorder=4)
-            ax5.scatter(med, i, color=t["dl"], s=46, edgecolor=t["card"], linewidth=0.9, zorder=5)
+            ax5.plot([lo, hi], [i, i], color=t["muted"], alpha=0.68, linewidth=1.4,
+                     marker="|", markersize=5.2, markeredgewidth=1.05, zorder=4)
+            ax5.scatter(med, i, color=t["dl"], s=58, edgecolor=t["card"], linewidth=1.15, zorder=6)
             ax5.text(0.964, i, f"{med:+.1f} [{lo:+.1f}, {hi:+.1f}]", transform=bl5, ha="right", va="center",
                      fontsize=7.9, family="DejaVu Sans Mono", color=t["ink"])
         ax5.set_yticks(y5)
@@ -840,17 +869,28 @@ def render_resources_chart(out_stem, *, report_date, vm_count, groups, measure, 
         ax1u = _add_ax(fig, 0.312, c1_y + 0.84, 0.165, c1_h - 1.56, t, "x")
         md = max([x[1] for x in r1 if x[1] is not None] + [0.5])
         mu = max([x[2] for x in r1 if x[2] is not None] + [5.0])
+        def _min_in(rng, col_idx):
+            vals = [r1[k][col_idx] for k in rng if k < len(r1) and r1[k][col_idx] is not None]
+            return min(vals) if vals else None
+        best_d_br, best_u_br = _min_in(range(0, 5), 1), _min_in(range(0, 5), 2)
+        best_d_na, best_u_na = _min_in(range(5, len(r1)), 1), _min_in(range(5, len(r1)), 2)
         for i, (_, dv, uv, dr, ur) in enumerate(r1):
+            bd = best_d_br if i < 5 else best_d_na
+            bu = best_u_br if i < 5 else best_u_na
             if dv is not None:
-                ax1d.barh(i, dv, height=0.62, color=t["dl"], alpha=0.90, zorder=3)
+                is_bd = bd is not None and abs(dv - bd) < 1e-9
+                ax1d.barh(i, dv, height=0.62, color=t["dl"], alpha=0.92 if is_bd else 0.78, zorder=3)
                 drt = f" ({dr:.0f}M)" if dr is not None else ""
                 ax1d.text(dv + md * 0.03, i, f"{dv:.2f}{drt}", va="center", ha="left",
-                          fontsize=7.8, family="DejaVu Sans Mono", color=t["dl_txt"])
+                          fontsize=7.8, family="DejaVu Sans Mono", color=t["dl_txt"],
+                          weight="bold" if is_bd else "normal")
             if uv is not None:
-                ax1u.barh(i, uv, height=0.62, color=t["ul"], alpha=0.88, zorder=3)
+                is_bu = bu is not None and abs(uv - bu) < 1e-9
+                ax1u.barh(i, uv, height=0.62, color=t["ul"], alpha=0.92 if is_bu else 0.78, zorder=3)
                 urt = f" ({ur:.0f}M)" if ur is not None else ""
                 ax1u.text(uv + mu * 0.03, i, f"{uv:.2f}{urt}", va="center", ha="left",
-                          fontsize=7.8, family="DejaVu Sans Mono", color=t["ul_txt"])
+                          fontsize=7.8, family="DejaVu Sans Mono", color=t["ul_txt"],
+                          weight="bold" if is_bu else "normal")
         for axp in (ax1d, ax1u):
             axp.axhline(4.5, color=t["divider"], linestyle=":", linewidth=0.9)
             axp.set_yticks(y1)
