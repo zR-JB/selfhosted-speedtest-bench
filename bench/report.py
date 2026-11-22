@@ -350,59 +350,14 @@ reference_group = ("TCP reference", [REFERENCE])
 client_groups = [chrome_group, firefox_group, native_group]
 vm_count = len(jobs)
 
-for direction, field in (("Download", DOWNLOAD), ("Upload", UPLOAD)):
-    charts.render_dot_strip_chart(
-        report / f"agreement-{direction.lower()}.png",
-        f"{direction} agreement at 1 Gbit/s",
-        client_groups,
-        lambda client, f=field: measure(PLAIN, client, lambda row: paired(row, f)),
-        report_date=report_date,
-        vm_count=vm_count,
-        show_version=show_version,
-        native_clients=NATIVE,
-        unit="Difference from same-pass iperf3 (%)",
-        preference="closest",
-    )
-    charts.render_dot_strip_chart(
-        report / f"unshaped-{direction.lower()}.png",
-        f"Unshaped {direction.lower()} throughput",
-        [*client_groups, reference_group],
-        lambda client, f=field: measure(UNCAPPED, client, rate(f, 1000)),
-        report_date=report_date,
-        vm_count=vm_count,
-        show_version=show_version,
-        native_clients=NATIVE,
-        unit="Throughput (Gbit/s)",
-        show_max=True,
-    )
-
 resource_metrics = [
     ("Server CPU during download at 1 Gbit/s", "download-cpu", "CPU seconds per GB (lower is better)", phase_cpu("down"), 3, DOWNLOAD),
     ("Server CPU during upload at 1 Gbit/s", "upload-cpu", "CPU seconds per GB (lower is better)", phase_cpu("up"), 3, UPLOAD),
     ("Peak server memory at 1 Gbit/s", "peak-memory", "Peak container memory (MB, lower is better)", peak_memory, 1, None),
 ]
-for heading, filename, unit, metric, digits, rate_field in resource_metrics:
-    ctx_fn = (
-        (lambda client, rf=rate_field: f"{latest_value(PLAIN, client, rate(rf), 0)} Mbit/s")
-        if rate_field else None
-    )
-    charts.render_dot_strip_chart(
-        report / f"server-{filename}.png",
-        heading,
-        [chrome_group, firefox_group, native_group, reference_group],
-        lambda client, m=metric: measure(PLAIN, client, m),
-        report_date=report_date,
-        vm_count=vm_count,
-        show_version=show_version,
-        native_clients=NATIVE,
-        unit=unit,
-        digits=digits,
-        preference="lowest",
-        context_fn=ctx_fn,
-    )
 
-charts.render_overview_bento(
-    report / "dashboard-overview",
+charts.render_throughput_chart(
+    report / "chart-throughput",
     report_date=report_date,
     vm_count=vm_count,
     measure=measure,
@@ -411,19 +366,8 @@ charts.render_overview_bento(
     total_server_cpu=total_server_cpu,
     peak_memory=peak_memory,
 )
-charts.render_resources_bento(
-    report / "dashboard-resources",
-    report_date=report_date,
-    vm_count=vm_count,
-    groups=groups,
-    measure=measure,
-    phase_cpu=phase_cpu,
-    total_server_cpu=total_server_cpu,
-    peak_memory=peak_memory,
-    client_cpu=client_cpu,
-)
-charts.render_accuracy_bento(
-    report / "dashboard-accuracy",
+charts.render_accuracy_chart(
+    report / "chart-accuracy",
     report_date=report_date,
     vm_count=vm_count,
     measure=measure,
@@ -431,11 +375,27 @@ charts.render_accuracy_bento(
     rate=rate,
     shaper_upload=lambda row: row["queues"]["up"].get("medianOwnLinkMbit"),
     server_rx=server_rx,
-    idle_delta=idle_delta,
     fifo_latency=fifo_latency,
 )
-charts.render_consistency_bento(
-    report / "dashboard-consistency",
+charts.render_resources_chart(
+    report / "chart-resources",
+    report_date=report_date,
+    vm_count=vm_count,
+    groups=groups,
+    measure=measure,
+    phase_cpu=phase_cpu,
+    peak_memory=peak_memory,
+    client_cpu=client_cpu,
+)
+charts.render_transports_chart(
+    report / "chart-transports",
+    report_date=report_date,
+    vm_count=vm_count,
+    measure=measure,
+    rate=rate,
+)
+charts.render_consistency_chart(
+    report / "chart-consistency",
     report_date=report_date,
     vm_count=vm_count,
     measure=measure,
@@ -816,130 +776,46 @@ summary_heading = "\n\n".join([
 
 overview = f"""## Latest GitHub runner results
 
-**{report_date}.** {bench_count}
-{runner_scope}
+**{report_date}** · {bench_count} {runner_scope}
 
 {bench_links}
 
-**Browsers** · {browser_versions}
+**Browsers:** {browser_versions}  
+**Tools:** {tested_tools} ([exact pins & full tables]({report}/#tested-versions))
 
-**Tested tools** · {tested_tools}
+### 1. High-speed throughput (10 Gbit/s & Unshaped)
 
-[Exact pins and reference version]({report}/#tested-versions)
+{picture_figure("chart-throughput", "10 Gbit/s shaped and unshaped throughput with total server CPU and peak memory across browsers, native clients, and iperf3.")}
 
-### Shaped throughput
+10 Gbit/s shaped links use 2 ms RTT with offloads on (`9.56 Gbit/s` TCP payload ceiling); unshaped runs remove rate limits on 4-vCPU runners (1 server / 2 client / 1 shaper).
+[Shaped summary]({report}/#shaped-throughput) · [10 Gbit/s spread]({report}/#10-gbits-upload-spread) · [Unshaped tables]({report}/#unshaped-throughput-and-browser-cpu)
 
-On the 10 Gbit/s path, reported median uploads ranged from **{browser_fast} Gbit/s in Chrome** and
-**{firefox_fast} Gbit/s in Firefox**. Graphite Meter Terminal
-reported **{terminal_fast[0]} Gbit/s** and LibreSpeed CLI **{terminal_fast[1]} Gbit/s**.
-{browser_fast_comparison} [Upload spread across VMs]({report}/#10-gbits-upload-spread)
+### 2. Accuracy, hard links & latency
 
-Each throughput cell shows **download / upload**. Browser rows use Chrome. Terminal rows use native clients.
-The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
-about 956 Mbit/s. The 10 Gbit/s test uses a 2 ms RTT and offloads. iperf3 uses four TCP streams.
-Bold marks the highest displayed median in each direction within browser or terminal, including rounded ties.
-The iperf3 row is a reference.
+{picture_figure("chart-accuracy", "1 Gbit/s upload agreement vs same-pass iperf3, 1% loss and 160 ms high-BDP throughput, 30 Mbit/s FIFO upload counter check, and FIFO bufferbloat latency.")}
 
-{shape_table}
+{fifo_notes} {match_timing}
+[1 Gbit/s agreement]({report}/#matched-1-gbits-agreement) · [Upload counter checks]({report}/#upload-counter-checks) · [Idle & FIFO latency]({report}/#idle-latency-against-icmp)
 
-{picture_figure("dashboard-overview", "Campaign overview: KPIs, 10 Gbit/s and unshaped throughput with server CPU and RAM, and challenging network paths.")}
+### 3. Server & client resource efficiency
 
-The loss test uses a 100 Mbit/s link, 1% loss in each direction and 40 ms RTT. Chrome reported
-**{latest_value(LOSS, ost[0], rate(UPLOAD))} Mbit/s** upload with OpenSpeedTest and
-**{latest_value(LOSS, gm_browser, rate(UPLOAD))} Mbit/s** with Graphite Meter Browser.
-Connection counts and test windows can change rates on lossy paths.
+{picture_figure("chart-resources", "1 Gbit/s server CPU by phase, unshaped server CPU per GB, peak server container RAM across direct/H2/nginx, and client-side CPU efficiency.")}
 
-{vm_method}
+{resource_method} {total_cpu_notes}
+[Full resource tables]({report}/#server-resources-at-1-gbits) · [All server CPU phases]({report}/server-cpu.md) · [Without-loaded-latency delta]({report}/#graphite-meter-without-loaded-latency)
 
-{scope}
+### 4. Protocol & transport scaling
 
-### Agreement at 1 Gbit/s
+{picture_figure("chart-transports", "HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput in Chrome (10 Gbit/s) and native terminal clients (10 Gbit/s and unshaped).")}
 
-Chrome’s median upload differences from iperf3 spanned **{chrome_upload}**. In Firefox, the three
-LibreSpeed deployments spanned **{firefox_upload}**.
+All TLS variants use one self-signed certificate per job; terminal variants force ALPN so protocols never silently fall back.
+[1 Gbit/s transports]({report}/{case_link(PLAIN)}) · [10 Gbit/s transports]({report}/{case_link(FAST)}) · [Reverse proxy]({report}/{case_link("proxy-1000")})
 
-[Agreement values for every tool]({report}/#matched-1-gbits-agreement)
+### 5. Consistency & runner hardware
 
-{picture_figure("dashboard-accuracy", "1 Gbit/s upload agreement against iperf3, 30 Mbit/s FIFO upload counter integrity check, and bufferbloat loaded latency.")}
+{picture_figure("chart-consistency", "Shaped link VM-to-VM spread and directional symmetry alongside unshaped native upload grouped by GitHub runner CPU and cloud kernel.")}
 
-{companion("agreement-upload", "View per-VM 1 Gbit/s upload agreement")}
-
-{companion("agreement-download", "View per-VM 1 Gbit/s download agreement")}
-
-Zero matches the iperf3 receiver payload rate. Positive values mean the app reported a higher rate.
-The comparison reflects both the traffic each setup drove and its reporting method.
-{match_timing}
-
-### Unshaped throughput
-
-Median download / upload was **{terminal_rates[0]} Gbit/s** for Graphite Meter Terminal,
-**{terminal_rates[1]} Gbit/s** for LibreSpeed CLI and **{terminal_rates[2]} Gbit/s** for iperf3.
-{native_comparison}
-
-[Unshaped medians, maxima and browser CPU]({report}/#unshaped-throughput-and-browser-cpu)
-
-{picture_figure("dashboard-consistency", "Spread and directional asymmetry across scenarios, plus unshaped native upload grouped by GitHub runner CPU and cloud kernel.")}
-
-{companion("unshaped-download", "View per-VM unshaped download throughput")}
-
-{companion("unshaped-upload", "View per-VM unshaped upload throughput")}
-
-{uncapped_method}
-
-Graphite Meter Terminal times downloads at the client and uploads at the server. iperf3 reports
-the receiver in both directions. [Native upload by runner hardware]({report}/#unshaped-native-upload-by-runner-hardware)
-
-### Server resources at 1 Gbit/s
-
-{resource_notes}
-
-{terminal_resource_notes}
-
-[Server resource values for Chrome, Firefox and terminals]({report}/#server-resources-at-1-gbits)
-
-{picture_figure("dashboard-resources", "All implementations ranked by server CPU per GB at 1 Gbit/s, 10 Gbit/s and unshaped, peak server RAM across direct/H2/proxy, and client-side CPU.")}
-
-{companion("server-upload-cpu", "View per-VM server CPU during upload at 1 Gbit/s")}
-
-{companion("server-download-cpu", "View per-VM server CPU during download at 1 Gbit/s")}
-
-{companion("server-peak-memory", "View per-VM peak server memory at 1 Gbit/s")}
-
-{resource_method}
-
-{total_cpu_notes}
-
-Bold marks the lowest displayed median per resource within each client group.
-
-{table(resource_headers, resource_rows[:len(CLIENTS)])}
-
-[All server CPU phases]({report}/server-cpu.md)
-
-{probes_comparison}### OpenSpeedTest upload check
-
-{fifo_notes}
-
-{receiver_check}
-
-{receiver_method}
-[Counter data for all tools]({report}/#upload-counter-checks) ·
-[Instrumented receiver check](#receiver-counter-validation)
-
-### Idle and loaded latency
-
-{latency_method} [Idle comparisons at 20, 40 and 160 ms]({report}/#idle-latency-against-icmp)
-
-Graphite Meter reports loaded latency during download and upload in this run. On the 300/30 Mbit/s path
-with a 200 ms FIFO, each cell shows the app’s median followed by the queue-based estimate.
-
-{fifo_table}
-
-On the 10 Gbit/s path, Graphite Meter Browser in Chrome reported median upload of
-**{transport_upload[0]} Gbit/s over HTTP/1.1**, **{transport_upload[1]} over HTTP/2**,
-**{transport_upload[2]} over HTTP/3**, and **{transport_upload[3]} over WebTransport**.
-[1 Gbit/s transport comparison]({report}/{case_link(PLAIN)}) ·
-[Reverse-proxy results]({report}/{case_link("proxy-1000")}) ·
-[Additional paths]({report}/#pooled-pass-tables)
+{native_comparison} [Hardware breakdown]({report}/#unshaped-native-upload-by-runner-hardware) · [All pooled pass tables]({report}/#pooled-pass-tables)
 
 """
 if not args.from_archive:

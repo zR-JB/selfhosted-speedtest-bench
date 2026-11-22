@@ -78,11 +78,10 @@ jobs:
           for f in results/history-trends-dark.png results/history-trends-light.png; do
             test -s "$f"
           done
-          for f in agreement-download agreement-upload unshaped-download unshaped-upload \
-                   server-download-cpu server-upload-cpu server-peak-memory \
-                   dashboard-overview-dark dashboard-overview-light \
-                   dashboard-resources-dark dashboard-resources-light \
-                   dashboard-accuracy-dark dashboard-accuracy-light \
-                   dashboard-consistency-dark dashboard-consistency-light; do
+          for f in chart-throughput-dark chart-throughput-light \
+                   chart-accuracy-dark chart-accuracy-light \
+                   chart-resources-dark chart-resources-light \
+                   chart-transports-dark chart-transports-light \
+                   chart-consistency-dark chart-consistency-light; do
             test -s "$latest/$f.png"
           done

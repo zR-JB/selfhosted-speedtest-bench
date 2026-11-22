@@ -8,256 +8,68 @@ resources as separate iperf3 reference runs.
 one of the tools compared. The harness and adapters are public. Each hosted report links to its run for raw
 measurements and generated configs while GitHub retains the artifacts. Corrections are welcome as issues.
 
-[Shaped throughput](#shaped-throughput) · [Agreement at 1 Gbit/s](#agreement-at-1-gbits) ·
-[Unshaped throughput](#unshaped-throughput) · [Server resources](#server-resources-at-1-gbits) ·
-[Upload check](#openspeedtest-upload-check) · [Latency](#idle-and-loaded-latency) ·
+[Throughput](#1-high-speed-throughput-10-gbits--unshaped) · [Accuracy & latency](#2-accuracy-hard-links--latency) ·
+[Resources](#3-server--client-resource-efficiency) · [Transports](#4-protocol--transport-scaling) ·
+[Consistency](#5-consistency--runner-hardware) · [Historic trends](#historic-trends) ·
 [Method](#how-it-works) · [Desktop results](#results-desktop-night-of-18-to-19-october-2026) · [Run it](#run-it)
 
 ## Latest GitHub runner results
 
-**15.11.2026.** **5,490/5,490** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule).
-The 25 and 40 Gbit/s shaped scenarios are skipped on these 4-vCPU runners. They require 8+ CPUs.
+**15.11.2026** · **5,490/5,490** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule). The 25 and 40 Gbit/s shaped scenarios are skipped on these 4-vCPU runners. They require 8+ CPUs.
 
 [Full report and tested versions](results/2026-11-15-ci-run-43720854999) · [Benchmark source](https://github.com/zR-JB/selfhosted-speedtest-bench/tree/dfc3d934b77f3ee96839225c1060fa53b1e71183) · [Workflow run and raw artifacts](https://github.com/zR-JB/selfhosted-speedtest-bench/actions/runs/43720854999) · [Previous report](results/2026-11-15-ci-run-43694138029)
 
-**Browsers** · Chrome 157.0.8103.78 · Firefox 160.0
+**Browsers:** Chrome 157.0.8103.78 · Firefox 160.0  
+**Tools:** Graphite Meter Browser 0.14.3 · Graphite Meter without loaded latency 0.14.3 · LibreSpeed 6.3.1 · LibreSpeed Go backend 1.1.6 · LibreSpeed Rust backend 1.4.0 · OpenSpeedTest 2.5.4 · Graphite Meter Terminal 0.14.3 · Graphite Meter Terminal without loaded latency 0.14.3 · LibreSpeed CLI 1.0.14 ([exact pins & full tables](results/2026-11-15-ci-run-43720854999/#tested-versions))
 
-**Tested tools** · Graphite Meter Browser 0.14.3 · Graphite Meter without loaded latency 0.14.3 · LibreSpeed 6.3.1 · LibreSpeed Go backend 1.1.6 · LibreSpeed Rust backend 1.4.0 · OpenSpeedTest 2.5.4 · Graphite Meter Terminal 0.14.3 · Graphite Meter Terminal without loaded latency 0.14.3 · LibreSpeed CLI 1.0.14
-
-[Exact pins and reference version](results/2026-11-15-ci-run-43720854999/#tested-versions)
-
-### Shaped throughput
-
-On the 10 Gbit/s path, reported median uploads ranged from **3.21–4.42 Gbit/s in Chrome** and
-**3.11–5.71 Gbit/s in Firefox**. Graphite Meter Terminal
-reported **9.56 Gbit/s** and LibreSpeed CLI **8.16 Gbit/s**.
-Graphite Meter Browser’s same-pass upload difference from OpenSpeedTest in Chrome was **+0.87 Gbit/s** (middle 50% +0.75 to +0.94). Graphite Meter Browser reported more on **15/15 matched VMs**. [Upload spread across VMs](results/2026-11-15-ci-run-43720854999/#10-gbits-upload-spread)
-
-Each throughput cell shows **download / upload**. Browser rows use Chrome. Terminal rows use native clients.
-The 1 Gbit/s link uses a 20 ms RTT and has a payload ceiling of
-about 956 Mbit/s. The 10 Gbit/s test uses a 2 ms RTT and offloads. iperf3 uses four TCP streams.
-Bold marks the highest displayed median in each direction within browser or terminal, including rounded ties.
-The iperf3 row is a reference.
-
-| Tool or client | 1 Gbit/s (Mbit/s) | 10 Gbit/s (Gbit/s) | 1% loss (Mbit/s) |
-| --- | ---: | ---: | ---: |
-| Graphite Meter Browser | **956.2** / 954.1 | **9.56** / 4.29 | 13.2 / 13.8 |
-| Graphite Meter without loaded latency | 955.4 / 954.2 | **9.56** / **4.42** | 12.9 / 13.9 |
-| LibreSpeed | 956.0 / 946.0 | 9.37 / 3.31 | 17.0 / 9.4 |
-| LibreSpeed Go backend | 954.5 / 952.0 | 9.35 / 3.34 | 17.0 / 9.4 |
-| LibreSpeed Rust backend | 955.5 / 950.5 | 9.50 / 3.21 | 17.1 / 9.6 |
-| OpenSpeedTest | 951.3 / **954.7** | 9.41 / 3.39 | **19.3** / **21.4** |
-| Graphite Meter Terminal | **956.4** / **956.4** | **9.56** / **9.56** | 19.5 / 19.8 |
-| Graphite Meter Terminal without loaded latency | **956.4** / **956.4** | **9.56** / **9.56** | **19.6** / **19.9** |
-| LibreSpeed CLI | 943.2 / 871.0 | 9.36 / 8.16 | 11.2 / 11.3 |
-| iperf3 (reference) | 956.4 / 956.4 | 9.56 / 9.56 | 12.9 / 12.8 |
+### 1. High-speed throughput (10 Gbit/s & Unshaped)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-overview-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/dashboard-overview-light.png" alt="Campaign overview: KPIs, 10 Gbit/s and unshaped throughput with server CPU and RAM, and challenging network paths." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-throughput-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/chart-throughput-light.png" alt="10 Gbit/s shaped and unshaped throughput with total server CPU and peak memory across browsers, native clients, and iperf3." width="100%">
 </picture>
 
-The loss test uses a 100 Mbit/s link, 1% loss in each direction and 40 ms RTT. Chrome reported
-**21.4 Mbit/s** upload with OpenSpeedTest and
-**13.8 Mbit/s** with Graphite Meter Browser.
-Connection counts and test windows can change rates on lossy paths.
+10 Gbit/s shaped links use 2 ms RTT with offloads on (`9.56 Gbit/s` TCP payload ceiling); unshaped runs remove rate limits on 4-vCPU runners (1 server / 2 client / 1 shaper).
+[Shaped summary](results/2026-11-15-ci-run-43720854999/#shaped-throughput) · [10 Gbit/s spread](results/2026-11-15-ci-run-43720854999/#10-gbits-upload-spread) · [Unshaped tables](results/2026-11-15-ci-run-43720854999/#unshaped-throughput-and-browser-cpu)
 
-We take each VM’s median over its retained passes, then summarize across VMs. A VM contributes once,
-with up to two passes. Large marks show medians across VMs. Lines span the middle 50%, and small
-marks show VM values where plotted. The spreads describe these runners. Sample sizes and exact
-values are in the linked tables.
-
-Tools keep their own test durations and connection settings. Default Graphite Meter runs include loaded latency.
-Its without-loaded-latency profiles omit the idle stage and loaded probes. The benchmark disables LibreSpeed
-and OpenSpeedTest’s throughput compensation. [Deployment settings](#what-runs)
-
-### Agreement at 1 Gbit/s
-
-Chrome’s median upload differences from iperf3 spanned **-1.1% to -0.2%**. In Firefox, the three
-LibreSpeed deployments spanned **-6.1% to -5.0%**.
-
-[Agreement values for every tool](results/2026-11-15-ci-run-43720854999/#matched-1-gbits-agreement)
+### 2. Accuracy, hard links & latency
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-accuracy-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/dashboard-accuracy-light.png" alt="1 Gbit/s upload agreement against iperf3, 30 Mbit/s FIFO upload counter integrity check, and bufferbloat loaded latency." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-accuracy-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/chart-accuracy-light.png" alt="1 Gbit/s upload agreement vs same-pass iperf3, 1% loss and 160 ms high-BDP throughput, 30 Mbit/s FIFO upload counter check, and FIFO bufferbloat latency." width="100%">
 </picture>
 
-<details>
-<summary>View per-VM 1 Gbit/s upload agreement</summary>
+On the FIFO path, OpenSpeedTest’s reported rate exceeded the matched iperf3 receiver rate in **30/30 Chrome** and **30/30 Firefox** passes. Tests ran sequentially. App and iperf3 start times were a median of 3.4 minutes apart (maximum 9.4).
+[1 Gbit/s agreement](results/2026-11-15-ci-run-43720854999/#matched-1-gbits-agreement) · [Upload counter checks](results/2026-11-15-ci-run-43720854999/#upload-counter-checks) · [Idle & FIFO latency](results/2026-11-15-ci-run-43720854999/#idle-latency-against-icmp)
 
-[![View per-VM 1 Gbit/s upload agreement](results/2026-11-15-ci-run-43720854999/agreement-upload.png)](results/2026-11-15-ci-run-43720854999/agreement-upload.png)
-
-</details>
-
-<details>
-<summary>View per-VM 1 Gbit/s download agreement</summary>
-
-[![View per-VM 1 Gbit/s download agreement](results/2026-11-15-ci-run-43720854999/agreement-download.png)](results/2026-11-15-ci-run-43720854999/agreement-download.png)
-
-</details>
-
-Zero matches the iperf3 receiver payload rate. Positive values mean the app reported a higher rate.
-The comparison reflects both the traffic each setup drove and its reporting method.
-Tests ran sequentially. App and iperf3 start times were a median of 3.4 minutes apart (maximum 9.4).
-
-### Unshaped throughput
-
-Median download / upload was **35.9 / 54.9 Gbit/s** for Graphite Meter Terminal,
-**31.0 / 18.9 Gbit/s** for LibreSpeed CLI and **30.6 / 44.2 Gbit/s** for iperf3.
-Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** after matching passes. The split was 0/6 on AWS-kernel VMs, 9/9 on Azure-kernel VMs.
-
-[Unshaped medians, maxima and browser CPU](results/2026-11-15-ci-run-43720854999/#unshaped-throughput-and-browser-cpu)
+### 3. Server & client resource efficiency
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-consistency-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/dashboard-consistency-light.png" alt="Spread and directional asymmetry across scenarios, plus unshaped native upload grouped by GitHub runner CPU and cloud kernel." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-resources-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/chart-resources-light.png" alt="1 Gbit/s server CPU by phase, unshaped server CPU per GB, peak server container RAM across direct/H2/nginx, and client-side CPU efficiency." width="100%">
 </picture>
 
-<details>
-<summary>View per-VM unshaped download throughput</summary>
+Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run. Over the full Chrome test the median total server CPU time was **6.03 s** for OpenSpeedTest and **3.74 s** for Graphite Meter Browser. Total time reflects both the amount of data moved and the work per byte.
+[Full resource tables](results/2026-11-15-ci-run-43720854999/#server-resources-at-1-gbits) · [All server CPU phases](results/2026-11-15-ci-run-43720854999/server-cpu.md) · [Without-loaded-latency delta](results/2026-11-15-ci-run-43720854999/#graphite-meter-without-loaded-latency)
 
-[![View per-VM unshaped download throughput](results/2026-11-15-ci-run-43720854999/unshaped-download.png)](results/2026-11-15-ci-run-43720854999/unshaped-download.png)
-
-</details>
-
-<details>
-<summary>View per-VM unshaped upload throughput</summary>
-
-[![View per-VM unshaped upload throughput](results/2026-11-15-ci-run-43720854999/unshaped-upload.png)](results/2026-11-15-ci-run-43720854999/unshaped-upload.png)
-
-</details>
-
-Unshaped runs remove the rate limit and artificial delay, with offloads enabled. The runner gives the
-server one vCPU and the client two. The tool, client, server and VM can all affect the observed rate.
-These are single-test results on a virtual link. Production capacity also depends on the network and
-simultaneous demand.
-
-Graphite Meter Terminal times downloads at the client and uploads at the server. iperf3 reports
-the receiver in both directions. [Native upload by runner hardware](results/2026-11-15-ci-run-43720854999/#unshaped-native-upload-by-runner-hardware)
-
-### Server resources at 1 Gbit/s
-
-With Chrome, Graphite Meter Browser’s median peak memory was **14.9 MB**. The LibreSpeed deployments ranged from 22.5–80.1 MB. OpenSpeedTest used **0.183 CPU s/GB** on download and **3.721 CPU s/GB** on upload.
-
-Graphite Meter Terminal used **7.098 CPU s/GB** on upload at **956.4 Mbit/s**. LibreSpeed CLI used **2.488 CPU s/GB** at **871.0 Mbit/s**. On the unshaped path, the server interface recorded **54.8 Gbit/s** of inbound traffic during the Graphite Meter Terminal upload. Server CPU there was **0.141 CPU s/GB** for Graphite Meter Terminal and **0.405 CPU s/GB** for LibreSpeed CLI.
-
-[Server resource values for Chrome, Firefox and terminals](results/2026-11-15-ci-run-43720854999/#server-resources-at-1-gbits)
+### 4. Protocol & transport scaling
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/dashboard-resources-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/dashboard-resources-light.png" alt="All implementations ranked by server CPU per GB at 1 Gbit/s, 10 Gbit/s and unshaped, peak server RAM across direct/H2/proxy, and client-side CPU." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-transports-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/chart-transports-light.png" alt="HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput in Chrome (10 Gbit/s) and native terminal clients (10 Gbit/s and unshaped)." width="100%">
 </picture>
 
-<details>
-<summary>View per-VM server CPU during upload at 1 Gbit/s</summary>
+All TLS variants use one self-signed certificate per job; terminal variants force ALPN so protocols never silently fall back.
+[1 Gbit/s transports](results/2026-11-15-ci-run-43720854999/#11-gbits-20-ms-rtt-fq_codel) · [10 Gbit/s transports](results/2026-11-15-ci-run-43720854999/#1010-gbits-2-ms-rtt-fq_codel-offloads-on) · [Reverse proxy](results/2026-11-15-ci-run-43720854999/#11-gbits-20-ms-rtt-fq_codel-behind-nginx)
 
-[![View per-VM server CPU during upload at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)](results/2026-11-15-ci-run-43720854999/server-upload-cpu.png)
+### 5. Consistency & runner hardware
 
-</details>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-consistency-dark.png">
+  <img src="results/2026-11-15-ci-run-43720854999/chart-consistency-light.png" alt="Shaped link VM-to-VM spread and directional symmetry alongside unshaped native upload grouped by GitHub runner CPU and cloud kernel." width="100%">
+</picture>
 
-<details>
-<summary>View per-VM server CPU during download at 1 Gbit/s</summary>
-
-[![View per-VM server CPU during download at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)](results/2026-11-15-ci-run-43720854999/server-download-cpu.png)
-
-</details>
-
-<details>
-<summary>View per-VM peak server memory at 1 Gbit/s</summary>
-
-[![View per-VM peak server memory at 1 Gbit/s](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)](results/2026-11-15-ci-run-43720854999/server-peak-memory.png)
-
-</details>
-
-Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run.
-
-Over the full Chrome test the median total server CPU time was **6.03 s** for OpenSpeedTest and **3.74 s** for Graphite Meter Browser. Total time reflects both the amount of data moved and the work per byte.
-
-Bold marks the lowest displayed median per resource within each client group.
-
-| Tool or client | Down / up (Mbit/s) | Down CPU (s/GB) | Up CPU (s/GB) | Peak RAM (MB) |
-| --- | ---: | ---: | ---: | ---: |
-| Graphite Meter Browser · Chrome | 956.2 / 954.1 | 0.445 | 5.484 | **14.9** |
-| Graphite Meter without loaded latency · Chrome | 955.4 / 954.2 | 0.383 | 5.556 | 15.3 |
-| LibreSpeed · Chrome | 956.0 / 946.0 | 0.419 | 6.353 | 80.1 |
-| LibreSpeed Go backend · Chrome | 954.5 / 952.0 | 0.403 | 5.704 | 48.1 |
-| LibreSpeed Rust backend · Chrome | 955.5 / 950.5 | 0.345 | 4.415 | 22.5 |
-| OpenSpeedTest · Chrome | 951.3 / 954.7 | **0.183** | **3.721** | 29.4 |
-| Graphite Meter Terminal | 956.4 / 956.4 | **0.232** | 7.098 | **17.3** |
-| Graphite Meter Terminal without loaded latency | 956.4 / 956.4 | 0.239 | 7.076 | 17.6 |
-| LibreSpeed CLI | 943.2 / 871.0 | 0.276 | **2.488** | 68.7 |
-| iperf3 (reference) | 956.4 / 956.4 | 0.198 | 5.652 | 19.2 |
-
-[All server CPU phases](results/2026-11-15-ci-run-43720854999/server-cpu.md)
-
-### Graphite Meter without loaded latency
-
-Within each client, both profiles use the same server build, automatic connection settings, and transfer durations. The variant skips the app’s idle-latency stage and loaded probes. Each cell is **without loaded latency minus default** on the same VM and pass, summarized across VMs as median [middle 50%]. Total server CPU includes the skipped idle stage.
-
-| Path | Client | Download (Mbit/s) | Upload (Mbit/s) | Download server CPU (s/GB) | Upload server CPU (s/GB) | Total server CPU (s) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 Gbit/s | Chrome | -0.9 [-1.1, -0.3] (n=15) | -0.2 [-0.8, +3.5] (n=15) | -0.010 [-0.082, +0.050] (n=15) | 0.000 [-0.164, +0.357] (n=15) | -0.07 [-0.51, +0.31] (n=15) |
-| 1 Gbit/s | Firefox | +0.5 [-0.6, +1.9] (n=15) | +2.9 [-0.1, +4.4] (n=15) | -0.049 [-0.075, -0.023] (n=15) | -0.042 [-0.138, +0.241] (n=15) | -0.12 [-1.47, +0.92] (n=15) |
-| 1 Gbit/s | Terminal | 0.0 [-0.1, +0.3] (n=15) | 0.0 [0.0, +0.3] (n=15) | -0.006 [-0.021, +0.024] (n=15) | -0.030 [-0.040, +0.015] (n=15) | -0.06 [-0.13, +0.05] (n=15) |
-| 10 Gbit/s | Terminal | 0.0 [0.0, 0.0] (n=15) | 0.0 [0.0, 0.0] (n=15) | +0.002 [0.000, +0.003] (n=15) | -0.001 [-0.004, +0.002] (n=15) | -0.05 [-0.10, +0.06] (n=15) |
-| Unshaped | Terminal | -150.0 [-327.5, +212.5] (n=15) | -90.0 [-1,252.5, +705.0] (n=15) | +0.002 [0.000, +0.002] (n=15) | 0.000 [-0.002, +0.003] (n=15) | -0.06 [-0.07, -0.03] (n=15) |
-
-### OpenSpeedTest upload check
-
-On the FIFO path, OpenSpeedTest’s reported rate exceeded the matched iperf3 receiver rate in **30/30 Chrome** and **30/30 Firefox** passes.
-
-**1 Gbit/s path**
-
-| Tool or client | App rate | Shaper | Server RX | Above iperf3 |
-| --- | ---: | ---: | ---: | ---: |
-| OpenSpeedTest · Chrome | 954.7 | 973.7 | 974.8 [966.5, 976.7] (n=15) | 6/30 |
-| OpenSpeedTest · Firefox | 952.3 | 972.7 | 955.5 [952.6, 969.6] (n=15) | 10/30 |
-| iperf3 (reference) | 956.4 | 974.8 | 981.1 [979.9, 983.9] (n=15) | — |
-
-**30 Mbit/s upload, deep FIFO**
-
-| Tool or client | App rate | Shaper | Server RX | Above iperf3 |
-| --- | ---: | ---: | ---: | ---: |
-| OpenSpeedTest · Chrome | 30.9 | 30.9 | 29.7 [29.7, 29.7] (n=15) | 30/30 |
-| OpenSpeedTest · Firefox | 30.8 | 30.9 | 29.8 [29.8, 29.8] (n=15) | 30/30 |
-| iperf3 (reference) | 28.7 | 30.9 | 29.8 [29.8, 29.8] (n=15) | — |
-
-All rates are in Mbit/s. The shaper reports the median over busy intervals, includes protocol
-overhead and can show rates above the configured limit even for iperf3. “Above iperf3” counts passes
-where the tool reported a higher rate than the same-VM, same-pass iperf3 receiver. Each VM runs
-its two passes sequentially. The separate receiver smoke used the 1 Gbit/s path only.
-Server RX averages traffic during sustained upload intervals and shows the median, middle 50% and
-number of VMs when available. Like the shaper, it includes protocol overhead and uses a separate
-timing window. A payload accounting check would require matching bytes and timing to the app.
-[Counter data for all tools](results/2026-11-15-ci-run-43720854999/#upload-counter-checks) ·
-[Instrumented receiver check](#receiver-counter-validation)
-
-### Idle and loaded latency
-
-The idle baseline is the minimum of ten ICMP pings before each scenario pass. Browser and terminal
-probes can include additional protocol and processing time. On the FIFO path, the loaded estimate adds the
-same run’s median queue delay to that baseline. The app and queue sampler use distinct timing windows. Fair queuing can put
-probe traffic in a separate queue, so fq_codel runs lack a loaded-latency reference. [Idle comparisons at 20, 40 and 160 ms](results/2026-11-15-ci-run-43720854999/#idle-latency-against-icmp)
-
-Graphite Meter reports loaded latency during download and upload in this run. On the 300/30 Mbit/s path
-with a 200 ms FIFO, each cell shows the app’s median followed by the queue-based estimate.
-
-| Tool or client | During download (ms) | During upload (ms) |
-| --- | ---: | ---: |
-| Graphite Meter Browser · Chrome | 162.1 / 148.7 | 184.1 / 179.4 |
-| Graphite Meter without loaded latency · Chrome | — / 161.3 | — / 181.5 |
-| Graphite Meter Browser · Firefox | 166.0 / 154.4 | 184.8 / 179.7 |
-| Graphite Meter without loaded latency · Firefox | — / 141.9 | — / 180.4 |
-| Graphite Meter Terminal | 176.0 / 169.5 | 198.0 / 192.7 |
-| Graphite Meter Terminal without loaded latency | — / 169.2 | — / 192.7 |
-
-On the 10 Gbit/s path, Graphite Meter Browser in Chrome reported median upload of
-**4.29 Gbit/s over HTTP/1.1**, **2.63 over HTTP/2**,
-**0.76 over HTTP/3**, and **0.71 over WebTransport**.
-[1 Gbit/s transport comparison](results/2026-11-15-ci-run-43720854999/#11-gbits-20-ms-rtt-fq_codel) ·
-[Reverse-proxy results](results/2026-11-15-ci-run-43720854999/#11-gbits-20-ms-rtt-fq_codel-behind-nginx) ·
-[Additional paths](results/2026-11-15-ci-run-43720854999/#pooled-pass-tables)
+Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** after matching passes. The split was 0/6 on AWS-kernel VMs, 9/9 on Azure-kernel VMs. [Hardware breakdown](results/2026-11-15-ci-run-43720854999/#unshaped-native-upload-by-runner-hardware) · [All pooled pass tables](results/2026-11-15-ci-run-43720854999/#pooled-pass-tables)
 
 ## What runs
 
@@ -310,10 +122,10 @@ the default `--skip-loaded-latency` behavior. The harness still measures idle pa
 variants use the documented settings above. The LibreSpeed web worker’s display factor defaults to 1.06, and
 the OpenSpeedTest page defaults to 1.04. The harness uses each application's adjustment for payload-rate display.
 
-[Graphite Meter browser defaults](https://github.com/zR-JB/graphite-meter/blob/v0.14.3/client/src/app/preferences.ts) ·
-[Graphite Meter terminal flags](https://github.com/zR-JB/graphite-meter/blob/v0.14.3/docs/TERMINAL.md#flags) ·
+[Graphite Meter browser defaults](https://github.com/zR-JB/graphite-meter/blob/v0.14.4/client/src/app/preferences.ts) ·
+[Graphite Meter terminal flags](https://github.com/zR-JB/graphite-meter/blob/v0.14.4/docs/TERMINAL.md#flags) ·
 [LibreSpeed web worker](https://github.com/librespeed/speedtest/blob/v6.3.1/speedtest_worker.js) ·
-[LibreSpeed CLI flags](https://github.com/librespeed/speedtest-cli/blob/v1.0.14/main.go) ·
+[LibreSpeed CLI flags](https://github.com/librespeed/speedtest-cli/blob/v1.0.15/main.go) ·
 [OpenSpeedTest defaults](https://github.com/openspeedtest/Speed-Test/blob/f4263546f50694a154fdd27a03000390949068df/index.html)
 
 Browsers: Chrome for Testing and Firefox release builds, fresh profile per run, headed under Xvfb.
@@ -377,24 +189,7 @@ Scenarios are in [`scenarios.json`](scenarios.json): 100 Mbit/s and 1 Gbit/s at 
 2 ms (25 and 40 only on hosts with at least 8 CPUs); 300/30 Mbit/s behind a 200 ms FIFO; 1 % and 0.1 % loss at 40 ms;
 a 160 ms path; competing traffic; a reverse proxy; two servers; and an unshaped run. This testbed cannot show real
 network card, Wi-Fi or switch behaviour, and the unshaped scenario measures observed throughput on its host-local virtual network.
-
-### Receiver-counter validation
-
-The [14 November instrumentation smoke](https://github.com/zR-JB/selfhosted-speedtest-bench/actions/runs/43607039717)
-ran one pass at 1 Gbit/s with the same release pins as the monthly comparison. It used the newer harness revision
-[`b077cceb`](https://github.com/zR-JB/selfhosted-speedtest-bench/commit/b077cceb), which records passive server interface
-bytes and time during sustained upload. This single pass did not exercise the 30 Mbit/s FIFO scenario.
-[Smoke measurements and exact pins](results/2026-11-14-upload-counter-smoke.json)
-
-| Test | Reported upload, Mbit/s | Server interface, Mbit/s |
-| --- | ---: | ---: |
-| OpenSpeedTest, Chrome | 947.8 | 951.8 |
-| OpenSpeedTest, Firefox | 965.6 | 945.1 |
-| iperf3 | 955.4 | 979.0 |
-
-The Firefox gap flags a difference worth investigating. The interface counts protocol overhead over a different window
-than the app’s payload report, so the difference alone does not quantify reporting error. Future full runs save both
-directions of this independent measurement for every eligible tool.
+(Earlier single-pass receiver-counter smoke validation: [`results/2026-11-14-upload-counter-smoke.json`](results/2026-11-14-upload-counter-smoke.json).)
 
 ## Results: desktop, night of 18 to 19 October 2026
 
