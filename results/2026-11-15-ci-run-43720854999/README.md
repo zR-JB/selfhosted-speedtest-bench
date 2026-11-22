@@ -47,12 +47,12 @@ Download / upload medians. Browser rows use Chrome. The loss test uses a 100 Mbi
 
 | Tool or client | 1 Gbit/s (Mbit/s) | 10 Gbit/s (Gbit/s) | 1% loss (Mbit/s) |
 | --- | ---: | ---: | ---: |
-| Graphite Meter Browser | **956.2** / 954.1 | **9.56** / 4.29 | 13.2 / 13.8 |
-| Graphite Meter without loaded latency | 955.4 / 954.2 | **9.56** / **4.42** | 12.9 / 13.9 |
-| LibreSpeed | 956.0 / 946.0 | 9.37 / 3.31 | 17.0 / 9.4 |
-| LibreSpeed Go backend | 954.5 / 952.0 | 9.35 / 3.34 | 17.0 / 9.4 |
-| LibreSpeed Rust backend | 955.5 / 950.5 | 9.50 / 3.21 | 17.1 / 9.6 |
-| OpenSpeedTest | 951.3 / **954.7** | 9.41 / 3.39 | **19.3** / **21.4** |
+| Graphite Meter Browser · Chrome | **956.2** / 954.1 | **9.56** / 4.29 | 13.2 / 13.8 |
+| Graphite Meter without loaded latency · Chrome | 955.4 / 954.2 | **9.56** / **4.42** | 12.9 / 13.9 |
+| LibreSpeed · Chrome | 956.0 / 946.0 | 9.37 / 3.31 | 17.0 / 9.4 |
+| LibreSpeed Go backend · Chrome | 954.5 / 952.0 | 9.35 / 3.34 | 17.0 / 9.4 |
+| LibreSpeed Rust backend · Chrome | 955.5 / 950.5 | 9.50 / 3.21 | 17.1 / 9.6 |
+| OpenSpeedTest · Chrome | 951.3 / **954.7** | 9.41 / 3.39 | **19.3** / **21.4** |
 | Graphite Meter Terminal | **956.4** / **956.4** | **9.56** / **9.56** | 19.5 / 19.8 |
 | Graphite Meter Terminal without loaded latency | **956.4** / **956.4** | **9.56** / **9.56** | **19.6** / **19.9** |
 | LibreSpeed CLI | 943.2 / 871.0 | 9.36 / 8.16 | 11.2 / 11.3 |
@@ -105,13 +105,13 @@ Signed percentage differences from iperf3 on the same VM and pass. Each cell sho
 | Graphite Meter Terminal without loaded latency | **0.0** [0.0, 0.0] (n=15) | **0.0** [0.0, 0.0] (n=15) |
 | LibreSpeed CLI | -1.4 [-1.9, -1.3] (n=15) | -8.9 [-9.0, -8.8] (n=15) |
 
-### Unshaped throughput and browser CPU
+### Unshaped throughput and client CPU
 
 Unshaped runs remove the rate limit and artificial delay, with offloads enabled. The runner gives the
 server one vCPU and the client two. The tool, client, server and VM can all affect the observed rate.
 These are single-test results on a virtual link. Production capacity also depends on the network and
 simultaneous demand.
-Each maximum is the fastest retained pass in that direction. The two maxima can come from different passes. Browser CPU measures the client process tree over the full run per GB at the shaper.
+Each maximum is the fastest retained pass in that direction. The two maxima can come from different passes. Client CPU divides browser process-tree CPU (browser rows) or container cgroup CPU (native rows, where recorded) by total shaper GB.
 
 | Tool or client | Median down / up (Gbit/s) | Max down / up (Gbit/s) | Client CPU (s/GB) |
 | --- | ---: | ---: | ---: |
@@ -147,7 +147,7 @@ Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** 
 
 ### Server resources at 1 Gbit/s
 
-Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. The adjacent reported rates show how much of the same shaped link each setup used. Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run.
+Server CPU is container CPU time per decimal GB of server-interface traffic during each phase (counting both directions), or total container CPU per shaper GB on unshaped. Peak memory is per-run container memory.peak in decimal MB. Client CPU measures the browser process tree per shaper GB; native client cgroup CPU was not yet collected in this run.
 
 | Tool or client | Down / up (Mbit/s) | Down CPU (s/GB) | Up CPU (s/GB) | Peak RAM (MB) |
 | --- | ---: | ---: | ---: | ---: |

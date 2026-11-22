@@ -1,7 +1,8 @@
-"""Unified Dark/Light Bento dashboards and auto-extending historic trends for selfhosted-speedtest-bench.
+"""Unified Dark/Light dashboards and auto-extending historic trends for selfhosted-speedtest-bench.
 
-Sized at 9.8 inches wide (matching GitHub's ~850 px README column) with >= 8.5 pt typography,
-explicit color-swatch legends inside every card, clear metric-direction cues, and zero legacy styles.
+Sized at 9.8 inches wide (~850 px GitHub README width) with >= 8.6 pt typography (~11.5+ CSS px),
+high-contrast dark/light palettes, explicit per-panel legends using matching visual glyphs,
+consistent tool rosters, paired VM differences, and zero fabricated zeros for missing data.
 """
 
 import gzip
@@ -18,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.ticker import FuncFormatter, MaxNLocator
+from matplotlib.ticker import FuncFormatter
 
 NO_LOADED_LATENCY = "graphite-meter-no-loaded-latency"
 TERMINAL_NO_LOADED_LATENCY = "graphite-meter-client-no-loaded-latency"
@@ -42,19 +43,24 @@ THEMES = {
         "card_alt": "#1b2330",
         "border": "#2b3442",
         "ink": "#f0f6fc",
-        "text": "#c9d1d9",
-        "muted": "#8b949e",
-        "faint": "#6e7681",
+        "text": "#d0d7de",
+        "muted": "#9aa4b2",
+        "faint": "#7d8590",
         "grid": "#242c38",
-        "divider": "#30363d",
-        "good_band": "#0f2e1e",
+        "divider": "#343d4b",
+        "good_band": "#153d29",
         "good": "#3fb950",
-        "warn": "#d29922",
+        "warn": "#e3b341",
         "bad": "#f85149",
         "dl": "#58a6ff",
+        "dl_txt": "#79c0ff",
         "ul": "#f0883e",
-        "shaper": "#8b949e",
+        "ul_txt": "#ffa657",
+        "shaper": "#94a3b8",
         "rx": "#3fb950",
+        "aws": "#f0883e",
+        "azure": "#58a6ff",
+        "other": "#bc8cff",
         "family": {
             "gm1": "#58a6ff",   # Graphite Meter HTTP/1.1
             "gm2": "#39c5cf",   # Graphite Meter H2/H3/WT
@@ -67,7 +73,7 @@ THEMES = {
         "proto": {
             "HTTP/1.1": "#58a6ff",
             "HTTP/2": "#3fb950",
-            "HTTP/3": "#d29922",
+            "HTTP/3": "#e3b341",
             "WebTransport": "#bc8cff",
             "iperf3": "#94a3b8",
         },
@@ -76,35 +82,40 @@ THEMES = {
         "bg": "#f6f8fa",
         "card": "#ffffff",
         "card_alt": "#f3f6fa",
-        "border": "#d0d7de",
+        "border": "#cfd7df",
         "ink": "#1f2328",
-        "text": "#334155",
-        "muted": "#59636e",
-        "faint": "#818b98",
+        "text": "#2c3540",
+        "muted": "#525c68",
+        "faint": "#6e7781",
         "grid": "#e5e9f0",
-        "divider": "#d0d7de",
-        "good_band": "#dafbe1",
+        "divider": "#cbd5e1",
+        "good_band": "#e6f6ec",
         "good": "#1a7f37",
         "warn": "#9a6700",
         "bad": "#cf222e",
         "dl": "#1d4ed8",
-        "ul": "#ea580c",
-        "shaper": "#64748b",
+        "dl_txt": "#1e40af",
+        "ul": "#c2410c",
+        "ul_txt": "#9a3412",   # >= 6.4:1 contrast against white
+        "shaper": "#475569",
         "rx": "#0f766e",
+        "aws": "#c2410c",
+        "azure": "#1d4ed8",
+        "other": "#7c3aed",
         "family": {
             "gm1": "#1d4ed8",
-            "gm2": "#0891b2",
+            "gm2": "#0e7490",
             "ip": "#475569",
             "ls": "#0f766e",
             "lsg": "#c2410c",
-            "lsr": "#7c3aed",
+            "lsr": "#6d28d9",
             "ost": "#be185d",
         },
         "proto": {
             "HTTP/1.1": "#1d4ed8",
             "HTTP/2": "#0f766e",
             "HTTP/3": "#b45309",
-            "WebTransport": "#7c3aed",
+            "WebTransport": "#6d28d9",
             "iperf3": "#475569",
         },
     },
@@ -119,6 +130,8 @@ def configure_matplotlib():
 
 
 def spread(values):
+    if not values:
+        return None
     if len(values) == 1:
         return (values[0],) * 3
     low, center, high = quantiles(values, n=4, method="inclusive")
@@ -182,43 +195,58 @@ def _new_fig(h, theme):
 
 def _draw_banner(fig, kicker, title, t):
     fh = fig.get_figheight()
-    fig.text(0.020, 1.0 - 0.14 / fh, kicker, color=t["muted"], fontsize=8.5,
+    fig.text(0.020, 1.0 - 0.13 / fh, kicker, color=t["muted"], fontsize=8.8,
              family="DejaVu Sans Mono", weight="bold", va="top", ha="left", zorder=5)
-    fig.text(0.020, 1.0 - 0.36 / fh, title, color=t["ink"], fontsize=15.0,
+    fig.text(0.020, 1.0 - 0.36 / fh, title, color=t["ink"], fontsize=14.8,
              weight="bold", va="top", ha="left", zorder=5)
 
 
-def _draw_kpi_strip(fig, y_bottom_in, h_in, tiles, t):
-    fh = fig.get_figheight()
-    y = y_bottom_in / fh
-    h = h_in / fh
-    n = len(tiles)
-    margin = 0.020
-    gap = 0.014
-    tile_w = (1.0 - 2 * margin - gap * (n - 1)) / n
-    for i, (val, label, note, accent) in enumerate(tiles):
-        x = margin + i * (tile_w + gap)
+def _draw_legend_glyph(fig, x, y, col, kind, t, fh):
+    """Draw a visual legend glyph that matches the exact mark used on the axes."""
+    sw_w = 0.014
+    sw_h = 0.095 / fh
+    if kind == "bar":
         fig.patches.append(mpatches.FancyBboxPatch(
-            (x, y), tile_w, h,
-            boxstyle="round,pad=0,rounding_size=0.012",
-            transform=fig.transFigure, facecolor=t["card"], edgecolor=t["border"],
-            linewidth=1.0, zorder=0.1,
-        ))
-        fig.patches.append(mpatches.FancyBboxPatch(
-            (x + 0.004, y + h * 0.15), 0.0045, h * 0.70,
+            (x, y - sw_h * 0.5), sw_w, sw_h,
             boxstyle="round,pad=0,rounding_size=0.002",
-            transform=fig.transFigure, facecolor=accent, edgecolor="none", zorder=3,
+            transform=fig.transFigure, facecolor=col, edgecolor="none", zorder=5,
         ))
-        fig.text(x + 0.018, y + h - 0.12 / fh, val, color=accent, fontsize=14.2,
-                 family="DejaVu Sans Mono", weight="bold", va="top", ha="left", zorder=5)
-        fig.text(x + 0.018, y + h - 0.42 / fh, label, color=t["ink"], fontsize=8.8,
-                 weight="bold", va="top", ha="left", zorder=5)
-        fig.text(x + 0.018, y + 0.11 / fh, note, color=t["muted"], fontsize=7.8,
-                 family="DejaVu Sans Mono", va="bottom", ha="left", zorder=5)
+    elif kind == "outline":
+        fig.patches.append(mpatches.FancyBboxPatch(
+            (x, y - sw_h * 0.5), sw_w, sw_h,
+            boxstyle="round,pad=0,rounding_size=0.002",
+            transform=fig.transFigure, facecolor=t["card_alt"], edgecolor=col, linewidth=1.35, zorder=5,
+        ))
+    elif kind == "dashed":
+        fig.add_artist(plt.Line2D([x, x + sw_w * 1.25], [y, y],
+                                  transform=fig.transFigure, color=col, linewidth=1.5, linestyle="--", zorder=5))
+        return sw_w * 1.25
+    elif kind == "whisker":
+        fig.add_artist(plt.Line2D([x, x + sw_w * 1.35], [y, y],
+                                  transform=fig.transFigure, color=col, linewidth=2.2, solid_capstyle="round", zorder=5))
+        fig.add_artist(plt.Line2D([x + sw_w * 0.675], [y], transform=fig.transFigure, marker="o",
+                                  markersize=4.5, markerfacecolor=col, markeredgecolor=t["card"],
+                                  markeredgewidth=0.7, linestyle="none", zorder=6))
+        return sw_w * 1.35
+    elif kind in ("dot", "diamond", "triangle"):
+        mk = {"dot": "o", "diamond": "D", "triangle": "^"}[kind]
+        fig.add_artist(plt.Line2D([x + sw_w * 0.5], [y], transform=fig.transFigure, marker=mk,
+                                  markersize=5.6, markerfacecolor=col, markeredgecolor=t["card"],
+                                  markeredgewidth=0.6, linestyle="none", zorder=6))
+        return sw_w * 0.95
+    elif kind == "band":
+        fig.patches.append(mpatches.Rectangle(
+            (x, y - sw_h * 0.65), sw_w * 1.2, sw_h * 1.3,
+            transform=fig.transFigure, facecolor=t["good_band"], edgecolor=col, linewidth=0.8, zorder=5,
+        ))
+        fig.add_artist(plt.Line2D([x + sw_w * 0.6, x + sw_w * 0.6], [y - sw_h * 0.65, y + sw_h * 0.65],
+                                  transform=fig.transFigure, color=col, linewidth=1.1, zorder=6))
+        return sw_w * 1.2
+    return sw_w
 
 
 def _draw_card(fig, x_frac, y_in, w_frac, h_in, t, *, title, direction=None, legend=None, footer=None):
-    """Draw a Bento card using inch-accurate vertical spacing so every card has crisp, identical breathing room."""
+    """Draw a Bento card using inch-accurate vertical spacing and optional multi-row glyph legend."""
     fh = fig.get_figheight()
     y = y_in / fh
     h = h_in / fh
@@ -231,30 +259,33 @@ def _draw_card(fig, x_frac, y_in, w_frac, h_in, t, *, title, direction=None, leg
     fig.text(x_frac + 0.016, y + h - 0.14 / fh, title, color=t["ink"], fontsize=11.0,
              weight="bold", va="top", ha="left", zorder=5)
     if direction:
-        fig.text(x_frac + w_frac - 0.016, y + h - 0.16 / fh, direction, color=t["muted"], fontsize=8.2,
+        fig.text(x_frac + w_frac - 0.016, y + h - 0.16 / fh, direction, color=t["muted"], fontsize=8.5,
                  family="DejaVu Sans Mono", weight="bold", va="top", ha="right", zorder=5)
+    legend_rows = 0
     if legend:
-        # Draw explicit color-swatch legend pills cleanly on their own row right beneath the card title
+        legend_rows = 1
         lx = x_frac + 0.016
         ly = y + h - 0.44 / fh
-        sw_w = 0.011
-        sw_h = 0.095 / fh
-        for lbl, col in legend:
-            fig.patches.append(mpatches.FancyBboxPatch(
-                (lx, ly - sw_h * 0.5), sw_w, sw_h,
-                boxstyle="round,pad=0,rounding_size=0.002",
-                transform=fig.transFigure, facecolor=col, edgecolor="none", zorder=5,
-            ))
-            fig.text(lx + sw_w + 0.006, ly, lbl, color=t["text"], fontsize=8.3,
+        max_x = x_frac + w_frac - 0.020
+        for item in legend:
+            lbl, col = item[0], item[1]
+            kind = item[2] if len(item) > 2 else "bar"
+            est_w = 0.026 + len(lbl) * 0.0074
+            if lx > x_frac + 0.018 and lx + est_w > max_x:
+                lx = x_frac + 0.016
+                ly -= 0.22 / fh
+                legend_rows += 1
+            gw = _draw_legend_glyph(fig, lx, ly, col, kind, t, fh)
+            fig.text(lx + gw + 0.006, ly, lbl, color=t["text"], fontsize=8.5,
                      va="center", ha="left", zorder=5)
-            # Advance proportionally to label character count
-            lx += sw_w + 0.022 + len(lbl) * 0.0074
+            lx += gw + 0.020 + len(lbl) * 0.0074
     if footer:
         fy = y + 0.28 / fh
         fig.add_artist(plt.Line2D([x_frac + 0.015, x_frac + w_frac - 0.015], [fy + 0.09 / fh, fy + 0.09 / fh],
                                   transform=fig.transFigure, color=t["border"], linewidth=0.8, zorder=4))
-        fig.text(x_frac + 0.016, fy + 0.01 / fh, footer, color=t["muted"], fontsize=8.0,
+        fig.text(x_frac + 0.016, fy + 0.01 / fh, footer, color=t["muted"], fontsize=8.3,
                  va="top", ha="left", zorder=5)
+    return legend_rows
 
 
 def _add_ax(fig, x_frac, y_in, w_frac, h_in, t, grid_axis="x"):
@@ -264,7 +295,7 @@ def _add_ax(fig, x_frac, y_in, w_frac, h_in, t, grid_axis="x"):
     ax.set_facecolor(t["card"])
     ax.set_axisbelow(True)
     ax.grid(axis=grid_axis, color=t["grid"], linewidth=0.75, linestyle=(0, (2, 2)))
-    ax.tick_params(colors=t["muted"], labelsize=8.4, length=0, pad=5)
+    ax.tick_params(colors=t["muted"], labelsize=8.7, length=0, pad=5)
     for side in ("top", "right", "left", "bottom"):
         ax.spines[side].set_visible(False)
     return ax
@@ -289,175 +320,152 @@ def _deconflict_labels(items, y_min, y_max, min_gap):
 
 
 # ---------------------------------------------------------------------------
-# 1. Throughput Dashboard (KPI Strip + 10 Gbit/s Shaped + Unshaped Virtual Link)
+# 1. Throughput Dashboard (Complete Default Roster + VM IQR Whiskers)
 # ---------------------------------------------------------------------------
 
-def render_throughput_chart(out_stem, *, report_date, vm_count, measure, rate, paired, total_server_cpu, peak_memory):
-    gm_chr_ul = measure(PLAIN, ("graphite-meter", "chrome"), lambda r: paired(r, UPLOAD))
-    gm_trm_ul = measure(PLAIN, ("graphite-meter-client", None), lambda r: paired(r, UPLOAD))
-    gm_ff_10g = measure(FAST, ("graphite-meter", "firefox"), rate(UPLOAD, 1000))
-    gm_ch_10g = measure(FAST, ("graphite-meter", "chrome"), rate(UPLOAD, 1000))
-    ost_ch_10g = measure(FAST, ("openspeedtest", "chrome"), rate(UPLOAD, 1000))
-    gm_un_dl = measure(UNCAPPED, ("graphite-meter-client", None), rate(DOWNLOAD, 1000))
-    gm_un_ul = measure(UNCAPPED, ("graphite-meter-client", None), rate(UPLOAD, 1000))
-    ip_un_dl = measure(UNCAPPED, REFERENCE, rate(DOWNLOAD, 1000))
-    ip_un_ul = measure(UNCAPPED, REFERENCE, rate(UPLOAD, 1000))
-    gm_ram = measure(PLAIN, ("graphite-meter", "chrome"), peak_memory)
-    ls_ram = measure(PLAIN, ("librespeed", "chrome"), peak_memory)
-    lsr_ram = measure(PLAIN, ("librespeed-rust", "chrome"), peak_memory)
+def render_throughput_chart(out_stem, *, report_date, vm_count, measure, rate):
+    roster = [
+        ("Native & TCP Reference", [
+            ("GM Terminal", ("graphite-meter-client", None)),
+            ("LibreSpeed CLI", ("librespeed-cli", None)),
+            ("iperf3 (4 TCP ref)", REFERENCE),
+        ]),
+        ("Chrome", [
+            ("Graphite Meter", ("graphite-meter", "chrome")),
+            ("OpenSpeedTest", ("openspeedtest", "chrome")),
+            ("LibreSpeed Go", ("librespeed-go", "chrome")),
+            ("LibreSpeed Rust", ("librespeed-rust", "chrome")),
+            ("LibreSpeed PHP", ("librespeed", "chrome")),
+        ]),
+        ("Firefox", [
+            ("Graphite Meter", ("graphite-meter", "firefox")),
+            ("OpenSpeedTest", ("openspeedtest", "firefox")),
+            ("LibreSpeed Go", ("librespeed-go", "firefox")),
+            ("LibreSpeed Rust", ("librespeed-rust", "firefox")),
+            ("LibreSpeed PHP", ("librespeed", "firefox")),
+        ]),
+    ]
 
-    spec_10g = [
-        ("GM Terminal", ("graphite-meter-client", None)),
-        ("iperf3 (4 TCP)", REFERENCE),
-        ("LibreSpeed CLI", ("librespeed-cli", None)),
-        ("GM Browser · Chr", ("graphite-meter", "chrome")),
-        ("GM Browser · FF", ("graphite-meter", "firefox")),
-        ("OpenSpeedTest · Chr", ("openspeedtest", "chrome")),
-        ("LibreSpeed Go · Chr", ("librespeed-go", "chrome")),
-        ("LibreSpeed PHP · Chr", ("librespeed", "chrome")),
-        ("LibreSpeed Rust · Chr", ("librespeed-rust", "chrome")),
-        ("OpenSpeedTest · FF", ("openspeedtest", "firefox")),
-        ("LibreSpeed Go · FF", ("librespeed-go", "firefox")),
-    ]
-    spec_un = [
-        ("GM Terminal", ("graphite-meter-client", None)),
-        ("iperf3 (4 TCP)", REFERENCE),
-        ("LibreSpeed CLI", ("librespeed-cli", None)),
-        ("GM Browser · Chr", ("graphite-meter", "chrome")),
-        ("LibreSpeed Go · Chr", ("librespeed-go", "chrome")),
-        ("LibreSpeed Rust · Chr", ("librespeed-rust", "chrome")),
-        ("LibreSpeed PHP · Chr", ("librespeed", "chrome")),
-        ("OpenSpeedTest · Chr", ("openspeedtest", "chrome")),
-        ("GM Browser · FF", ("graphite-meter", "firefox")),
-        ("OpenSpeedTest · FF", ("openspeedtest", "firefox")),
-        ("LibreSpeed Rust · FF", ("librespeed-rust", "firefox")),
-    ]
+    def build_rows(scenario):
+        rows = []
+        for sec, items in roster:
+            rows.append(("sec", sec, None, None))
+            for lbl, cl in items:
+                ds = spread(measure(scenario, cl, rate(DOWNLOAD, 1000)))
+                us = spread(measure(scenario, cl, rate(UPLOAD, 1000)))
+                rows.append(("row", lbl, ds, us))
+        return rows
+
+    rows_10g = build_rows(FAST)
+    rows_un = build_rows(UNCAPPED)
 
     for theme in ("dark", "light"):
-        fh = 11.9
+        fh = 13.0
         fig, t = _new_fig(fh, theme)
-        _draw_banner(fig, f"THROUGHPUT BENCHMARK  ·  {report_date}  ·  {vm_count} RUNNER VMs",
-                     "High-Speed Shaped (10 Gbit/s) & Unshaped Throughput", t)
+        _draw_banner(fig, f"THROUGHPUT & VM SPREAD  ·  {report_date}  ·  {vm_count} RUNNER VMs",
+                     "10 Gbit/s Shaped & Unshaped Throughput (All Default Clients)", t)
 
-        tiles = [
-            (f"{fmt_num(median(gm_trm_ul) if gm_trm_ul else None, 1, True)}% / {fmt_num(median(gm_chr_ul) if gm_chr_ul else None, 1, True)}%",
-             "1G Upload vs iperf3", "GM Term / GM Chr", t["good"]),
-            (f"{fmt_num(median(gm_ff_10g) if gm_ff_10g else None, 2)} / {fmt_num(median(gm_ch_10g) if gm_ch_10g else None, 2)}",
-             "10G Browser UL (Gbps)", f"GM FF/Chr · OST {fmt_num(median(ost_ch_10g) if ost_ch_10g else None, 2)}", t["dl"]),
-            (f"{fmt_num(median(gm_un_dl) if gm_un_dl else None, 1)} / {fmt_num(median(gm_un_ul) if gm_un_ul else None, 1)}",
-             "Unshaped Native (Gbps)", f"iperf3 {fmt_num(median(ip_un_dl) if ip_un_dl else None, 1)}/{fmt_num(median(ip_un_ul) if ip_un_ul else None, 1)}", t["dl"]),
-            (f"{fmt_num(median(gm_ram) if gm_ram else None, 1)} MB",
-             "Lowest 1G Peak RAM", f"LS {fmt_num(median(lsr_ram) if lsr_ram else None, 0)}–{fmt_num(median(ls_ram) if ls_ram else None, 0)} MB", t["good"]),
-        ]
-        _draw_kpi_strip(fig, fh - 1.72, 0.94, tiles, t)
+        def draw_panel(c_y, c_h, title, rows, ceiling, digits, footer, legend):
+            _draw_card(fig, 0.020, c_y, 0.960, c_h, t, title=title,
+                       direction="Higher is faster →", legend=legend, footer=footer)
+            ax = _add_ax(fig, 0.215, c_y + 0.84, 0.470, c_h - 1.62, t, "x")
+            bl = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax.transData)
+            vals = []
+            for kind, _, ds, us in rows:
+                if kind == "row":
+                    if ds:
+                        vals.append(ds[2])
+                    if us:
+                        vals.append(us[2])
+            mx = max([*(vals or [10.0]), ceiling or 0.0])
+            ax.text(0.818, -0.78, "DOWN / UP", transform=bl, ha="right", va="bottom",
+                    fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+            ax.text(0.964, -0.78, "UL IQR [p25, p75]", transform=bl, ha="right", va="bottom",
+                    fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+            bar_h = 0.34
+            for i, (kind, lbl, ds, us) in enumerate(rows):
+                if kind == "sec":
+                    if i > 0:
+                        ax.axhline(i - 0.52, color=t["divider"], linewidth=0.75, zorder=1)
+                    ax.text(0.036, i, lbl, transform=bl, va="center", ha="left",
+                            fontsize=9.1, weight="bold", color=t["ink"])
+                    continue
+                ax.text(0.048, i, lbl, transform=bl, va="center", ha="left", fontsize=8.8, color=t["text"])
+                if ds is not None:
+                    ax.barh(i - bar_h / 2, ds[0], height=bar_h, color=t["dl"], alpha=0.88, zorder=3)
+                    if ds[2] > ds[1]:
+                        ax.plot([ds[1], ds[2]], [i - bar_h / 2, i - bar_h / 2], color=t["ink"],
+                                linewidth=1.6, solid_capstyle="round", zorder=5)
+                if us is not None:
+                    ax.barh(i + bar_h / 2, us[0], height=bar_h, color=t["ul"], alpha=0.88, zorder=3)
+                    if us[2] > us[1]:
+                        ax.plot([us[1], us[2]], [i + bar_h / 2, i + bar_h / 2], color=t["ink"],
+                                linewidth=1.6, solid_capstyle="round", zorder=5)
+                d_txt = fmt_num(ds[0], digits) if ds else "—"
+                u_txt = fmt_num(us[0], digits) if us else "—"
+                ax.text(0.818, i, f"{d_txt:>5} / {u_txt:>5}", transform=bl, ha="right", va="center",
+                        fontsize=8.5, family="DejaVu Sans Mono", color=t["ink"])
+                iqr_txt = f"[{fmt_num(us[1], digits)}, {fmt_num(us[2], digits)}]" if us else "—"
+                ax.text(0.964, i, iqr_txt, transform=bl, ha="right", va="center",
+                        fontsize=8.2, family="DejaVu Sans Mono", color=t["muted"])
+            if ceiling is not None:
+                ax.axvline(ceiling, color=t["muted"], linestyle="--", linewidth=1.25, zorder=4)
+            ax.set_yticks([])
+            ax.set_ylim(len(rows) - 0.35, -0.75)
+            ax.set_xlim(0, max(mx * 1.08, (ceiling or 0.0) * 1.07))
+            ax.set_xlabel("Throughput (Gbit/s)", fontsize=8.8, color=t["muted"], labelpad=3)
 
-        # Card 1: 10 Gbit/s Shaped
-        c1_y, c1_h = fh - 6.70, 4.80
-        _draw_card(
-            fig, 0.020, c1_y, 0.960, c1_h, t,
-            title="1. 10 Gbit/s Shaped Link (2 ms RTT, offloads on)",
-            direction="Higher is faster →",
-            legend=[("Download (Gbit/s)", t["dl"]), ("Upload (Gbit/s)", t["ul"]),
-                    ("Dashed = 9.56 Gbit/s TCP payload ceiling", t["faint"])],
-            footer="Right column shows median Download / Upload Gbit/s and server resource cost (Total CPU · Peak RAM) for that run.",
+        c1_h = 5.90
+        draw_panel(
+            fh - 0.78 - c1_h, c1_h,
+            "1. 10 Gbit/s Shaped Link (2 ms RTT, offloads on)",
+            rows_10g, 9.56, 2,
+            "Bars show median across VMs; whiskers span the middle 50% (IQR). Identical default roster in both panels.",
+            [("Download", t["dl"], "bar"), ("Upload", t["ul"], "bar"),
+             ("VM middle 50% (IQR)", t["ink"], "whisker"),
+             ("9.56 Gbit/s modeled TCP ceiling", t["muted"], "dashed")],
         )
-        ax1 = _add_ax(fig, 0.215, c1_y + 0.84, 0.510, c1_h - 1.56, t, "x")
-        rows1 = []
-        for lbl, cl in spec_10g:
-            d = measure(FAST, cl, rate(DOWNLOAD, 1000))
-            u = measure(FAST, cl, rate(UPLOAD, 1000))
-            cpu = measure(FAST, cl, total_server_cpu)
-            ram = measure(FAST, cl, peak_memory)
-            if d or u:
-                rows1.append((lbl, median(d) if d else 0.0, median(u) if u else 0.0,
-                              median(cpu) if cpu else None, median(ram) if ram else None))
-        y1 = np.arange(len(rows1))
-        h = 0.36
-        ax1.barh(y1 - h / 2, [r[1] for r in rows1], height=h, color=t["dl"], alpha=0.92, zorder=3)
-        ax1.barh(y1 + h / 2, [r[2] for r in rows1], height=h, color=t["ul"], alpha=0.88, zorder=3)
-        ax1.axvline(9.56, color=t["faint"], linestyle="--", linewidth=1.1, zorder=4)
-        bl1 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax1.transData)
-        ax1.text(0.848, -0.78, "DL / UL", transform=bl1, ha="right", va="bottom",
-                 fontsize=7.8, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
-        ax1.text(0.962, -0.78, "SRV CPU · RAM", transform=bl1, ha="right", va="bottom",
-                 fontsize=7.8, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
-        for i, (_, dv, uv, cv, rv) in enumerate(rows1):
-            ax1.text(0.848, i, f"{dv:4.2f} / {uv:4.2f}", transform=bl1, ha="right", va="center",
-                     fontsize=8.3, family="DejaVu Sans Mono", color=t["ink"], weight="bold" if i < 2 else "normal")
-            if cv is not None and rv is not None:
-                ax1.text(0.962, i, f"{cv:4.1f}s · {rv:3.0f}M", transform=bl1, ha="right", va="center",
-                         fontsize=8.0, family="DejaVu Sans Mono", color=t["muted"])
-        ax1.set_yticks(y1)
-        ax1.set_yticklabels([r[0] for r in rows1], fontsize=8.8, color=t["text"])
-        ax1.set_ylim(len(rows1) - 0.35, -0.65)
-        ax1.set_xlim(0, 10.3)
-        ax1.set_xlabel("Throughput (Gbit/s)", fontsize=8.5, color=t["muted"], labelpad=3)
-
-        # Card 2: Unshaped Virtual Link
-        c2_y, c2_h = 0.22, 4.80
-        _draw_card(
-            fig, 0.020, c2_y, 0.960, c2_h, t,
-            title="2. Unshaped Virtual Link (No Rate Limit, 1 Server vCPU / 2 Client vCPUs)",
-            direction="Higher is faster →",
-            legend=[("Download (Gbit/s)", t["dl"]), ("Upload (Gbit/s)", t["ul"])],
-            footer="Single-test host-local virtual link capacity (median across VMs). Native upload > download reflects zero-copy receive vs transmit.",
+        c2_h = 5.90
+        draw_panel(
+            0.22, c2_h,
+            "2. Unshaped Virtual Link (No Rate Limit, 1 Server vCPU / 2 Client vCPUs)",
+            rows_un, None, 1,
+            "Observed single-test throughput on host-local virtual link (median across VMs; whiskers = VM IQR). Native order reverses across AWS/Azure VMs.",
+            [("Download", t["dl"], "bar"), ("Upload", t["ul"], "bar"),
+             ("VM middle 50% (IQR)", t["ink"], "whisker")],
         )
-        ax2 = _add_ax(fig, 0.215, c2_y + 0.84, 0.510, c2_h - 1.56, t, "x")
-        rows2 = []
-        for lbl, cl in spec_un:
-            d = measure(UNCAPPED, cl, rate(DOWNLOAD, 1000))
-            u = measure(UNCAPPED, cl, rate(UPLOAD, 1000))
-            cpu = measure(UNCAPPED, cl, total_server_cpu)
-            ram = measure(UNCAPPED, cl, peak_memory)
-            if d or u:
-                rows2.append((lbl, median(d) if d else 0.0, median(u) if u else 0.0,
-                              median(cpu) if cpu else None, median(ram) if ram else None))
-        y2 = np.arange(len(rows2))
-        mx2 = max([max(r[1], r[2]) for r in rows2] + [55.0])
-        ax2.barh(y2 - h / 2, [r[1] for r in rows2], height=h, color=t["dl"], alpha=0.92, zorder=3)
-        ax2.barh(y2 + h / 2, [r[2] for r in rows2], height=h, color=t["ul"], alpha=0.88, zorder=3)
-        bl2 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax2.transData)
-        ax2.text(0.848, -0.78, "DL / UL", transform=bl2, ha="right", va="bottom",
-                 fontsize=7.8, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
-        ax2.text(0.962, -0.78, "SRV CPU · RAM", transform=bl2, ha="right", va="bottom",
-                 fontsize=7.8, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
-        for i, (_, dv, uv, cv, rv) in enumerate(rows2):
-            ax2.text(0.848, i, f"{dv:4.1f} / {uv:4.1f}", transform=bl2, ha="right", va="center",
-                     fontsize=8.3, family="DejaVu Sans Mono", color=t["ink"], weight="bold" if i < 2 else "normal")
-            if cv is not None and rv is not None:
-                ax2.text(0.962, i, f"{cv:4.1f}s · {rv:3.0f}M", transform=bl2, ha="right", va="center",
-                         fontsize=8.0, family="DejaVu Sans Mono", color=t["muted"])
-        ax2.set_yticks(y2)
-        ax2.set_yticklabels([r[0] for r in rows2], fontsize=8.8, color=t["text"])
-        ax2.set_ylim(len(rows2) - 0.35, -0.65)
-        ax2.set_xlim(0, mx2 * 1.06)
-        ax2.set_xlabel("Throughput (Gbit/s)", fontsize=8.5, color=t["muted"], labelpad=3)
 
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# 2. Accuracy, Hard Links, Upload Integrity & Bufferbloat Latency
+# 2. Accuracy, Hard Links, FIFO Counter Comparison & Paired Loaded RTT
 # ---------------------------------------------------------------------------
 
-def render_accuracy_chart(out_stem, *, report_date, vm_count, measure, paired, rate, shaper_upload, server_rx, fifo_latency):
+def render_accuracy_chart(
+    out_stem, *, report_date, vm_count, measure, paired, rate,
+    shaper_upload, server_rx, fifo_latency, loaded_delta, above_reference,
+):
     for theme in ("dark", "light"):
-        fh = 12.85
+        fh = 14.4
         fig, t = _new_fig(fh, theme)
         _draw_banner(fig, f"ACCURACY, HARD LINKS & LATENCY  ·  {report_date}  ·  {vm_count} RUNNER VMs",
-                     "1 Gbit/s Agreement, Lossy/High-RTT Links, Upload Integrity & FIFO Latency", t)
+                     "1 Gbit/s Agreement, Loss/High-RTT Paths, FIFO Counters & Loaded RTT", t)
 
-        # Card 1 (Full-width top): 1 Gbit/s Upload Agreement vs same-pass iperf3 (Chrome, Firefox, Native)
-        c1_y, c1_h = fh - 5.40, 4.65
+        # Card 1: 1 Gbit/s Upload Agreement vs Same-Pass iperf3
+        c1_h = 5.05
+        c1_y = fh - 0.78 - c1_h
         _draw_card(
             fig, 0.020, c1_y, 0.960, c1_h, t,
-            title="1. 1 Gbit/s Upload Agreement vs Same-Pass iperf3",
+            title="1. 1 Gbit/s Upload Agreement vs Same-Pass iperf3 (Default Clients)",
             direction="← Closer to 0% is tighter →",
-            legend=[("Shaded = ±1% band", t["good"]), ("Dots = individual VMs · Bar = middle 50% (IQR)", t["dl"])],
-            footer="0% matches same-pass iperf3 receiver payload rate on the same VM. Negative = app reported slower than iperf3.",
+            legend=[("±1% display guide", t["good"], "band"),
+                    ("VM median", t["muted"], "dot"),
+                    ("Campaign median + IQR", t["muted"], "whisker")],
+            footer="Paired vs sequential iperf3 on the same VM and pass; differences include both reporting and achieved throughput.",
         )
-        ax1 = _add_ax(fig, 0.255, c1_y + 0.84, 0.485, c1_h - 1.56, t, "x")
+        ax1 = _add_ax(fig, 0.255, c1_y + 0.86, 0.475, c1_h - 1.62, t, "x")
         agree_rows = []
         for sec, items in [
             ("Chrome", [
@@ -484,413 +492,500 @@ def render_accuracy_chart(out_stem, *, report_date, vm_count, measure, paired, r
                 agree_rows.append(("row", lbl, cl, measure(PLAIN, cl, lambda r: paired(r, UPLOAD))))
 
         all_a = [v for k, _, _, vs in agree_rows if k == "row" and vs for v in vs]
-        ax1.axvspan(-1.0, 1.0, color=t["good_band"], alpha=0.80, zorder=0)
+        ax1.axvspan(-1.0, 1.0, color=t["good_band"], alpha=0.88 if theme == "dark" else 0.75, zorder=0)
         ax1.axvline(0.0, color=t["good"], linewidth=1.2, zorder=2)
         bl1 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax1.transData)
-        ax1.text(0.832, -0.72, "MEDIAN", transform=bl1, ha="right", va="bottom",
-                 fontsize=7.8, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
-        ax1.text(0.962, -0.72, "IQR [p25, p75]", transform=bl1, ha="right", va="bottom",
-                 fontsize=7.8, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        ax1.text(0.832, -0.78, "MEDIAN", transform=bl1, ha="right", va="bottom",
+                 fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        ax1.text(0.962, -0.78, "IQR [p25, p75]", transform=bl1, ha="right", va="bottom",
+                 fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
         for i, (kind, lbl, cl, vs) in enumerate(agree_rows):
             if kind == "sec":
+                if i > 0:
+                    ax1.axhline(i - 0.50, color=t["divider"], linewidth=0.7, zorder=1)
                 ax1.text(0.036, i, lbl, transform=bl1, va="center", ha="left",
-                         fontsize=9.0, weight="bold", color=t["ink"])
+                         fontsize=9.1, weight="bold", color=t["ink"])
                 continue
             col = t["family"][_family_of(cl[0])]
-            ax1.scatter(0.042, i, transform=bl1, color=col, s=22, clip_on=False, zorder=5)
-            ax1.text(0.056, i, lbl, transform=bl1, va="center", ha="left", fontsize=8.6, color=t["text"])
+            ax1.scatter(0.044, i, transform=bl1, color=col, s=26, clip_on=False, zorder=5)
+            ax1.text(0.058, i, lbl, transform=bl1, va="center", ha="left", fontsize=8.8, color=t["text"])
             if vs:
                 med, lo, hi = spread(vs)
                 offs = [i + ((k % 5) - 2) * 0.065 for k in range(len(vs))]
-                ax1.scatter(vs, offs, color=col, s=14, alpha=0.45, linewidth=0, zorder=3)
-                ax1.plot([lo, hi], [i, i], color=col, linewidth=3.2, solid_capstyle="round", zorder=4)
-                ax1.scatter(med, i, color=col, s=42, edgecolor=t["card"], linewidth=0.9, zorder=5)
-                in_band = abs(med) <= 1.0
+                ax1.scatter(vs, offs, color=col, s=18, alpha=0.62 if theme == "dark" else 0.48, linewidth=0, zorder=3)
+                ax1.plot([lo, hi], [i, i], color=col, linewidth=3.3, solid_capstyle="round", zorder=4)
+                ax1.scatter(med, i, color=col, s=48, edgecolor=t["card"], linewidth=1.0, zorder=5)
                 ax1.text(0.832, i, f"{fmt_num(med, 1, True)}%", transform=bl1, ha="right", va="center",
-                         fontsize=8.5, family="DejaVu Sans Mono",
-                         color=t["good"] if in_band else t["ink"], weight="bold" if in_band else "normal")
+                         fontsize=8.6, family="DejaVu Sans Mono", color=t["ink"])
                 ax1.text(0.962, i, f"[{fmt_num(lo, 1)}, {fmt_num(hi, 1)}]", transform=bl1, ha="right", va="center",
-                         fontsize=8.0, family="DejaVu Sans Mono", color=t["muted"])
+                         fontsize=8.2, family="DejaVu Sans Mono", color=t["muted"])
         ax1.set_yticks([])
-        ax1.set_ylim(len(agree_rows) - 0.3, -0.75)
+        ax1.set_ylim(len(agree_rows) - 0.3, -0.78)
         ax1.set_xlim(min([-2.0, *(all_a or [-2.0])]) - 0.8, max([2.0, *(all_a or [2.0])]) + 0.8)
         ax1.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+g}%" if v else "0%"))
-        ax1.set_xlabel("Difference from same-pass iperf3 (%)", fontsize=8.4, color=t["muted"], labelpad=3)
+        ax1.set_xlabel("Difference from same-pass iperf3 (%)", fontsize=8.7, color=t["muted"], labelpad=3)
 
-        # Card 2 (Middle, 2 side-by-side cards): 1% Packet Loss & 160 ms High-BDP
-        c2_y, c2_h = fh - 9.15, 3.55
+        # Card 2 & 3: Complete Chrome & Native Roster on 1% Loss & 160 ms High-BDP
+        c2_h = 4.10
+        c2_y = c1_y - 0.20 - c2_h
         hard_items = [
-            ("GM Browser · Chr", ("graphite-meter", "chrome")),
-            ("OpenSpeedTest · Chr", ("openspeedtest", "chrome")),
-            ("LibreSpeed Rust · Chr", ("librespeed-rust", "chrome")),
-            ("GM Browser · FF", ("graphite-meter", "firefox")),
+            ("GM · Chr", ("graphite-meter", "chrome")),
+            ("OST · Chr", ("openspeedtest", "chrome")),
+            ("LS Go · Chr", ("librespeed-go", "chrome")),
+            ("LS Rust · Chr", ("librespeed-rust", "chrome")),
+            ("LS PHP · Chr", ("librespeed", "chrome")),
             ("GM Terminal", ("graphite-meter-client", None)),
-            ("LibreSpeed CLI", ("librespeed-cli", None)),
+            ("LS CLI", ("librespeed-cli", None)),
             ("iperf3 (ref)", REFERENCE),
         ]
-        for x_c, sc_id, ctitle, ceil_x in [
-            (0.020, LOSS, "2. 100 Mbit/s · 1% Loss (40 ms RTT)", None),
-            (0.510, LONG, "3. 300 Mbit/s · 160 ms RTT (High-BDP)", 286.9),
+        for x_c, sc_id, ctitle, ceil_x, leg in [
+            (0.020, LOSS, "2. 100M · 1% Loss (Chrome & Native)", None,
+             [("Download", t["dl"], "bar"), ("Upload", t["ul"], "bar")]),
+            (0.510, LONG, "3. 300M · 160ms RTT (Chrome & Native)", 286.9,
+             [("Download", t["dl"], "bar"), ("Upload", t["ul"], "bar"),
+              ("286.9M TCP model", t["muted"], "dashed")]),
         ]:
-            _draw_card(
-                fig, x_c, c2_y, 0.470, c2_h, t,
-                title=ctitle,
-                direction="Higher →",
-                legend=[("Download", t["dl"]), ("Upload", t["ul"])],
-            )
-            axc = _add_ax(fig, x_c + 0.165, c2_y + 0.50, 0.282, c2_h - 1.18, t, "x")
+            _draw_card(fig, x_c, c2_y, 0.470, c2_h, t, title=ctitle, direction="Higher →", legend=leg)
+            axc = _add_ax(fig, x_c + 0.135, c2_y + 0.54, 0.315, c2_h - 1.24, t, "x")
             data = []
             for lbl, cl in hard_items:
-                d = measure(sc_id, cl, rate(DOWNLOAD))
-                u = measure(sc_id, cl, rate(UPLOAD))
-                if d or u:
-                    data.append((lbl, median(d) if d else 0.0, median(u) if u else 0.0))
+                dv = measure(sc_id, cl, rate(DOWNLOAD))
+                uv = measure(sc_id, cl, rate(UPLOAD))
+                if dv or uv:
+                    data.append((lbl, median(dv) if dv else None, median(uv) if uv else None))
             yc = np.arange(len(data))
-            mx = max([*(x[1] for x in data), *(x[2] for x in data), ceil_x or 1.0])
-            axc.barh(yc - 0.18, [x[1] for x in data], height=0.33, color=t["dl"], alpha=0.92, zorder=3)
-            axc.barh(yc + 0.18, [x[2] for x in data], height=0.33, color=t["ul"], alpha=0.88, zorder=3)
+            all_h = [v for _, dv, uv in data for v in (dv, uv) if v is not None]
+            mx = max([*(all_h or [1.0]), ceil_x or 1.0])
             for i, (_, dv, uv) in enumerate(data):
-                axc.text(dv + mx * 0.025, i - 0.18, f"{dv:.1f}", va="center", ha="left",
-                         fontsize=8.0, family="DejaVu Sans Mono", color=t["dl"])
-                axc.text(uv + mx * 0.025, i + 0.18, f"{uv:.1f}", va="center", ha="left",
-                         fontsize=8.0, family="DejaVu Sans Mono", color=t["ul"])
+                lb_box = dict(facecolor=t["card"], edgecolor="none", pad=0.5, alpha=0.85) if ceil_x else None
+                if dv is not None:
+                    axc.barh(i - 0.19, dv, height=0.34, color=t["dl"], alpha=0.90, zorder=3)
+                    axc.text(dv + mx * 0.024, i - 0.19, f"{dv:.1f}", va="center", ha="left",
+                             fontsize=8.3, family="DejaVu Sans Mono", color=t["dl_txt"], bbox=lb_box, zorder=5)
+                if uv is not None:
+                    axc.barh(i + 0.19, uv, height=0.34, color=t["ul"], alpha=0.88, zorder=3)
+                    axc.text(uv + mx * 0.024, i + 0.19, f"{uv:.1f}", va="center", ha="left",
+                             fontsize=8.3, family="DejaVu Sans Mono", color=t["ul_txt"], bbox=lb_box, zorder=5)
             if ceil_x:
-                axc.axvline(ceil_x, color=t["faint"], linestyle="--", linewidth=1.0, zorder=2)
+                axc.axvline(ceil_x, color=t["muted"], linestyle="--", linewidth=1.1, zorder=1)
+            axc.axhline(4.5, color=t["divider"], linestyle=":", linewidth=0.9)
             axc.set_yticks(yc)
-            axc.set_yticklabels([x[0] for x in data], fontsize=8.3, color=t["text"])
+            axc.set_yticklabels([x[0] for x in data], fontsize=8.6, color=t["text"])
             axc.invert_yaxis()
-            axc.set_xlim(0, mx * 1.28)
-            axc.set_xlabel("Throughput (Mbit/s)", fontsize=8.2, color=t["muted"])
+            axc.set_xlim(0, mx * 1.32)
+            axc.set_xlabel("Throughput (Mbit/s)", fontsize=8.5, color=t["muted"], labelpad=3)
 
-        # Card 4 & 5 (Bottom, 2 side-by-side cards): Upload Counter Integrity & FIFO Bufferbloat Latency
-        c3_y, c3_h = 0.20, 3.30
+        # Card 4 (Dot plot — NO clipped baseline bars!): 30 Mbit/s FIFO Upload Counters
+        c3_h = 4.05
+        c3_y = 0.20
         _draw_card(
             fig, 0.020, c3_y, 0.470, c3_h, t,
-            title="4. Upload Counter Check (30M FIFO)",
-            direction="≤ 28.7 Mbit/s",
-            legend=[("App", t["dl"]), ("Shaper", t["shaper"]), ("Server RX", t["rx"]), ("TCP ceiling", t["bad"])],
+            title="4. 30M FIFO Upload Counters",
+            direction="Dot plot (Mbit/s)",
+            legend=[("App", t["dl"], "dot"), ("Shaper", t["shaper"], "diamond"),
+                    ("Server RX", t["rx"], "triangle"), ("28.7M TCP payload", t["muted"], "dashed")],
+            footer="Shaper/RX include overhead; right = APP/RX · passes > iperf3.",
         )
-        ax4 = _add_ax(fig, 0.180, c3_y + 0.50, 0.285, c3_h - 1.18, t, "x")
+        ax4 = _add_ax(fig, 0.145, c3_y + 0.86, 0.240, c3_h - 1.72, t, "x")
         uc_items = [
-            ("OpenSpeedTest · Chr", ("openspeedtest", "chrome")),
-            ("OpenSpeedTest · FF", ("openspeedtest", "firefox")),
-            ("LibreSpeed PHP · Chr", ("librespeed", "chrome")),
-            ("GM Browser · Chr", ("graphite-meter", "chrome")),
-            ("GM Terminal", ("graphite-meter-client", None)),
+            ("OST · Chr", ("openspeedtest", "chrome")),
+            ("OST · FF", ("openspeedtest", "firefox")),
+            ("LS PHP · Chr", ("librespeed", "chrome")),
+            ("GM · Chr", ("graphite-meter", "chrome")),
+            ("GM Term.", ("graphite-meter-client", None)),
             ("iperf3 (ref)", REFERENCE),
         ]
         uc_rows = []
-        for lbl, cl in uc_items:
-            app = measure(FIFO, cl, rate(UPLOAD))
-            shp = measure(FIFO, cl, shaper_upload)
-            rx = measure(FIFO, cl, server_rx)
-            if app:
-                uc_rows.append((lbl, median(app), median(shp) if shp else 0.0, median(rx) if rx else 0.0))
+        for lbl, row_cl in uc_items:
+            av = measure(FIFO, row_cl, rate(UPLOAD))
+            sv = measure(FIFO, row_cl, shaper_upload)
+            rv = measure(FIFO, row_cl, server_rx)
+            ab = above_reference(FIFO, row_cl)
+            if av:
+                uc_rows.append((lbl, row_cl, median(av), median(sv) if sv else None, median(rv) if rv else None, ab))
         y4 = np.arange(len(uc_rows))
-        h4 = 0.25
-        ax4.barh(y4 - h4, [r[1] for r in uc_rows], height=h4, color=t["dl"], alpha=0.92, zorder=3)
-        ax4.barh(y4, [r[2] for r in uc_rows], height=h4, color=t["shaper"], alpha=0.68, zorder=3)
-        ax4.barh(y4 + h4, [r[3] for r in uc_rows], height=h4, color=t["rx"], alpha=0.82, zorder=3)
-        ax4.axvline(28.69, color=t["bad"], linestyle="--", linewidth=1.2, zorder=4)
-        for i, (_, av, _, _) in enumerate(uc_rows):
-            ax4.text(av + 0.25, i - h4, f"{av:.1f}", va="center", ha="left", fontsize=8.2,
-                     family="DejaVu Sans Mono", color=t["bad"] if av > 29.2 else t["ink"], weight="bold")
+        bl4 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax4.transData)
+        ax4.axvline(28.69, color=t["muted"], linestyle="--", linewidth=1.2, zorder=2)
+        ax4.text(0.474, -0.72, "APP/RX · >ip3", transform=bl4, ha="right", va="bottom",
+                 fontsize=7.7, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        all_u = [28.69]
+        for i, (_, row_cl, av, sv, rv, ab) in enumerate(uc_rows):
+            all_u.append(av)
+            if sv is not None:
+                all_u.append(sv)
+                ax4.scatter(sv, i + 0.14, color=t["shaper"], marker="D", s=34, edgecolor=t["card"], linewidth=0.6, zorder=4)
+            if rv is not None:
+                all_u.append(rv)
+                ax4.scatter(rv, i - 0.14, color=t["rx"], marker="^", s=40, edgecolor=t["card"], linewidth=0.6, zorder=4)
+            ax4.scatter(av, i, color=t["dl"], marker="o", s=48, edgecolor=t["card"], linewidth=0.8, zorder=5)
+            ab_txt = "ref" if row_cl == REFERENCE else (f"{ab[0]}/{ab[1]}" if ab else "—")
+            rx_txt = f"{rv:.1f}" if rv is not None else "—"
+            ax4.text(0.474, i, f"{av:.1f}/{rx_txt} · {ab_txt}", transform=bl4, ha="right", va="center",
+                     fontsize=7.9, family="DejaVu Sans Mono", color=t["ink"])
         ax4.set_yticks(y4)
-        ax4.set_yticklabels([r[0] for r in uc_rows], fontsize=8.3, color=t["text"])
-        ax4.invert_yaxis()
-        ax4.set_xlim(22, 33.2)
-        ax4.set_xlabel("Upload rate (Mbit/s)", fontsize=8.2, color=t["muted"])
+        ax4.set_yticklabels([r[0] for r in uc_rows], fontsize=8.5, color=t["text"])
+        ax4.set_ylim(len(uc_rows) - 0.35, -0.75)
+        ax4.set_xlim(min(all_u) - 0.8, max(all_u) + 0.9)
+        ax4.set_xlabel("Upload rate (Mbit/s)", fontsize=8.5, color=t["muted"], labelpad=3)
 
-        _draw_card(
+        # Card 5: Graphite Meter Paired Loaded RTT vs Idle ICMP + FIFO Queue Estimate
+        lr5 = _draw_card(
             fig, 0.510, c3_y, 0.470, c3_h, t,
-            title="5. Loaded Latency (200 ms FIFO)",
-            direction="App vs Queue",
-            legend=[("App reported (+Δ ms)", t["dl"]), ("Shaper queue estimate", t["shaper"])],
+            title="5. GM Loaded RTT (FIFO)",
+            direction="← Closer to 0 ms →",
+            legend=[("Paired median + VM IQR", t["dl"], "whisker"),
+                    ("0 = ICMP + FIFO queue", t["good"], "dashed")],
+            footer="Paired per-run App − (Idle ICMP + median FIFO queue), in ms.",
         )
-        ax5 = _add_ax(fig, 0.675, c3_y + 0.50, 0.285, c3_h - 1.18, t, "x")
+        top5 = 0.78 + 0.22 * max(0, lr5 - 1)
+        ax5 = _add_ax(fig, 0.625, c3_y + 0.86, 0.195, c3_h - 0.86 - top5, t, "x")
         f_rows = []
         for lbl, cl, fld, ddir in [
-            ("GM Chrome · Down", ("graphite-meter", "chrome"), "loadedLatencyDownMs", "down"),
-            ("GM Chrome · Up", ("graphite-meter", "chrome"), "loadedLatencyUpMs", "up"),
-            ("GM Firefox · Down", ("graphite-meter", "firefox"), "loadedLatencyDownMs", "down"),
-            ("GM Firefox · Up", ("graphite-meter", "firefox"), "loadedLatencyUpMs", "up"),
-            ("GM Terminal · Down", ("graphite-meter-client", None), "loadedLatencyDownMs", "down"),
-            ("GM Terminal · Up", ("graphite-meter-client", None), "loadedLatencyUpMs", "up"),
+            ("Chr · Down", ("graphite-meter", "chrome"), "loadedLatencyDownMs", "down"),
+            ("Chr · Up", ("graphite-meter", "chrome"), "loadedLatencyUpMs", "up"),
+            ("FF · Down", ("graphite-meter", "firefox"), "loadedLatencyDownMs", "down"),
+            ("FF · Up", ("graphite-meter", "firefox"), "loadedLatencyUpMs", "up"),
+            ("Term · Down", ("graphite-meter-client", None), "loadedLatencyDownMs", "down"),
+            ("Term · Up", ("graphite-meter-client", None), "loadedLatencyUpMs", "up"),
         ]:
-            app = measure(FIFO, cl, rate(fld))
-            est = measure(FIFO, cl, fifo_latency(ddir))
-            if app and est:
-                f_rows.append((lbl, median(app), median(est)))
+            dv = spread(measure(FIFO, cl, loaded_delta(fld, ddir)))
+            if dv is not None:
+                f_rows.append((lbl, dv))
         y5 = np.arange(len(f_rows))
-        h5 = 0.34
-        m5 = max([max(r[1], r[2]) for r in f_rows] + [200.0])
-        ax5.barh(y5 - h5 / 2, [r[1] for r in f_rows], height=h5, color=t["dl"], alpha=0.92, zorder=3)
-        ax5.barh(y5 + h5 / 2, [r[2] for r in f_rows], height=h5, color=t["shaper"], alpha=0.72, zorder=3)
-        for i, (_, av, ev) in enumerate(f_rows):
-            ax5.text(av + 4.0, i - h5 / 2, f"{av:.0f} ({av - ev:+.0f})", va="center", ha="left",
-                     fontsize=8.1, family="DejaVu Sans Mono", color=t["ink"], weight="bold")
-            ax5.text(ev + 4.0, i + h5 / 2, f"{ev:.0f} ms", va="center", ha="left",
-                     fontsize=7.9, family="DejaVu Sans Mono", color=t["muted"])
+        bl5 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax5.transData)
+        ax5.axvline(0.0, color=t["good"], linestyle="--", linewidth=1.2, zorder=2)
+        ax5.text(0.964, -0.72, "MEDIAN [IQR] ms", transform=bl5, ha="right", va="bottom",
+                 fontsize=7.7, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        all_d = [0.0]
+        for i, (_, (med, lo, hi)) in enumerate(f_rows):
+            all_d.extend([lo, hi])
+            ax5.plot([lo, hi], [i, i], color=t["dl"], linewidth=3.0, solid_capstyle="round", zorder=4)
+            ax5.scatter(med, i, color=t["dl"], s=46, edgecolor=t["card"], linewidth=0.9, zorder=5)
+            ax5.text(0.964, i, f"{med:+.1f} [{lo:+.1f}, {hi:+.1f}]", transform=bl5, ha="right", va="center",
+                     fontsize=7.9, family="DejaVu Sans Mono", color=t["ink"])
         ax5.set_yticks(y5)
-        ax5.set_yticklabels([r[0] for r in f_rows], fontsize=8.3, color=t["text"])
-        ax5.invert_yaxis()
-        ax5.set_xlim(0, m5 * 1.46)
-        ax5.set_xlabel("Loaded latency (ms)", fontsize=8.2, color=t["muted"])
+        ax5.set_yticklabels([r[0] for r in f_rows], fontsize=8.5, color=t["text"])
+        ax5.set_ylim(len(f_rows) - 0.35, -0.75)
+        ax5.set_xlim(min(all_d) - 4.0, max(all_d) + 4.0)
+        ax5.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+g}" if v else "0"))
+        ax5.set_xlabel("App − estimate (ms)", fontsize=8.5, color=t["muted"], labelpad=3)
 
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# 3. Resource Usage Dashboard (1G Phase CPU, 10G/Unshaped CPU, Peak RAM incl. nginx, Client CPU)
+# 3. Resource Efficiency Dashboard (Split 1G CPU, Complete Legends, Faceted RAM, Grouped Client CPU)
 # ---------------------------------------------------------------------------
 
-def render_resources_chart(out_stem, *, report_date, vm_count, groups, measure, phase_cpu, peak_memory, client_cpu):
+def render_resources_chart(out_stem, *, report_date, vm_count, groups, measure, phase_cpu, peak_memory, client_cpu, rate):
     def total_cpu_per_gb(row):
         cpu = row.get("serverCpuSeconds")
         link = sum(row.get("linkBytes", {}).values())
         return cpu * 1e9 / link if cpu is not None and link else None
 
     main_items = [
-        ("GM Browser · Chr", ("graphite-meter", "chrome")),
-        ("LibreSpeed Rust · Chr", ("librespeed-rust", "chrome")),
-        ("LibreSpeed Go · Chr", ("librespeed-go", "chrome")),
-        ("LibreSpeed PHP · Chr", ("librespeed", "chrome")),
-        ("OpenSpeedTest · Chr", ("openspeedtest", "chrome")),
+        ("GM · Chr", ("graphite-meter", "chrome")),
+        ("OST · Chr", ("openspeedtest", "chrome")),
+        ("LS Go · Chr", ("librespeed-go", "chrome")),
+        ("LS Rust · Chr", ("librespeed-rust", "chrome")),
+        ("LS PHP · Chr", ("librespeed", "chrome")),
         ("GM Terminal", ("graphite-meter-client", None)),
-        ("LibreSpeed CLI", ("librespeed-cli", None)),
+        ("LS CLI", ("librespeed-cli", None)),
         ("iperf3 (ref)", REFERENCE),
     ]
 
-    # Collect ranked 10G & Unshaped Server CPU/GB across all HTTP/1.1 + native + iperf3 + key H2/H3
-    def ranked_cpu(scen):
-        rows = []
-        seen = set()
-        for (sc, cl) in groups:
-            if sc != scen or cl in seen:
-                continue
-            seen.add(cl)
-            tool, br = cl
-            if tool in (NO_LOADED_LATENCY, TERMINAL_NO_LOADED_LATENCY):
-                continue
-            vs = measure(scen, cl, total_cpu_per_gb)
-            if vs:
-                rows.append((_short_label(tool, br), cl, median(vs)))
-        rows.sort(key=lambda x: x[2])
-        return rows
-
-    r_10g = ranked_cpu(FAST)
-    r_un = ranked_cpu(UNCAPPED)
-
-    ram_rows = []
-    for lbl, sc, cl in [
-        ("GM Chrome H3 (10G)", FAST, ("graphite-meter-h3", "chrome")),
-        ("GM Chrome H2 (10G)", FAST, ("graphite-meter-h2", "chrome")),
-        ("GM Browser · Chr (1G)", PLAIN, ("graphite-meter", "chrome")),
-        ("GM Terminal (1G)", PLAIN, ("graphite-meter-client", None)),
-        ("iperf3 (1G)", PLAIN, REFERENCE),
-        ("LibreSpeed Rust (1G)", PLAIN, ("librespeed-rust", "chrome")),
-        ("GM Browser · nginx", PROXY, ("graphite-meter", "chrome")),
-        ("OpenSpeedTest (1G)", PLAIN, ("openspeedtest", "chrome")),
-        ("LibreSpeed Go (1G)", PLAIN, ("librespeed-go", "chrome")),
-        ("LibreSpeed CLI (1G)", PLAIN, ("librespeed-cli", None)),
-        ("LibreSpeed PHP (1G)", PLAIN, ("librespeed", "chrome")),
-        ("OpenSpeedTest H2 (10G)", FAST, ("openspeedtest-h2", "chrome")),
-        ("OpenSpeedTest · nginx", PROXY, ("openspeedtest", "chrome")),
-        ("LibreSpeed PHP · nginx", PROXY, ("librespeed", "chrome")),
-    ]:
-        vs = measure(sc, cl, peak_memory)
+    r_un = []
+    seen = set()
+    for (sc, cl) in groups:
+        if sc != UNCAPPED or cl in seen:
+            continue
+        seen.add(cl)
+        tool, br = cl
+        if tool in (NO_LOADED_LATENCY, TERMINAL_NO_LOADED_LATENCY):
+            continue
+        vs = measure(UNCAPPED, cl, total_cpu_per_gb)
         if vs:
-            ram_rows.append((lbl, cl, median(vs)))
-    ram_rows.sort(key=lambda x: x[2])
+            r_un.append((_short_label(tool, br), cl, median(vs)))
+    r_un.sort(key=lambda x: x[2])
 
+    def ram_facet(items, div, dig, unit):
+        out = []
+        for lbl, sc, cl in items:
+            vs = measure(sc, cl, peak_memory)
+            dv = measure(sc, cl, rate(DOWNLOAD, div))
+            uv = measure(sc, cl, rate(UPLOAD, div))
+            if vs:
+                rt = f"{median(dv):.{dig}f}/{median(uv):.{dig}f}{unit}" if dv and uv else ""
+                out.append((lbl, cl, median(vs), rt))
+        out.sort(key=lambda x: x[2])
+        return out
+
+    ram_direct = ram_facet([
+        ("GM · Chr", PLAIN, ("graphite-meter", "chrome")),
+        ("GM Terminal", PLAIN, ("graphite-meter-client", None)),
+        ("iperf3 (ref)", PLAIN, REFERENCE),
+        ("LS Rust · Chr", PLAIN, ("librespeed-rust", "chrome")),
+        ("OST · Chr", PLAIN, ("openspeedtest", "chrome")),
+        ("LS Go · Chr", PLAIN, ("librespeed-go", "chrome")),
+        ("LS CLI", PLAIN, ("librespeed-cli", None)),
+        ("LS PHP · Chr", PLAIN, ("librespeed", "chrome")),
+    ], 1, 0, "M")
+    ram_tls = ram_facet([
+        ("GM H3 · Chr", FAST, ("graphite-meter-h3", "chrome")),
+        ("GM H2 · Chr", FAST, ("graphite-meter-h2", "chrome")),
+        ("LS Go H2 · Chr", FAST, ("librespeed-go-h2", "chrome")),
+        ("OST H2 · Chr", FAST, ("openspeedtest-h2", "chrome")),
+    ], 1000, 1, "G")
+    ram_proxy = ram_facet([
+        ("GM + nginx", PROXY, ("graphite-meter", "chrome")),
+        ("OST + nginx", PROXY, ("openspeedtest", "chrome")),
+        ("LS PHP + nginx", PROXY, ("librespeed", "chrome")),
+    ], 1, 0, "M")
+
+    # Grouped horizontal client-side CPU roster (handles both 10 browser rows and 13 rows with native cgroup)
+    client_groups_spec = [
+        ("Chrome (browser process tree)", [
+            ("Graphite Meter", ("graphite-meter", "chrome")),
+            ("OpenSpeedTest", ("openspeedtest", "chrome")),
+            ("LibreSpeed Go", ("librespeed-go", "chrome")),
+            ("LibreSpeed Rust", ("librespeed-rust", "chrome")),
+            ("LibreSpeed PHP", ("librespeed", "chrome")),
+        ]),
+        ("Firefox (browser process tree)", [
+            ("Graphite Meter", ("graphite-meter", "firefox")),
+            ("OpenSpeedTest", ("openspeedtest", "firefox")),
+            ("LibreSpeed Go", ("librespeed-go", "firefox")),
+            ("LibreSpeed Rust", ("librespeed-rust", "firefox")),
+            ("LibreSpeed PHP", ("librespeed", "firefox")),
+        ]),
+        ("Native & Reference (container cgroup)", [
+            ("GM Terminal", ("graphite-meter-client", None)),
+            ("LibreSpeed CLI", ("librespeed-cli", None)),
+            ("iperf3 (ref)", REFERENCE),
+        ]),
+    ]
     c_rows = []
-    for cl in [
-        ("graphite-meter", "chrome"), ("librespeed-go", "chrome"), ("openspeedtest", "chrome"),
-        ("librespeed-rust", "chrome"), ("librespeed", "chrome"), ("graphite-meter", "firefox"),
-        ("openspeedtest", "firefox"), ("librespeed-go", "firefox"), ("librespeed-rust", "firefox"),
-        ("librespeed", "firefox"), ("graphite-meter-client", None), ("librespeed-cli", None), REFERENCE,
-    ]:
-        vs = measure(UNCAPPED, cl, client_cpu)
-        if vs:
-            c_rows.append((_short_label(cl[0], cl[1]), cl, spread(vs)))
-    c_rows.sort(key=lambda x: x[2][0])
-
-    def best_phase(scen, direc):
-        cands = []
-        for _, cl in main_items[:-1]:
-            vs = measure(scen, cl, phase_cpu(direc))
+    for sec, items in client_groups_spec:
+        sec_items = []
+        for lbl, cl in items:
+            vs = measure(UNCAPPED, cl, client_cpu)
             if vs:
-                cands.append((_short_label(cl[0], cl[1]), median(vs)))
-        return min(cands, key=lambda x: x[1]) if cands else ("—", None)
-
-    b_dn = best_phase(PLAIN, "down")
-    b_up = best_phase(PLAIN, "up")
-    b_un = best_phase(UNCAPPED, "up")
-    b_ram = ram_rows[0] if ram_rows else ("—", None, None)
+                sec_items.append((lbl, cl, spread(vs), len(vs)))
+        if sec_items:
+            sec_items.sort(key=lambda x: x[2][0])
+            c_rows.append(("sec", sec, None, None, 0))
+            for lbl, cl, sp, n in sec_items:
+                c_rows.append(("row", lbl, cl, sp, n))
 
     for theme in ("dark", "light"):
-        fh = 14.1
+        c4_h = 3.95 if len(c_rows) <= 13 else 4.75
+        fh = 0.80 + 4.45 + 0.20 + 4.30 + 0.20 + c4_h + 0.22
         fig, t = _new_fig(fh, theme)
         _draw_banner(fig, f"RESOURCE EFFICIENCY  ·  {report_date}  ·  {vm_count} RUNNER VMs",
-                     "Server CPU per GB (Offloads Off vs On), Peak RAM & Client CPU", t)
+                     "Server CPU per GB, Faceted Peak RAM & Client-Side CPU", t)
 
-        tiles = [
-            (f"{b_dn[1]:.3f} s/GB" if b_dn[1] else "—", "Lowest 1G Down CPU", b_dn[0], t["dl"]),
-            (f"{b_up[1]:.3f} s/GB" if b_up[1] else "—", "Lowest 1G Up CPU", b_up[0], t["good"]),
-            (f"{b_un[1]:.3f} s/GB" if b_un[1] else "—", "Lowest Unshaped Up", b_un[0], t["good"]),
-            (f"{b_ram[2]:.1f} MB" if b_ram[2] else "—", "Lowest Peak RAM", b_ram[0], t["dl"]),
-        ]
-        _draw_kpi_strip(fig, fh - 1.72, 0.94, tiles, t)
-
-        fam_legend = [
-            ("GM H1", t["family"]["gm1"]), ("GM H2/H3/WT", t["family"]["gm2"]),
-            ("iperf3", t["family"]["ip"]), ("LibreSpeed PHP/CLI", t["family"]["ls"]),
-            ("LS Go", t["family"]["lsg"]), ("LS Rust", t["family"]["lsr"]),
-            ("OpenSpeedTest", t["family"]["ost"]),
+        fam_legend_full = [
+            ("GM H1", t["family"]["gm1"], "bar"), ("GM H2/H3", t["family"]["gm2"], "bar"),
+            ("iperf3", t["family"]["ip"], "bar"), ("LS PHP/CLI", t["family"]["ls"], "bar"),
+            ("LS Go", t["family"]["lsg"], "bar"), ("LS Rust", t["family"]["lsr"], "bar"),
+            ("OST", t["family"]["ost"], "bar"),
         ]
 
-        # Card 1: 1 Gbit/s Server CPU by Phase (Download vs Upload) + 10G & Unshaped Upload CPU
-        c1_y, c1_h = fh - 5.95, 4.05
+        # Row 1 Left: 1 Gbit/s Server CPU SPLIT into separate Download & Upload axes!
+        c1_h = 4.45
+        c1_y = fh - 0.80 - c1_h
         _draw_card(
             fig, 0.020, c1_y, 0.470, c1_h, t,
             title="1. 1 Gbit/s Server CPU (offloads off)",
-            direction="← Lower",
-            legend=[("Download s/GB", t["dl"]), ("Upload s/GB", t["ul"])],
+            direction="← Lower s/GB",
+            legend=[("Download s/GB (left)", t["dl"], "bar"), ("Upload s/GB (right)", t["ul"], "bar")],
+            footer="Phase CPU / server-interface GB; brackets show achieved rate (Mbit/s).",
         )
-        ax1 = _add_ax(fig, 0.180, c1_y + 0.50, 0.282, c1_h - 1.18, t, "x")
         r1 = []
         for lbl, cl in main_items:
             dc = measure(PLAIN, cl, phase_cpu("down"))
             uc = measure(PLAIN, cl, phase_cpu("up"))
+            dr = measure(PLAIN, cl, rate(DOWNLOAD))
+            ur = measure(PLAIN, cl, rate(UPLOAD))
             if dc or uc:
-                r1.append((lbl, median(dc) if dc else 0.0, median(uc) if uc else 0.0))
+                r1.append((lbl, median(dc) if dc else None, median(uc) if uc else None,
+                           median(dr) if dr else None, median(ur) if ur else None))
         y1 = np.arange(len(r1))
-        m1 = max([max(x[1], x[2]) for x in r1] + [1.0])
-        ax1.barh(y1 - 0.18, [x[1] for x in r1], height=0.33, color=t["dl"], alpha=0.92, zorder=3)
-        ax1.barh(y1 + 0.18, [x[2] for x in r1], height=0.33, color=t["ul"], alpha=0.88, zorder=3)
-        for i, (_, dv, uv) in enumerate(r1):
-            ax1.text(dv + m1 * 0.025, i - 0.18, f"{dv:.3f}", va="center", ha="left",
-                     fontsize=7.9, family="DejaVu Sans Mono", color=t["dl"])
-            ax1.text(uv + m1 * 0.025, i + 0.18, f"{uv:.3f}", va="center", ha="left",
-                     fontsize=8.0, family="DejaVu Sans Mono", color=t["ul"], weight="bold")
-        ax1.axhline(4.5, color=t["divider"], linestyle=":", linewidth=1.0)
-        ax1.set_yticks(y1)
-        ax1.set_yticklabels([x[0] for x in r1], fontsize=8.3, color=t["text"])
-        ax1.invert_yaxis()
-        ax1.set_xlim(0, m1 * 1.28)
-        ax1.set_xlabel("Server CPU (s/GB)", fontsize=8.2, color=t["muted"])
+        ax1d = _add_ax(fig, 0.130, c1_y + 0.84, 0.165, c1_h - 1.56, t, "x")
+        ax1u = _add_ax(fig, 0.312, c1_y + 0.84, 0.165, c1_h - 1.56, t, "x")
+        md = max([x[1] for x in r1 if x[1] is not None] + [0.5])
+        mu = max([x[2] for x in r1 if x[2] is not None] + [5.0])
+        for i, (_, dv, uv, dr, ur) in enumerate(r1):
+            if dv is not None:
+                ax1d.barh(i, dv, height=0.62, color=t["dl"], alpha=0.90, zorder=3)
+                drt = f" ({dr:.0f}M)" if dr is not None else ""
+                ax1d.text(dv + md * 0.03, i, f"{dv:.2f}{drt}", va="center", ha="left",
+                          fontsize=7.8, family="DejaVu Sans Mono", color=t["dl_txt"])
+            if uv is not None:
+                ax1u.barh(i, uv, height=0.62, color=t["ul"], alpha=0.88, zorder=3)
+                urt = f" ({ur:.0f}M)" if ur is not None else ""
+                ax1u.text(uv + mu * 0.03, i, f"{uv:.2f}{urt}", va="center", ha="left",
+                          fontsize=7.8, family="DejaVu Sans Mono", color=t["ul_txt"])
+        for axp in (ax1d, ax1u):
+            axp.axhline(4.5, color=t["divider"], linestyle=":", linewidth=0.9)
+            axp.set_yticks(y1)
+            axp.invert_yaxis()
+        ax1d.set_yticklabels([x[0] for x in r1], fontsize=8.4, color=t["text"])
+        ax1u.set_yticklabels([])
+        ax1d.set_xlim(0, md * 1.98)
+        ax1u.set_xlim(0, mu * 1.85)
+        ax1d.set_xlabel("Down (s/GB)", fontsize=8.3, color=t["muted"], labelpad=3)
+        ax1u.set_xlabel("Upload (s/GB)", fontsize=8.3, color=t["muted"], labelpad=3)
 
-        _draw_card(
+        # Row 1 Right: Unshaped Server CPU/GB with COMPLETE tool-family legend!
+        leg_rows = _draw_card(
             fig, 0.510, c1_y, 0.470, c1_h, t,
-            title="2. Unshaped Server CPU/GB (offloads on)",
-            direction="← Lower",
-            legend=[("GM H1", t["family"]["gm1"]), ("GM H2/H3", t["family"]["gm2"]),
-                    ("iperf3", t["family"]["ip"]), ("LS", t["family"]["ls"]), ("OST", t["family"]["ost"])],
+            title="2. Unshaped Server CPU (offloads on)",
+            direction="← Lower s/GB",
+            legend=fam_legend_full,
+            footer="Total server container CPU / shaper GB across both directions.",
         )
-        ax2 = _add_ax(fig, 0.678, c1_y + 0.50, 0.278, c1_h - 1.18, t, "x")
+        top_pad = 0.72 + (0.22 if leg_rows > 1 else 0.0)
+        ax2 = _add_ax(fig, 0.655, c1_y + 0.84, 0.305, c1_h - 0.84 - top_pad, t, "x")
         y2 = np.arange(len(r_un))
         m2 = max([r[2] for r in r_un] + [0.5])
-        for i, (lbl, cl, val) in enumerate(r_un):
+        for i, (_, cl, val) in enumerate(r_un):
             col = t["family"][_family_of(cl[0])]
-            ax2.barh(i, val, height=0.66, color=col, alpha=0.88 if i == 0 else 0.78, zorder=3)
-            ax2.text(val + m2 * 0.025, i, f"{val:.3f}s", va="center", ha="left",
-                     fontsize=7.8, family="DejaVu Sans Mono",
-                     color=t["ink"] if i == 0 else t["muted"], weight="bold" if i == 0 else "normal")
+            ax2.barh(i, val, height=0.66, color=col, alpha=0.88, zorder=3)
+            ax2.text(val + m2 * 0.025, i, f"{val:.3f} s/GB", va="center", ha="left",
+                     fontsize=7.9, family="DejaVu Sans Mono", color=t["text"])
         ax2.set_yticks(y2)
         ax2.set_yticklabels([r[0].replace("LibreSpeed ", "LS ").replace("Graphite Meter", "GM") for r in r_un],
-                            fontsize=7.9, color=t["text"])
+                            fontsize=8.0, color=t["text"])
         ax2.invert_yaxis()
-        ax2.set_xlim(0, m2 * 1.28)
-        ax2.set_xlabel("Total Server CPU / GB (s/GB)", fontsize=8.2, color=t["muted"])
+        ax2.set_xlim(0, m2 * 1.45)
+        ax2.set_xlabel("Total Server CPU / shaper GB (s/GB)", fontsize=8.3, color=t["muted"], labelpad=3)
 
-        # Card 3: Peak Server Container RAM across Direct, HTTP/2 & Behind nginx
-        c2_y, c2_h = fh - 10.95, 4.80
+        # Row 2: Faceted Peak Server Memory (Direct 1G | TLS H2/H3 10G | Behind nginx)
+        c2_h = 4.30
+        c2_y = c1_y - 0.20 - c2_h
         _draw_card(
             fig, 0.020, c2_y, 0.960, c2_h, t,
-            title="3. Peak Server Memory Across Direct (1G), HTTP/2 (10G) & nginx Reverse Proxy",
-            direction="← Lower is better",
-            legend=fam_legend,
-            footer="cgroup v2 memory.peak per run (MB). Behind-nginx rows count both the server container and its nginx sidecar.",
+            title="3. Peak Server Memory by Deployment (With Achieved DL/UL Rate)",
+            direction="← Lower MB",
+            legend=fam_legend_full,
+            footer="cgroup v2 memory.peak per run (MB). Behind-nginx values are the sum of server + nginx container peaks (not simultaneous).",
         )
-        ax3 = _add_ax(fig, 0.235, c2_y + 0.84, 0.715, c2_h - 1.52, t, "x")
-        y3 = np.arange(len(ram_rows))
-        m3 = max([r[2] for r in ram_rows] + [50.0])
-        for i, (lbl, cl, val) in enumerate(ram_rows):
-            col = t["family"][_family_of(cl[0])]
-            ax3.barh(i, val, height=0.66, color=col, alpha=0.90 if i < 3 else 0.80, zorder=3)
-            ax3.text(val + m3 * 0.015, i, f"{val:.1f} MB", va="center", ha="left",
-                     fontsize=8.3, family="DejaVu Sans Mono",
-                     color=t["ink"] if i < 3 else t["muted"], weight="bold" if i < 3 else "normal")
-        ax3.set_yticks(y3)
-        ax3.set_yticklabels([r[0] for r in ram_rows], fontsize=8.5, color=t["text"])
-        ax3.invert_yaxis()
-        ax3.set_xlim(0, m3 * 1.15)
-        ax3.set_xlabel("Peak server container memory (MB)", fontsize=8.4, color=t["muted"], labelpad=3)
+        # Left facet: Direct 1 Gbit/s (0..95 MB zoomed!)
+        ax3a = _add_ax(fig, 0.130, c2_y + 0.84, 0.365, c2_h - 1.72, t, "x")
+        ax3a.set_title("Direct · 1 Gbit/s (offloads off)", fontsize=9.0, color=t["ink"], loc="left", pad=6)
+        m3a = max([r[2] for r in ram_direct] + [20.0])
+        for i, (_, cl, val, rt) in enumerate(ram_direct):
+            ax3a.barh(i, val, height=0.64, color=t["family"][_family_of(cl[0])], alpha=0.88, zorder=3)
+            ax3a.text(val + m3a * 0.025, i, f"{val:.1f} MB ({rt})", va="center", ha="left",
+                      fontsize=8.1, family="DejaVu Sans Mono", color=t["text"])
+        ax3a.set_yticks(np.arange(len(ram_direct)))
+        ax3a.set_yticklabels([r[0] for r in ram_direct], fontsize=8.5, color=t["text"])
+        ax3a.invert_yaxis()
+        ax3a.set_xlim(0, m3a * 1.62)
+        ax3a.set_xlabel("Peak RAM (MB)", fontsize=8.4, color=t["muted"], labelpad=3)
 
-        # Card 4: Client-Side CPU Efficiency on Unshaped
-        c3_y, c3_h = 0.20, 2.75
+        # Right-top facet: TLS HTTP/2 & HTTP/3 on 10 Gbit/s
+        ax3b = _add_ax(fig, 0.625, c2_y + 2.22, 0.335, 1.18, t, "x")
+        ax3b.set_title("TLS HTTP/2 & HTTP/3 · 10 Gbit/s", fontsize=9.0, color=t["ink"], loc="left", pad=5)
+        m3b = max([r[2] for r in ram_tls] + [50.0])
+        for i, (_, cl, val, rt) in enumerate(ram_tls):
+            ax3b.barh(i, val, height=0.62, color=t["family"][_family_of(cl[0])], alpha=0.88, zorder=3)
+            ax3b.text(val + m3b * 0.025, i, f"{val:.1f} MB ({rt})", va="center", ha="left",
+                      fontsize=8.1, family="DejaVu Sans Mono", color=t["text"])
+        ax3b.set_yticks(np.arange(len(ram_tls)))
+        ax3b.set_yticklabels([r[0] for r in ram_tls], fontsize=8.4, color=t["text"])
+        ax3b.invert_yaxis()
+        ax3b.set_xlim(0, m3b * 1.68)
+
+        # Right-bottom facet: Behind nginx · 1 Gbit/s (sum of peaks)
+        ax3c = _add_ax(fig, 0.625, c2_y + 0.84, 0.335, 0.96, t, "x")
+        ax3c.set_title("Behind nginx · 1 Gbit/s (sum of 2 peaks)", fontsize=9.0, color=t["ink"], loc="left", pad=5)
+        m3c = max([r[2] for r in ram_proxy] + [100.0])
+        for i, (_, cl, val, rt) in enumerate(ram_proxy):
+            ax3c.barh(i, val, height=0.60, color=t["family"][_family_of(cl[0])], alpha=0.88, zorder=3)
+            ax3c.text(val + m3c * 0.025, i, f"{val:.1f} MB ({rt})", va="center", ha="left",
+                      fontsize=8.1, family="DejaVu Sans Mono", color=t["text"])
+        ax3c.set_yticks(np.arange(len(ram_proxy)))
+        ax3c.set_yticklabels([r[0] for r in ram_proxy], fontsize=8.4, color=t["text"])
+        ax3c.invert_yaxis()
+        ax3c.set_xlim(0, m3c * 1.65)
+        ax3c.set_xlabel("Sum of peaks (MB)", fontsize=8.4, color=t["muted"], labelpad=3)
+
+        # Row 3: Grouped Horizontal Client-Side CPU Efficiency on Unshaped (scales cleanly to 10 or 13 rows!)
+        c3_y = 0.22
         _draw_card(
-            fig, 0.020, c3_y, 0.960, c3_h, t,
-            title="4. Client-Side CPU Efficiency on Unshaped (Bar = Median, Whisker = VM IQR)",
-            direction="← Lower is better",
-            legend=[("Browser process tree + native client cgroup where recorded", t["muted"])],
+            fig, 0.020, c3_y, 0.960, c4_h, t,
+            title="4. Client-Side CPU Efficiency on Unshaped (Default Clients & iperf3)",
+            direction="← Lower s/GB",
+            legend=[("GM H1", t["family"]["gm1"], "bar"), ("iperf3", t["family"]["ip"], "bar"),
+                    ("LS PHP/CLI", t["family"]["ls"], "bar"), ("LS Go", t["family"]["lsg"], "bar"),
+                    ("LS Rust", t["family"]["lsr"], "bar"), ("OST", t["family"]["ost"], "bar"),
+                    ("VM IQR", t["ink"], "whisker")],
+            footer="CPU seconds per shaper GB over the full run. Browser rows measure the browser process tree; native rows measure container cgroup.",
         )
-        ax4 = _add_ax(fig, 0.085, c3_y + 0.50, 0.875, c3_h - 1.18, t, "y")
-        xs4 = np.arange(len(c_rows))
-        m4 = max([r[2][2] for r in c_rows] + [1.0])
-        for i, (lbl, cl, (med, lo, hi)) in enumerate(c_rows):
+        ax4 = _add_ax(fig, 0.250, c3_y + 0.84, 0.545, c4_h - 1.56, t, "x")
+        bl4 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax4.transData)
+        m4 = max([r[3][2] for r in c_rows if r[0] == "row"] + [1.0])
+        ax4.text(0.962, -0.78, "MEDIAN [IQR] (n)", transform=bl4, ha="right", va="bottom",
+                 fontsize=8.0, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        for i, (kind, lbl, cl, sp, n) in enumerate(c_rows):
+            if kind == "sec":
+                if i > 0:
+                    ax4.axhline(i - 0.50, color=t["divider"], linewidth=0.75, zorder=1)
+                ax4.text(0.036, i, lbl, transform=bl4, va="center", ha="left",
+                         fontsize=8.9, weight="bold", color=t["ink"])
+                continue
+            med, lo, hi = sp
             col = t["family"][_family_of(cl[0])]
-            ax4.bar(i, med, width=0.58, color=col, alpha=0.84, zorder=3)
-            ax4.plot([i, i], [lo, hi], color=t["ink"], linewidth=1.7, zorder=4)
-            ax4.text(i, max(hi, med) + m4 * 0.04, f"{med:.2f}", ha="center", va="bottom",
-                     fontsize=8.2, family="DejaVu Sans Mono", color=t["ink"], weight="bold")
-        ax4.set_xticks(xs4)
-        ax4.set_xticklabels(
-            [r[0].replace("Graphite Meter", "GM").replace("LibreSpeed ", "LS ").replace("OpenSpeedTest", "OST").replace(" · ", "\n")
-             for r in c_rows],
-            fontsize=7.6 if len(c_rows) > 9 else 8.2,
-            color=t["text"],
-        )
-        ax4.set_ylim(0, m4 * 1.28)
-        ax4.set_ylabel("s/GB", fontsize=8.4, color=t["muted"])
+            ax4.text(0.050, i, lbl, transform=bl4, va="center", ha="left", fontsize=8.6, color=t["text"])
+            ax4.barh(i, med, height=0.58, color=col, alpha=0.86, zorder=3)
+            if hi > lo:
+                ax4.plot([lo, hi], [i, i], color=t["ink"], linewidth=1.7, solid_capstyle="round", zorder=5)
+            ax4.text(0.962, i, f"{med:.2f} [{lo:.2f}, {hi:.2f}] (n={n})", transform=bl4, ha="right", va="center",
+                     fontsize=8.2, family="DejaVu Sans Mono", color=t["text"])
+        ax4.set_yticks([])
+        ax4.set_ylim(len(c_rows) - 0.35, -0.78)
+        ax4.set_xlim(0, m4 * 1.12)
+        ax4.set_xlabel("Client CPU / shaper GB (s/GB)", fontsize=8.6, color=t["muted"], labelpad=3)
 
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# 4. Protocol & Transport Scaling (HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport)
+# 4. Protocol & Transport Scaling (Complete Keys + Separate 10G & Unshaped Scales)
 # ---------------------------------------------------------------------------
 
 def render_transports_chart(out_stem, *, report_date, vm_count, measure, rate):
-    def total_cpu_per_gb(row):
-        cpu = row.get("serverCpuSeconds")
-        link = sum(row.get("linkBytes", {}).values())
-        return cpu * 1e9 / link if cpu is not None and link else None
-
     for theme in ("dark", "light"):
-        fh = 6.5
+        fh = 7.4
         fig, t = _new_fig(fh, theme)
         _draw_banner(fig, f"PROTOCOL & TRANSPORT SCALING  ·  {report_date}  ·  {vm_count} RUNNER VMs",
                      "HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport", t)
 
-        proto_leg = [
-            ("HTTP/1.1", t["proto"]["HTTP/1.1"]), ("HTTP/2", t["proto"]["HTTP/2"]),
-            ("HTTP/3", t["proto"]["HTTP/3"]), ("WebTransport", t["proto"]["WebTransport"]),
-            ("iperf3 TCP", t["proto"]["iperf3"]),
+        cy, ch = 0.22, fh - 1.00
+        full_leg = [
+            ("HTTP/1.1", t["proto"]["HTTP/1.1"], "bar"),
+            ("HTTP/2", t["proto"]["HTTP/2"], "bar"),
+            ("HTTP/3", t["proto"]["HTTP/3"], "bar"),
+            ("WebTransport", t["proto"]["WebTransport"], "bar"),
+            ("iperf3 TCP", t["proto"]["iperf3"], "bar"),
+            ("Solid = Down", t["ink"], "bar"),
+            ("Outlined = Up", t["ink"], "outline"),
         ]
 
         # Left card: Chrome 10 Gbit/s
-        cy, ch = 0.22, fh - 1.00
-        _draw_card(
+        lr1 = _draw_card(
             fig, 0.020, cy, 0.470, ch, t,
             title="1. Chrome · 10 Gbit/s Shaped",
             direction="Higher →",
-            legend=proto_leg[:4],
-            footer="Solid = Download · Light = Upload · Dashed = 9.56 Gbit/s TCP ceiling.",
+            legend=[*full_leg, ("9.56G TCP model", t["muted"], "dashed")],
+            footer="Dashed = 9.56 Gbit/s modeled TCP payload ceiling (for TCP rows).",
         )
-        ax1 = _add_ax(fig, 0.195, cy + 0.84, 0.268, ch - 1.52, t, "x")
+        top1 = 0.72 + 0.22 * max(0, lr1 - 1)
+        ax1 = _add_ax(fig, 0.190, cy + 0.84, 0.278, ch - 0.84 - top1, t, "x")
         c_spec = [
             ("GM · HTTP/1.1", ("graphite-meter", "chrome"), "HTTP/1.1"),
             ("GM · HTTP/2", ("graphite-meter-h2", "chrome"), "HTTP/2"),
@@ -904,113 +999,112 @@ def render_transports_chart(out_stem, *, report_date, vm_count, measure, rate):
         ]
         r1 = []
         for lbl, cl, proto in c_spec:
-            d = measure(FAST, cl, rate(DOWNLOAD, 1000))
-            u = measure(FAST, cl, rate(UPLOAD, 1000))
-            cp = measure(FAST, cl, total_cpu_per_gb)
-            if d or u:
-                r1.append((lbl, proto, median(d) if d else 0.0, median(u) if u else 0.0, median(cp) if cp else None))
-        y1 = np.arange(len(r1))
-        h = 0.35
-        for i, (_, proto, dv, uv, cp) in enumerate(r1):
+            dv = measure(FAST, cl, rate(DOWNLOAD, 1000))
+            uv = measure(FAST, cl, rate(UPLOAD, 1000))
+            if dv or uv:
+                r1.append((lbl, proto, median(dv) if dv else None, median(uv) if uv else None))
+        h = 0.34
+        lbl_box = dict(facecolor=t["card"], edgecolor="none", pad=0.6, alpha=0.92)
+        for i, (_, proto, dv, uv) in enumerate(r1):
             c = t["proto"][proto]
-            ax1.barh(i - h / 2, dv, height=h, color=c, alpha=0.92, zorder=3)
-            ax1.barh(i + h / 2, uv, height=h, color=c, alpha=0.40, edgecolor=c, linewidth=0.9, zorder=3)
-            ax1.text(dv + 0.16, i - h / 2, f"{dv:.2f}", va="center", ha="left",
-                     fontsize=7.9, family="DejaVu Sans Mono", color=t["ink"])
-            ax1.text(uv + 0.16, i + h / 2, f"{uv:.2f}", va="center", ha="left",
-                     fontsize=7.7, family="DejaVu Sans Mono", color=t["muted"])
-        ax1.axvline(9.56, color=t["faint"], linestyle="--", linewidth=0.95, zorder=2)
-        ax1.set_yticks(y1)
-        ax1.set_yticklabels([r[0] for r in r1], fontsize=8.4, color=t["text"])
+            if dv is not None:
+                ax1.barh(i - h / 2, dv, height=h, color=c, alpha=0.92, zorder=3)
+                ax1.text(dv + 0.16, i - h / 2, f"{dv:.2f}", va="center", ha="left",
+                         fontsize=8.2, family="DejaVu Sans Mono", color=t["ink"], bbox=lbl_box, zorder=5)
+            if uv is not None:
+                ax1.barh(i + h / 2, uv, height=h, color=t["card_alt"], edgecolor=c, linewidth=1.35, zorder=3)
+                ax1.text(uv + 0.16, i + h / 2, f"{uv:.2f}", va="center", ha="left",
+                         fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], bbox=lbl_box, zorder=5)
+        ax1.axvline(9.56, color=t["muted"], linestyle="--", linewidth=1.1, zorder=1)
+        ax1.set_yticks(np.arange(len(r1)))
+        ax1.set_yticklabels([r[0] for r in r1], fontsize=8.6, color=t["text"])
         ax1.invert_yaxis()
-        ax1.set_xlim(0, 11.4)
-        ax1.set_xlabel("Throughput (Gbit/s)", fontsize=8.3, color=t["muted"], labelpad=3)
+        ax1.set_xlim(0, 11.6)
+        ax1.set_xlabel("Throughput (Gbit/s)", fontsize=8.6, color=t["muted"], labelpad=3)
 
-        # Right card: Native Terminal 10G & Unshaped
-        _draw_card(
+        # Right card: Native Terminal split into TWO properly scaled facets (10G Shaped top, Unshaped bottom)
+        lr2 = _draw_card(
             fig, 0.510, cy, 0.470, ch, t,
             title="2. Native Terminal · 10G & Unshaped",
             direction="Higher →",
-            legend=[("Solid = Download", t["dl"]), ("Light = Upload", t["muted"])],
-            footer="Terminal TLS variants force ALPN so protocols never silently fall back.",
+            legend=[
+                ("HTTP/1.1", t["proto"]["HTTP/1.1"], "bar"),
+                ("HTTP/2", t["proto"]["HTTP/2"], "bar"),
+                ("HTTP/3", t["proto"]["HTTP/3"], "bar"),
+                ("iperf3 TCP", t["proto"]["iperf3"], "bar"),
+                ("Solid = Down", t["ink"], "bar"),
+                ("Outlined = Up", t["ink"], "outline"),
+                ("9.56G TCP model", t["muted"], "dashed"),
+            ],
+            footer="Separate scales prevent 10 Gbit/s rows from compressing against unshaped.",
         )
-        ax2 = _add_ax(fig, 0.685, cy + 0.84, 0.268, ch - 1.52, t, "x")
-        n_spec = [
-            ("GM Term · H1 (10G)", FAST, ("graphite-meter-client", None), "HTTP/1.1"),
-            ("GM Term · H2 (10G)", FAST, ("graphite-meter-client-h2", None), "HTTP/2"),
-            ("GM Term · H3 (10G)", FAST, ("graphite-meter-client-h3", None), "HTTP/3"),
-            ("LS CLI · H1 (10G)", FAST, ("librespeed-cli", None), "HTTP/1.1"),
-            ("iperf3 (10G)", FAST, REFERENCE, "iperf3"),
-            ("GM Term · H1 (Unsh.)", UNCAPPED, ("graphite-meter-client", None), "HTTP/1.1"),
-            ("GM Term · H2 (Unsh.)", UNCAPPED, ("graphite-meter-client-h2", None), "HTTP/2"),
-            ("GM Term · H3 (Unsh.)", UNCAPPED, ("graphite-meter-client-h3", None), "HTTP/3"),
-            ("iperf3 (Unshaped)", UNCAPPED, REFERENCE, "iperf3"),
-        ]
-        r2 = []
-        for lbl, sc, cl, proto in n_spec:
-            d = measure(sc, cl, rate(DOWNLOAD, 1000))
-            u = measure(sc, cl, rate(UPLOAD, 1000))
-            if d or u:
-                r2.append((lbl, proto, median(d) if d else 0.0, median(u) if u else 0.0))
-        y2 = np.arange(len(r2))
-        m2 = max([max(r[2], r[3]) for r in r2] + [10.0])
-        for i, (_, proto, dv, uv) in enumerate(r2):
-            c = t["proto"][proto]
-            ax2.barh(i - h / 2, dv, height=h, color=c, alpha=0.92, zorder=3)
-            ax2.barh(i + h / 2, uv, height=h, color=c, alpha=0.40, edgecolor=c, linewidth=0.9, zorder=3)
-            ax2.text(dv + m2 * 0.02, i - h / 2, f"{dv:.1f}", va="center", ha="left",
-                     fontsize=7.9, family="DejaVu Sans Mono", color=t["ink"])
-            ax2.text(uv + m2 * 0.02, i + h / 2, f"{uv:.1f}", va="center", ha="left",
-                     fontsize=7.7, family="DejaVu Sans Mono", color=t["muted"])
-        if len(r2) > 5:
-            ax2.axhline(4.5, color=t["divider"], linestyle=":", linewidth=1.0)
-        ax2.set_yticks(y2)
-        ax2.set_yticklabels([r[0] for r in r2], fontsize=8.3, color=t["text"])
-        ax2.invert_yaxis()
-        ax2.set_xlim(0, m2 * 1.22)
-        ax2.set_xlabel("Throughput (Gbit/s)", fontsize=8.3, color=t["muted"], labelpad=3)
+        top2 = 0.88 + 0.22 * max(0, lr2 - 1)
+        avail = ch - 0.84 - top2
+        gap_f = 0.58
+        h_f = (avail - gap_f) / 2.0
+
+        def draw_native_facet(y_in, fh_in, sub_title, spec, ceil_x, digits):
+            ax = _add_ax(fig, 0.655, y_in, 0.305, fh_in, t, "x")
+            ax.set_title(sub_title, fontsize=8.9, color=t["ink"], loc="left", pad=5)
+            rows = []
+            for lbl, sc, cl, proto in spec:
+                dv = measure(sc, cl, rate(DOWNLOAD, 1000))
+                uv = measure(sc, cl, rate(UPLOAD, 1000))
+                if dv or uv:
+                    rows.append((lbl, proto, median(dv) if dv else None, median(uv) if uv else None))
+            vals = [v for _, _, dv, uv in rows for v in (dv, uv) if v is not None]
+            mx = max([*(vals or [10.0]), ceil_x or 0.0])
+            tbox = dict(facecolor=t["card"], edgecolor="none", pad=0.6, alpha=0.92) if ceil_x else None
+            for i, (_, proto, dv, uv) in enumerate(rows):
+                c = t["proto"][proto]
+                if dv is not None:
+                    ax.barh(i - 0.17, dv, height=0.32, color=c, alpha=0.92, zorder=3)
+                    ax.text(dv + mx * 0.024, i - 0.17, f"{dv:.{digits}f}", va="center", ha="left",
+                            fontsize=8.2, family="DejaVu Sans Mono", color=t["ink"], bbox=tbox, zorder=5)
+                if uv is not None:
+                    ax.barh(i + 0.17, uv, height=0.32, color=t["card_alt"], edgecolor=c, linewidth=1.35, zorder=3)
+                    ax.text(uv + mx * 0.024, i + 0.17, f"{uv:.{digits}f}", va="center", ha="left",
+                            fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], bbox=tbox, zorder=5)
+            if ceil_x:
+                ax.axvline(ceil_x, color=t["muted"], linestyle="--", linewidth=1.1, zorder=1)
+            ax.set_yticks(np.arange(len(rows)))
+            ax.set_yticklabels([r[0] for r in rows], fontsize=8.5, color=t["text"])
+            ax.invert_yaxis()
+            ax.set_xlim(0, mx * 1.25)
+            ax.set_xlabel("Throughput (Gbit/s)", fontsize=8.4, color=t["muted"], labelpad=2)
+
+        draw_native_facet(
+            cy + 0.84 + h_f + gap_f, h_f, "10 Gbit/s Shaped (2 ms RTT)",
+            [
+                ("GM Term · H1", FAST, ("graphite-meter-client", None), "HTTP/1.1"),
+                ("GM Term · H2", FAST, ("graphite-meter-client-h2", None), "HTTP/2"),
+                ("GM Term · H3", FAST, ("graphite-meter-client-h3", None), "HTTP/3"),
+                ("LS CLI · H1", FAST, ("librespeed-cli", None), "HTTP/1.1"),
+                ("iperf3 (ref)", FAST, REFERENCE, "iperf3"),
+            ], 9.56, 2,
+        )
+        draw_native_facet(
+            cy + 0.84, h_f, "Unshaped Virtual Link",
+            [
+                ("GM Term · H1", UNCAPPED, ("graphite-meter-client", None), "HTTP/1.1"),
+                ("GM Term · H2", UNCAPPED, ("graphite-meter-client-h2", None), "HTTP/2"),
+                ("GM Term · H3", UNCAPPED, ("graphite-meter-client-h3", None), "HTTP/3"),
+                ("LS CLI · H1", UNCAPPED, ("librespeed-cli", None), "HTTP/1.1"),
+                ("iperf3 (ref)", UNCAPPED, REFERENCE, "iperf3"),
+            ], None, 1,
+        )
 
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# 5. Consistency & Runner Hardware Heterogeneity (Cleanly Scaled!)
+# 5. Runner Hardware & Cloud Kernel Split (Per-VM Paired Dots + Paired Delta)
 # ---------------------------------------------------------------------------
 
-def render_consistency_chart(out_stem, *, report_date, vm_count, measure, by_vm, rate, jobs):
-    tools_cons = [
-        ("GM Term.", ("graphite-meter-client", None), "gm1"),
-        ("GM Chr.", ("graphite-meter", "chrome"), "gm2"),
-        ("LS CLI", ("librespeed-cli", None), "ls"),
-        ("LS Rust", ("librespeed-rust", "chrome"), "lsr"),
-        ("OST Chr.", ("openspeedtest", "chrome"), "ost"),
-    ]
-
-    def asym_pct(scen, cl):
-        d = measure(scen, cl, rate(DOWNLOAD))
-        u = measure(scen, cl, rate(UPLOAD))
-        if not d or not u:
-            return 0.0
-        dm, um = median(d), median(u)
-        return 100.0 * abs(dm - um) / max(dm, um, 1e-6)
-
-    def iqr_pct(scen, cl):
-        vs = measure(scen, cl, rate(UPLOAD))
-        if len(vs) < 2:
-            return 0.0
-        med, lo, hi = spread(vs)
-        return 100.0 * (hi - lo) / med if med > 0 else 0.0
-
-    # Keep only comparable shaped consistency metrics on a clean 0..70% scale (no 160% unshaped outlier crushing 1G!)
-    groups_cons = [
-        ("1G UL\nIQR %", [iqr_pct(PLAIN, cl) for _, cl, _ in tools_cons]),
-        ("10G UL\nIQR %", [iqr_pct(FAST, cl) for _, cl, _ in tools_cons]),
-        ("1% Loss\n|DL−UL| %", [asym_pct(LOSS, cl) for _, cl, _ in tools_cons]),
-        ("160ms RTT\n|DL−UL| %", [asym_pct(LONG, cl) for _, cl, _ in tools_cons]),
-    ]
-
+def render_hardware_chart(out_stem, *, report_date, vm_count, by_vm, paired_vms, rate, jobs):
     by_hw = defaultdict(list)
+    job_meta = {}
     for j in jobs:
         host = j["host"]
         cpu = re.sub(r"\(R\)|\(TM\)|Processor|CPU|\b\d+-Core\b", "", host.get("cpu", "Unknown")).strip()
@@ -1018,83 +1112,133 @@ def render_consistency_chart(out_stem, *, report_date, vm_count, measure, by_vm,
         kern = host.get("kernel", "")
         cloud = "AWS" if kern.endswith("-aws") else "Azure" if kern.endswith("-azure") else "Other"
         by_hw[(cloud, cpu)].append(j["job"])
+        job_meta[j["job"]] = (cloud, cpu)
     hw_groups = sorted(by_hw.items(), key=lambda kv: (-len(kv[1]), kv[0]))
 
+    vm_gm = by_vm(UNCAPPED, ("graphite-meter-client", None), rate(UPLOAD, 1000))
+    vm_ip = by_vm(UNCAPPED, REFERENCE, rate(UPLOAD, 1000))
+    vm_ls = by_vm(UNCAPPED, ("librespeed-cli", None), rate(UPLOAD, 1000))
+    pair_diff = paired_vms(UNCAPPED, ("graphite-meter-client", None), REFERENCE, rate(UPLOAD, 1000))
+
     for theme in ("dark", "light"):
-        fh = 6.2
+        fh = 6.4
         fig, t = _new_fig(fh, theme)
-        _draw_banner(fig, f"CONSISTENCY & RUNNER FLEET  ·  {report_date}  ·  {vm_count} RUNNER VMs",
-                     "Shaped Link Consistency & Runner CPU Hardware Breakdown", t)
+        _draw_banner(fig, f"RUNNER HARDWARE & KERNEL SPLIT  ·  {report_date}  ·  {vm_count} RUNNER VMs",
+                     "Unshaped Native Upload by Runner CPU & Kernel (Per-VM Observations)", t)
 
         cy, ch = 0.22, fh - 1.00
-        _draw_card(
-            fig, 0.020, cy, 0.470, ch, t,
-            title="1. Shaped Spread & Symmetry",
-            direction="← Lower is steadier",
-            legend=[(lbl, t["family"][fam]) for lbl, _, fam in tools_cons],
-            footer="IQR % = VM middle-50% / median; |DL−UL| % = symmetric-link skew.",
-        )
-        ax1 = _add_ax(fig, 0.072, cy + 0.82, 0.402, ch - 1.54, t, "y")
-        n_g, n_b = len(groups_cons), len(tools_cons)
-        bw = 0.145
-        mx1 = max([v for _, vs in groups_cons for v in vs] + [25.0])
-        for bi, (_, _, fam) in enumerate(tools_cons):
-            col = t["family"][fam]
-            xs = np.arange(n_g) + (bi - (n_b - 1) / 2) * (bw + 0.015)
-            vals = [g[1][bi] for g in groups_cons]
-            ax1.bar(xs, vals, width=bw, color=col, alpha=0.90, zorder=3)
-            for x, v in zip(xs, vals, strict=True):
-                if v >= 4 or bi < 2:
-                    ax1.text(x, v + mx1 * 0.02, f"{v:.1f}" if v < 10 else f"{v:.0f}",
-                             ha="center", va="bottom", fontsize=7.5, family="DejaVu Sans Mono", color=t["muted"])
-        ax1.set_xticks(np.arange(n_g))
-        ax1.set_xticklabels([g[0] for g in groups_cons], fontsize=8.3, color=t["text"])
-        ax1.set_ylim(0, mx1 * 1.22)
-        ax1.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%"))
 
-        _draw_card(
-            fig, 0.510, cy, 0.470, ch, t,
-            title="2. Unshaped Upload by Runner CPU",
+        def _beeswarm_offsets(xs, base_y, step, x_tol):
+            """Deterministic collision-aware vertical offsets so clustered VM dots never hide each other."""
+            order = sorted(range(len(xs)), key=lambda k: xs[k])
+            placed = []
+            ys = [base_y] * len(xs)
+            slots = [0, 1, -1, 2, -2, 3, -3]
+            for idx in order:
+                xv = xs[idx]
+                used = {slot for px, slot in placed if abs(xv - px) < x_tol}
+                chosen = next((s for s in slots if s not in used), 0)
+                ys[idx] = base_y + chosen * step
+                placed.append((xv, chosen))
+            return ys
+
+        def _short_cpu(cpu):
+            return cpu.replace("Intel ", "").replace("AMD ", "")
+
+        # Panel 1: Per-VM dots + group medians by CPU & kernel (n=1 visibly single dot!)
+        lr1 = _draw_card(
+            fig, 0.020, cy, 0.500, ch, t,
+            title="1. Unshaped Upload by CPU & Kernel",
             direction="Higher →",
-            legend=[("GM Terminal", t["family"]["gm1"]), ("iperf3", t["family"]["ip"]), ("LS CLI", t["family"]["ls"])],
-            footer="GitHub ubuntu-24.04 mixes Azure EPYC & AWS Xeon VMs.",
+            legend=[("GM Term.", t["family"]["gm1"], "dot"),
+                    ("iperf3", t["family"]["ip"], "dot"),
+                    ("LS CLI", t["family"]["ls"], "dot"),
+                    ("Diamond = median; bar = min–max", t["ink"], "diamond")],
+            footer="Dots = individual VM medians; bar = min–max span; n=1 shows one dot.",
         )
-        ax2 = _add_ax(fig, 0.675, cy + 0.84, 0.285, ch - 1.54, t, "x")
-        hw_clients = [
-            ("GM Terminal", ("graphite-meter-client", None), t["family"]["gm1"]),
-            ("iperf3", REFERENCE, t["family"]["ip"]),
-            ("LS CLI", ("librespeed-cli", None), t["family"]["ls"]),
+        top1 = 0.78 + 0.22 * max(0, lr1 - 1)
+        ax1 = _add_ax(fig, 0.200, cy + 0.84, 0.300, ch - 0.84 - top1, t, "x")
+        all_v = []
+        series_hw = [
+            ("GM", vm_gm, t["family"]["gm1"], -0.25),
+            ("ip3", vm_ip, t["family"]["ip"], 0.0),
+            ("LS", vm_ls, t["family"]["ls"], 0.25),
         ]
-        vm_maps = {lbl: by_vm(UNCAPPED, cl, rate(UPLOAD, 1000)) for lbl, cl, _ in hw_clients}
-        y2 = np.arange(len(hw_groups))
-        h2 = 0.25
-        all_hw = []
-        for idx, (lbl, _, col) in enumerate(hw_clients):
-            off = (idx - 1) * h2
-            vals = []
-            for _, jnames in hw_groups:
-                vs = [vm_maps[lbl][jn] for jn in jnames if jn in vm_maps[lbl]]
-                v = median(vs) if vs else 0.0
-                vals.append(v)
-                all_hw.append(v)
-            ax2.barh(y2 + off, vals, height=h2, color=col, alpha=0.90, zorder=3)
-            for i, v in enumerate(vals):
-                if v > 0:
-                    ax2.text(v + 1.4, i + off, f"{v:.1f}", va="center", ha="left",
-                             fontsize=8.2, family="DejaVu Sans Mono", color=col, weight="bold")
-        ax2.set_yticks(y2)
-        ax2.set_yticklabels([f"{cloud} · {cpu}\n(n={len(jnames)} VM{'s' if len(jnames) != 1 else ''})"
-                             for (cloud, cpu), jnames in hw_groups], fontsize=8.2, color=t["text"])
-        ax2.invert_yaxis()
-        ax2.set_xlim(0, max(all_hw or [60.0]) * 1.22)
-        ax2.set_xlabel("Unshaped upload median (Gbit/s)", fontsize=8.3, color=t["muted"], labelpad=3)
+        for gi, ((cloud, cpu), jnames) in enumerate(hw_groups):
+            if gi > 0:
+                ax1.axhline(gi - 0.5, color=t["divider"], linewidth=0.75, zorder=1)
+            for _, vmap, col, off in series_hw:
+                vs = [vmap[jn] for jn in jnames if jn in vmap]
+                if not vs:
+                    continue
+                all_v.extend(vs)
+                med = median(vs)
+                if len(vs) >= 2:
+                    lo, hi = min(vs), max(vs)
+                    ax1.plot([lo, hi], [gi + off, gi + off], color=col, linewidth=1.6, alpha=0.55, zorder=2)
+                    dot_ys = _beeswarm_offsets(vs, gi + off, 0.048, 4.5)
+                    ax1.scatter(vs, dot_ys, color=col, s=28, alpha=0.75,
+                                edgecolor=t["card"], linewidth=0.5, zorder=4)
+                    ax1.scatter([med], [gi + off], color="none", marker="D", s=58,
+                                edgecolor=t["ink"], linewidth=1.25, zorder=5)
+                else:
+                    ax1.scatter(vs, [gi + off], color=col, s=36, alpha=0.95,
+                                edgecolor=t["card"], linewidth=0.6, zorder=4)
+                ax1.text(max(vs) + 2.4, gi + off, f"{med:.1f}", va="center", ha="left",
+                         fontsize=8.2, family="DejaVu Sans Mono", color=col, weight="bold")
+        ax1.set_yticks(np.arange(len(hw_groups)))
+        ax1.set_yticklabels(
+            [f"{cloud} · {_short_cpu(cpu)}\n(n={len(jnames)} VM{'s' if len(jnames) != 1 else ''})"
+             for (cloud, cpu), jnames in hw_groups],
+            fontsize=8.3, color=t["text"],
+        )
+        ax1.invert_yaxis()
+        ax1.set_xlim(0, max(all_v or [100.0]) * 1.18)
+        ax1.set_xlabel("Unshaped upload (Gbit/s)", fontsize=8.6, color=t["muted"], labelpad=3)
+
+        # Panel 2: Paired Per-VM Difference (GM Terminal minus iperf3) colored by Cloud Kernel!
+        lr2 = _draw_card(
+            fig, 0.538, cy, 0.442, ch, t,
+            title="2. Paired Delta: GM − iperf3",
+            direction="← iperf3 | GM →",
+            legend=[("AWS-kernel", t["aws"], "dot"), ("Azure-kernel", t["azure"], "dot"),
+                    ("Bar = min–max", t["muted"], "whisker"), ("0 = tie", t["muted"], "dashed")],
+            footer="One dot per VM (same-pass median diff); bar = min–max span.",
+        )
+        top2 = 0.78 + 0.22 * max(0, lr2 - 1)
+        ax2 = _add_ax(fig, 0.708, cy + 0.84, 0.252, ch - 0.84 - top2, t, "x")
+        ax2.axvline(0.0, color=t["muted"], linestyle="--", linewidth=1.2, zorder=2)
+        all_d = [-20.0, 20.0]
+        for gi, ((cloud, cpu), jnames) in enumerate(hw_groups):
+            if gi > 0:
+                ax2.axhline(gi - 0.5, color=t["divider"], linewidth=0.75, zorder=1)
+            ds = [pair_diff[jn] for jn in jnames if jn in pair_diff]
+            if not ds:
+                continue
+            all_d.extend(ds)
+            col = t["aws"] if cloud == "AWS" else t["azure"] if cloud == "Azure" else t["other"]
+            dot_ys = _beeswarm_offsets(ds, gi, 0.085, 4.5)
+            if len(ds) >= 2:
+                ax2.plot([min(ds), max(ds)], [gi, gi], color=col, linewidth=2.0, alpha=0.55, zorder=2)
+            ax2.scatter(ds, dot_ys, color=col, s=42, edgecolor=t["card"], linewidth=0.7, zorder=4)
+            med = median(ds)
+            ax2.text(med, gi - 0.30, f"{med:+.1f}G", ha="center", va="bottom",
+                     fontsize=8.3, family="DejaVu Sans Mono", color=col, weight="bold")
+        ax2.set_yticks(np.arange(len(hw_groups)))
+        ax2.set_yticklabels([f"{cloud} · {_short_cpu(cpu)}\n(n={sum(jn in pair_diff for jn in jnames)})"
+                             for (cloud, cpu), jnames in hw_groups], fontsize=8.0, color=t["text"])
+        ax2.set_ylim(len(hw_groups) - 0.35, -0.72)
+        span = max(abs(min(all_d)), abs(max(all_d))) * 1.22
+        ax2.set_xlim(-span, span)
+        ax2.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+g}" if v else "0"))
+        ax2.set_xlabel("GM Terminal − iperf3 (Gbit/s)", fontsize=8.6, color=t["muted"], labelpad=3)
 
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# 6. Auto-Extending 6-Panel Historic Trends (3x2 Large-Text Bento, Dark + Light)
+# 6. Auto-Extending 6-Panel Historic Trends (Complete Rosters, Gap-Safe, Release-Preserving Ticks)
 # ---------------------------------------------------------------------------
 
 def _load_ci_run_directory(run_dir):
@@ -1111,7 +1255,7 @@ def _load_ci_run_directory(run_dir):
         return {"date": date_str, "run_id": run_id, "pins": prov["pins"],
                 "runs": meas["runs"], "jobs": len(prov.get("jobs", []))}
     jobs = sorted(run_dir.glob("job-*"))
-    if jobs and (jobs[0] / "manifest.json").exists():
+    if len(jobs) == 15 and (jobs[0] / "manifest.json").exists():
         m0 = json.loads((jobs[0] / "manifest.json").read_text())
         runs = []
         for j in jobs:
@@ -1143,7 +1287,7 @@ def _vm_summary(runs, scenario, tool, browser, extractor):
 
 
 def render_historic_trends(results_root, out_stem):
-    """Scan all published CI runs in results/*-ci-run-* and render large-text 6-panel Dark + Light trends."""
+    """Scan all published CI runs in results/*-ci-run-* and render 6-panel Dark + Light trends."""
     entries = []
     for d in sorted(Path(results_root).glob("*-ci-run-*")):
         if d.is_dir():
@@ -1218,47 +1362,48 @@ def render_historic_trends(results_root, out_stem):
                 per_job[r.get("job", "0")].append(100.0 * (val / base - 1.0))
         return spread([median(vs) for vs in per_job.values()]) if per_job else None
 
+    # Preserve release transition ticks + first & last when thinning for long history
     max_ticks = 8
-    tick_idxs = (
-        list(range(len(entries))) if len(entries) <= max_ticks
-        else sorted(set(list(range(0, len(entries), max(1, math.ceil(len(entries) / max_ticks)))) + [len(entries) - 1]))
-    )
+    if len(entries) <= max_ticks:
+        tick_idxs = list(range(len(entries)))
+    else:
+        must = {0, len(entries) - 1, *(v_idx for v_idx, _ in version_markers)}
+        stride = max(1, math.ceil(len(entries) / max_ticks))
+        tick_idxs = sorted(must | set(range(0, len(entries), stride)))
+        # Trim non-release interior ticks if still > max_ticks + 2
+        while len(tick_idxs) > max_ticks + 2:
+            droppable = [i for i in tick_idxs if i not in must]
+            if not droppable:
+                break
+            tick_idxs.remove(droppable[len(droppable) // 2])
+
     first_d = datetime.fromisoformat(entries[0]["date"]).strftime("%d.%m.%Y")
     last_d = datetime.fromisoformat(entries[-1]["date"]).strftime("%d.%m.%Y")
 
     for theme in ("dark", "light"):
-        fh = 12.2
+        fh = 12.8
         fig, t = _new_fig(fh, theme)
-        _draw_banner(fig, f"HISTORIC TRENDS  ·  {len(entries)} PUBLISHED CI RUNS ({first_d} – {last_d})  ·  AUTO-UPDATED",
-                     "Performance, Accuracy & Server Resources Across All Campaigns", t)
+        _draw_banner(fig, f"HISTORIC TRENDS  ·  {len(entries)} PUBLISHED CI CAMPAIGNS ({first_d} – {last_d})",
+                     "Throughput, Accuracy & Server Resources Across Published Campaigns", t)
 
+        chrome_all = [
+            ("GM", "graphite-meter", "chrome", t["family"]["gm1"], "o", "-"),
+            ("LS Go", "librespeed-go", "chrome", t["family"]["lsg"], "^", "-"),
+            ("LS Rust", "librespeed-rust", "chrome", t["family"]["lsr"], "s", "-"),
+            ("LS PHP", "librespeed", "chrome", t["family"]["ls"], "X", "--"),
+            ("OST", "openspeedtest", "chrome", t["family"]["ost"], "D", "-"),
+        ]
         panels = [
-            ("1. Unshaped Download · Chrome", "Gbit/s · higher →", UNCAPPED, dl_gbps, [
-                ("Graphite Meter", "graphite-meter", "chrome", t["family"]["gm1"], "o", "-"),
-                ("LS Rust", "librespeed-rust", "chrome", t["family"]["lsr"], "s", "-"),
-                ("LS PHP", "librespeed", "chrome", t["family"]["ls"], "^", "-"),
-                ("OpenSpeedTest", "openspeedtest", "chrome", t["family"]["ost"], "D", "-"),
-            ], False, False),
+            ("1. Unshaped Download · Chrome", "Gbit/s · higher →", UNCAPPED, dl_gbps, chrome_all, False, False),
             ("2. Unshaped Upload · Native", "Gbit/s · higher →", UNCAPPED, ul_gbps, [
-                ("GM Terminal", "graphite-meter-client", None, t["family"]["gm1"], "o", "-"),
+                ("GM Term.", "graphite-meter-client", None, t["family"]["gm1"], "o", "-"),
                 ("iperf3 (ref)", "iperf3", None, t["family"]["ip"], "s", "--"),
                 ("LS CLI", "librespeed-cli", None, t["family"]["ls"], "^", "-"),
             ], False, False),
-            ("3. 10 Gbit/s Upload · Chrome", "Gbit/s · higher →", FAST, ul_gbps, [
-                ("Graphite Meter", "graphite-meter", "chrome", t["family"]["gm1"], "o", "-"),
-                ("OpenSpeedTest", "openspeedtest", "chrome", t["family"]["ost"], "D", "-"),
-                ("LS Go", "librespeed-go", "chrome", t["family"]["lsg"], "^", "-"),
-                ("LS Rust", "librespeed-rust", "chrome", t["family"]["lsr"], "s", "-"),
-            ], False, False),
-            ("4. 1G Upload vs iperf3", "% diff · closer to 0%", PLAIN, None, [
-                ("GM Chr", "graphite-meter", "chrome", t["family"]["gm1"], "o", "-"),
-                ("GM FF", "graphite-meter", "firefox", t["family"]["gm2"], "v", "--"),
-                ("OST Chr", "openspeedtest", "chrome", t["family"]["ost"], "D", "-"),
-                ("LS PHP FF", "librespeed", "firefox", t["family"]["ls"], "^", "--"),
-                ("GM Term", "graphite-meter-client", None, t["ink"], "s", ":"),
-            ], False, True),
+            ("3. 10 Gbit/s Upload · Chrome", "Gbit/s · higher →", FAST, ul_gbps, chrome_all, False, False),
+            ("4. 1G Upload vs iperf3 · Chrome", "% diff · closer to 0%", PLAIN, None, chrome_all, False, True),
             ("5. Server Upload CPU · 1 Gbit/s", "s/GB · ← lower", PLAIN, srv_cpu("up"), [
-                ("GM Term", "graphite-meter-client", None, t["family"]["gm1"], "D", "--"),
+                ("GM Term.", "graphite-meter-client", None, t["family"]["gm1"], "D", "--"),
                 ("GM Chr", "graphite-meter", "chrome", t["family"]["gm2"], "o", "-"),
                 ("OST Chr", "openspeedtest", "chrome", t["family"]["ost"], "v", "-"),
                 ("LS Rust", "librespeed-rust", "chrome", t["family"]["lsr"], "s", "-"),
@@ -1267,7 +1412,7 @@ def render_historic_trends(results_root, out_stem):
             ], True, False),
             ("6. Peak Server RAM · 1 Gbit/s", "MB · ← lower", PLAIN, mem_mb, [
                 ("GM Chr", "graphite-meter", "chrome", t["family"]["gm1"], "o", "-"),
-                ("GM Term", "graphite-meter-client", None, t["family"]["gm2"], "D", "--"),
+                ("GM Term.", "graphite-meter-client", None, t["family"]["gm2"], "D", "--"),
                 ("LS Rust", "librespeed-rust", "chrome", t["family"]["lsr"], "s", "-"),
                 ("OST Chr", "openspeedtest", "chrome", t["family"]["ost"], "v", "-"),
                 ("LS Go", "librespeed-go", "chrome", t["family"]["lsg"], "^", "-"),
@@ -1276,81 +1421,92 @@ def render_historic_trends(results_root, out_stem):
             ], False, False),
         ]
 
-        # 3 rows x 2 columns — big, crisp, effortlessly readable!
         col_xs = [0.020, 0.510]
         card_w = 0.470
-        row_h = 3.60
-        row_gap = 0.22
+        row_h = 3.72
+        row_gap = 0.20
         top_in = fh - 0.80
+        last_x = len(entries) - 1
 
         for idx, (ptitle, dir_txt, scen, fn, series_spec, phase_note, is_signed) in enumerate(panels):
             r_idx, c_idx = divmod(idx, 2)
             cx = col_xs[c_idx]
             cy = top_in - (r_idx + 1) * row_h - r_idx * row_gap
             _draw_card(fig, cx, cy, card_w, row_h, t, title=ptitle, direction=dir_txt)
-            ax = _add_ax(fig, cx + 0.056, cy + 0.52, card_w - 0.072, row_h - 0.96, t, "y")
+            ax = _add_ax(fig, cx + 0.056, cy + 0.62, card_w - 0.072, row_h - 1.06, t, "y")
             ax.grid(axis="x", color=t["grid"], linewidth=0.5, alpha=0.5, zorder=0)
             if is_signed:
-                ax.axhspan(-1.0, 1.0, color=t["good_band"], alpha=0.78, zorder=0)
+                ax.axhspan(-1.0, 1.0, color=t["good_band"], alpha=0.82 if theme == "dark" else 0.72, zorder=0, label="±1% guide")
                 ax.axhline(0.0, color=t["good"], linewidth=1.1, zorder=1)
             for v_idx, _ in version_markers:
                 if v_idx > 0:
                     ax.axvline(v_idx, color=t["divider"], linestyle=":", linewidth=1.0, zorder=1)
             all_y, end_labels = [], []
             first_valid = None
-            last_x = len(entries) - 1
             for slbl, tool, br, col, mk, ls in series_spec:
-                px, py, plo, phi = [], [], [], []
+                xs_full = np.arange(len(entries), dtype=float)
+                ys_full = np.full(len(entries), np.nan)
+                lo_full = np.full(len(entries), np.nan)
+                hi_full = np.full(len(entries), np.nan)
                 for i, e in enumerate(entries):
                     sp = upload_agree_summary(i, tool, br) if is_signed else _vm_summary(e["runs"], scen, tool, br, fn)
                     if sp is not None:
-                        px.append(i); py.append(sp[0]); plo.append(sp[1]); phi.append(sp[2])
+                        ys_full[i], lo_full[i], hi_full[i] = sp[0], sp[1], sp[2]
                         all_y.extend([sp[1], sp[2]])
                         if first_valid is None or i < first_valid:
                             first_valid = i
-                if not px:
+                if np.all(np.isnan(ys_full)):
                     continue
-                ax.fill_between(px, plo, phi, color=col, alpha=0.11, zorder=2)
-                ax.plot(px, py, color=col, linestyle=ls, linewidth=2.2, marker=mk, markersize=5.2,
+                # Preserve missing-campaign gaps cleanly (NaN breaks line & ribbon)
+                ax.fill_between(xs_full, lo_full, hi_full, color=col, alpha=0.07 if theme == "dark" else 0.08, zorder=2)
+                ax.plot(xs_full, ys_full, color=col, linestyle=ls, linewidth=2.2, marker=mk, markersize=5.2,
                         markeredgecolor=t["card"], markeredgewidth=0.7, label=slbl, zorder=4)
-                if is_signed:
-                    txt = f"{py[-1]:+.1f}%" if abs(round(py[-1], 1)) > 0 else "0.0%"
-                elif "s/GB" in dir_txt:
-                    txt = f"{py[-1]:.2f}"
-                else:
-                    txt = f"{py[-1]:.1f}"
-                end_labels.append((py[-1], txt, col))
+                # Only attach right-edge label when the latest campaign actually has a measurement!
+                if not np.isnan(ys_full[last_x]):
+                    lv = float(ys_full[last_x])
+                    if is_signed:
+                        txt = f"{lv:+.1f}%" if abs(round(lv, 1)) > 0 else "0.0%"
+                    elif "s/GB" in dir_txt:
+                        txt = f"{lv:.2f}"
+                    else:
+                        txt = f"{lv:.1f}"
+                    end_labels.append((lv, txt, col))
 
             if is_signed:
-                y_lo = min([-2.0, *(all_y or [-2.0])]) * 1.15
-                y_hi = max([2.5, *(all_y or [2.5])]) + (abs(y_lo) * 0.50)
+                y_lo = min([-2.2, *(all_y or [-2.2])]) * 1.18
+                y_hi = max([2.5, *(all_y or [2.5])]) + abs(y_lo) * 0.65
             else:
                 y_lo = 0.0
-                y_hi = max(all_y) * 1.30 if all_y else 10.0
+                y_hi = max(all_y) * 1.34 if all_y else 10.0
             ax.set_ylim(y_lo, y_hi)
             y_span = y_hi - y_lo
-            placed = _deconflict_labels(end_labels, y_lo + y_span * 0.05, y_hi - y_span * 0.05, y_span * 0.095)
+            placed = _deconflict_labels(end_labels, y_lo + y_span * 0.05, y_hi - y_span * 0.06, y_span * 0.105)
             for orig_y, adj_y, txt, col in placed:
                 if abs(adj_y - orig_y) > y_span * 0.015:
                     ax.plot([last_x + 0.08, last_x + 0.24], [orig_y, adj_y], color=col, alpha=0.5, linewidth=0.8, zorder=3)
-                ax.text(last_x + 0.27, adj_y, txt, va="center", ha="left", fontsize=8.2,
+                ax.text(last_x + 0.27, adj_y, txt, va="center", ha="left", fontsize=8.4,
                         family="DejaVu Sans Mono", color=col, weight="bold")
 
             if phase_note and first_valid and first_valid > 0:
                 ax.axvspan(-0.35, first_valid - 0.35, color=t["card_alt"], alpha=0.90, zorder=1)
                 ax.text((first_valid - 0.7) / 2, 0.42, "Phase CPU\nadded\nNov 2026",
                         transform=ax.get_xaxis_transform(), ha="center", va="center",
-                        fontsize=8.2, color=t["faint"], style="italic")
+                        fontsize=8.3, color=t["faint"], style="italic")
 
             ax.set_xticks(tick_idxs)
-            ax.set_xticklabels([x_labels[i] for i in tick_idxs], fontsize=7.8, color=t["muted"])
-            ax.set_xlim(-0.35, len(entries) - 1 + max(1.05, 0.18 * len(entries)))
-            leg = ax.legend(loc="upper left", frameon=True, facecolor=t["card"], framealpha=0.92,
-                            edgecolor=t["border"], fontsize=7.5, ncol=3 if len(series_spec) > 4 else 2,
-                            handlelength=1.3, borderpad=0.35, labelspacing=0.22, columnspacing=0.8)
+            ax.set_xticklabels([x_labels[i] for i in tick_idxs], fontsize=8.0, color=t["muted"])
+            ax.set_xlim(-0.35, len(entries) - 1 + max(1.15, 0.18 * len(entries)))
+            if r_idx == 2:
+                ax.set_xlabel("Campaign (chronological order; unequal intervals)", fontsize=8.1, color=t["muted"], labelpad=3)
+            leg = ax.legend(loc="upper left", frameon=True, facecolor=t["card"], framealpha=0.94,
+                            edgecolor=t["border"], fontsize=7.8, ncol=3 if len(series_spec) > 3 else 2,
+                            handlelength=1.4, borderpad=0.35, labelspacing=0.22, columnspacing=0.75)
             for text in leg.get_texts():
                 text.set_color(t["text"])
 
+        fig.text(0.020, 0.08 / fh,
+                 "Each point is the campaign median of VM medians; faint bands = middle 50% of VMs. Dotted = GM releases. Oct runs use pre-pass busy filter.",
+                 color=t["muted"], fontsize=8.1, va="bottom", ha="left")
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
     return entries

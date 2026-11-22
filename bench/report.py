@@ -35,6 +35,8 @@ TERMINAL = ("graphite-meter-client", TERMINAL_NO_LOADED_LATENCY, "librespeed-cli
 PLAIN = "accuracy-1000"
 FAST = "accuracy-10000"
 LOSS = "loss-100"
+LONG = "long-300"
+PROXY = "proxy-1000"
 FIFO = "bufferbloat-300-30"
 UNCAPPED = "unshaped"
 DOWNLOAD = "downloadMbit"
@@ -55,7 +57,7 @@ if args.from_archive == bool(args.artifacts):
 readme = Path("README.md")
 original = readme.read_text()
 start = original.index("## Latest GitHub runner results")
-end = original.index("## What runs", start)
+end = original.index("<!-- historic-trends-start -->", start) if "<!-- historic-trends-start -->" in original[start:original.index("## What runs", start)] else original.index("## What runs", start)
 links = re.findall(r"results/(\d{4}-\d{2}-\d{2})-ci-run-(\d+)", original[start:end])
 latest = int(links[0][1]) if links else 0
 historical = int(run) < latest
@@ -251,6 +253,20 @@ def fifo_latency(direction):
     return expected
 
 
+def loaded_delta(field, direction):
+    expected = fifo_latency(direction)
+    def difference(row):
+        value = row["reported"].get(field)
+        estimate = expected(row)
+        return value - estimate if value is not None and estimate is not None else None
+    return difference
+
+
+def above_reference(scenario, client):
+    values = [delta for row in groups[scenario, client] if (delta := paired(row, UPLOAD)) is not None]
+    return (sum(value > 0 for value in values), len(values)) if values and client != REFERENCE else None
+
+
 def table(headers, rows):
     heading = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---", *(["---:"] * (len(headers) - 1))]) + " |"]
     return "\n".join([*heading, *("| " + " | ".join(row) + " |" for row in rows)])
@@ -362,9 +378,6 @@ charts.render_throughput_chart(
     vm_count=vm_count,
     measure=measure,
     rate=rate,
-    paired=paired,
-    total_server_cpu=total_server_cpu,
-    peak_memory=peak_memory,
 )
 charts.render_accuracy_chart(
     report / "chart-accuracy",
@@ -376,6 +389,8 @@ charts.render_accuracy_chart(
     shaper_upload=lambda row: row["queues"]["up"].get("medianOwnLinkMbit"),
     server_rx=server_rx,
     fifo_latency=fifo_latency,
+    loaded_delta=loaded_delta,
+    above_reference=above_reference,
 )
 charts.render_resources_chart(
     report / "chart-resources",
@@ -386,6 +401,7 @@ charts.render_resources_chart(
     phase_cpu=phase_cpu,
     peak_memory=peak_memory,
     client_cpu=client_cpu,
+    rate=rate,
 )
 charts.render_transports_chart(
     report / "chart-transports",
@@ -394,12 +410,12 @@ charts.render_transports_chart(
     measure=measure,
     rate=rate,
 )
-charts.render_consistency_chart(
-    report / "chart-consistency",
+charts.render_hardware_chart(
+    report / "chart-hardware",
     report_date=report_date,
     vm_count=vm_count,
-    measure=measure,
     by_vm=by_vm,
+    paired_vms=paired_vms,
     rate=rate,
     jobs=jobs,
 )
@@ -435,7 +451,7 @@ tool_versions = table(["Tested release", "Version"], version_rows)
 tested_tools = " · ".join(f"{name} {version}" for name, version in tested_versions)
 shape_rates = [ranked_rates(CLIENTS, scenario, divisor, digits)
                for scenario, divisor, digits in ((PLAIN, 1, 1), (FAST, 1000, 2), (LOSS, 1, 1))]
-shape_rows = [[TOOLS[client[0]], *(rates[client] for rates in shape_rates)] for client in CLIENTS]
+shape_rows = [[client_name(client), *(rates[client] for rates in shape_rates)] for client in CLIENTS]
 shape_table = table(["Tool or client", "1 Gbit/s (Mbit/s)", "10 Gbit/s (Gbit/s)", "1% loss (Mbit/s)"], shape_rows)
 all_clients = [*CHROME, *FIREFOX, *NATIVE, REFERENCE]
 uncapped_rates = ranked_rates(all_clients, UNCAPPED, 1000, 1)
@@ -514,15 +530,6 @@ fifo_table = table(
 )
 
 
-def loaded_delta(field, direction):
-    expected = fifo_latency(direction)
-    def difference(row):
-        value = row["reported"].get(field)
-        estimate = expected(row)
-        return value - estimate if value is not None and estimate is not None else None
-    return difference
-
-
 fifo_deltas = table(
     ["Tool or client", "During download (ms)", "During upload (ms)"],
     [[client_name(client), *(interval_label(measure(FIFO, client, loaded_delta(field, direction)), signed=True)
@@ -531,14 +538,8 @@ fifo_deltas = table(
 )
 
 
-
 def shaper_upload(row):
     return row["queues"]["up"].get("medianOwnLinkMbit")
-
-
-def above_reference(scenario, client):
-    values = [delta for row in groups[scenario, client] if (delta := paired(row, UPLOAD)) is not None]
-    return (sum(value > 0 for value in values), len(values)) if values and client != REFERENCE else None
 
 
 def upload_row(scenario, client):
@@ -604,16 +605,16 @@ server one vCPU and the client two. The tool, client, server and VM can all affe
 These are single-test results on a virtual link. Production capacity also depends on the network and
 simultaneous demand."""
 has_native_client_cpu = any(
-    row["reported"].get("clientCpuSeconds") is not None for row in completed
+    row["reported"].get("clientCpuSeconds") is not None
+    for client in [*NATIVE, REFERENCE] for row in groups[UNCAPPED, client]
 )
 resource_method = (
-    "Server CPU is container CPU time per decimal GB of server-interface traffic during each phase, "
-    "counting bytes in both directions. Peak memory is the container’s per-run peak in decimal MB. "
-    "The adjacent reported rates show how much of the same shaped link each setup used. "
+    "Server CPU is container CPU time per decimal GB of server-interface traffic during each phase (counting both directions), "
+    "or total container CPU per shaper GB on unshaped. Peak memory is per-run container memory.peak in decimal MB. "
     + (
-        "Client CPU is measured separately from the browser process tree or native client cgroup."
+        "Client CPU divides browser process-tree CPU (browser rows) or container cgroup CPU (native rows) by shaper GB."
         if has_native_client_cpu
-        else "Browser CPU is measured separately on the client. Native client CPU was not yet collected in this run."
+        else "Client CPU measures the browser process tree per shaper GB; native client cgroup CPU was not yet collected in this run."
     )
 )
 gm_browser = ("graphite-meter", "chrome")
@@ -696,11 +697,104 @@ if terminal_uncapped_rx != "—":
         f"and **{latest_value(UNCAPPED, ls_terminal, phase_cpu('up'), 3)} CPU s/GB** for LibreSpeed CLI."
     )
 fifo_checks = [above_reference(FIFO, client) for client in ost]
+fifo_gaps = [gap for client in ost for row in groups[FIFO, client]
+             if (gap := difference_in_minutes(row)) is not None]
+fifo_timing = (
+    f"Matched FIFO passes ran a median of {number(median(fifo_gaps))} minutes apart "
+    f"(maximum {number(max(fifo_gaps))}, n={len(fifo_gaps)})."
+    if fifo_gaps else ""
+)
 fifo_notes = ""
 if all(fifo_checks):
-    fifo_notes = (f"On the FIFO path, OpenSpeedTest’s reported rate exceeded the matched iperf3 receiver rate in "
+    fifo_notes = (f"On the 30 Mbit/s FIFO path, OpenSpeedTest’s reported upload exceeded the matched iperf3 receiver rate in "
                   f"**{fifo_checks[0][0]}/{fifo_checks[0][1]} Chrome** and "
-                  f"**{fifo_checks[1][0]}/{fifo_checks[1][1]} Firefox** passes.")
+                  f"**{fifo_checks[1][0]}/{fifo_checks[1][1]} Firefox** passes. {fifo_timing}")
+
+# Neutral, dynamically derived summary bullets scoped strictly to the plotted default rosters
+default_chrome = [c for c in CHROME if c[0] != NO_LOADED_LATENCY]
+default_firefox = [c for c in FIREFOX if c[0] != NO_LOADED_LATENCY]
+default_native = [c for c in NATIVE if c[0] != TERMINAL_NO_LOADED_LATENCY]
+def _best_client(scenario, roster, metric, mode="max"):
+    scored = [(c, v) for c in roster if (v := point(measure(scenario, c, metric))) is not None]
+    if not scored:
+        return None, None
+    return max(scored, key=lambda kv: kv[1]) if mode == "max" else min(scored, key=lambda kv: kv[1])
+
+chr_10g_dl = results_range(FAST, default_chrome, rate(DOWNLOAD, 1000), 2)
+chr_10g_ul = results_range(FAST, default_chrome, rate(UPLOAD, 1000), 2)
+ff_10g_ul = results_range(FAST, default_firefox, rate(UPLOAD, 1000), 2)
+loss_chr_dn_top, loss_chr_dn_val = _best_client(LOSS, default_chrome, rate(DOWNLOAD), "max")
+loss_chr_ul_top, loss_chr_ul_val = _best_client(LOSS, default_chrome, rate(UPLOAD), "max")
+long_chr_top, _ = _best_client(LONG, default_chrome, rate(UPLOAD), "max")
+cpu_dn_top, cpu_dn_val = _best_client(PLAIN, default_chrome, phase_cpu("down"), "min")
+cpu_up_top, cpu_up_val = _best_client(PLAIN, default_chrome, phase_cpu("up"), "min")
+nat_cpu_top, nat_cpu_val = _best_client(PLAIN, default_native, phase_cpu("up"), "min")
+ram_chr_top, ram_chr_val = _best_client(PLAIN, default_chrome, peak_memory, "min")
+ram_chr_others = results_range(PLAIN, [c for c in default_chrome if c != ram_chr_top], peak_memory, 1)
+proxy_chrome = [c for c in default_chrome if measure(PROXY, c, peak_memory)]
+ram_proxy_top, ram_proxy_val = _best_client(PROXY, proxy_chrome, peak_memory, "min")
+ram_proxy_others = results_range(PROXY, [c for c in proxy_chrome if c != ram_proxy_top], peak_memory, 0)
+
+if loss_chr_dn_top and loss_chr_ul_top:
+    if loss_chr_dn_top == loss_chr_ul_top:
+        loss_phrase = (
+            f"On 1% packet loss among plotted Chrome rows, {client_name(loss_chr_dn_top)} leads both directions "
+            f"with medians of **{number(loss_chr_dn_val, 1)} / {number(loss_chr_ul_val, 1)} Mbit/s**"
+        )
+    else:
+        loss_phrase = (
+            f"On 1% packet loss among plotted Chrome rows, {client_name(loss_chr_dn_top)} leads download "
+            f"(**{number(loss_chr_dn_val, 1)} Mbit/s**) and {client_name(loss_chr_ul_top)} leads upload "
+            f"(**{number(loss_chr_ul_val, 1)} Mbit/s**)"
+        )
+else:
+    loss_phrase = ""
+long_phrase = (
+    f"; on 160 ms RTT Chrome upload, {client_name(long_chr_top)} leads at **{latest_value(LONG, long_chr_top, rate(UPLOAD), 1)} Mbit/s**"
+    if long_chr_top else ""
+)
+if cpu_dn_top and cpu_up_top:
+    if cpu_dn_top == cpu_up_top:
+        cpu_chr_phrase = (
+            f"{client_name(cpu_dn_top)} uses the lowest Chrome server CPU per GB on both download "
+            f"(**{number(cpu_dn_val, 3)} s/GB**) and upload (**{number(cpu_up_val, 3)} s/GB**)"
+        )
+    else:
+        cpu_chr_phrase = (
+            f"{client_name(cpu_dn_top)} uses the lowest Chrome server CPU per GB on download "
+            f"(**{number(cpu_dn_val, 3)} s/GB**) and {client_name(cpu_up_top)} on upload (**{number(cpu_up_val, 3)} s/GB**)"
+        )
+else:
+    cpu_chr_phrase = ""
+cpu_nat_phrase = (
+    f", and {client_name(nat_cpu_top)} uses the lowest server CPU during native upload "
+    f"(**{number(nat_cpu_val, 3)} s/GB** at {latest_value(PLAIN, nat_cpu_top, rate(UPLOAD), 0)} Mbit/s)"
+    if nat_cpu_top else ""
+)
+if ram_chr_top:
+    proxy_clause = ""
+    if ram_proxy_top:
+        if ram_proxy_top == ram_chr_top:
+            proxy_clause = (
+                f"; **{number(ram_proxy_val, 1)} MB** sum of server + nginx peaks vs {ram_proxy_others} MB"
+            )
+        else:
+            proxy_clause = (
+                f"; behind nginx, {client_name(ram_proxy_top)} uses the lowest sum of server + nginx peaks "
+                f"at **{number(ram_proxy_val, 1)} MB** vs {ram_proxy_others} MB"
+            )
+    ram_phrase = (
+        f", while {client_name(ram_chr_top)} uses the lowest peak server RAM with Chrome "
+        f"(**{number(ram_chr_val, 1)} MB** direct vs {ram_chr_others} MB for other Chrome servers{proxy_clause})"
+    )
+else:
+    ram_phrase = ""
+
+key_findings = "\n".join([
+    f"- **10 Gbit/s & hard links (default plotted clients):** Chrome download medians reach **{chr_10g_dl} Gbit/s** (`9.56 Gbit/s` link), while upload medians stop at **{chr_10g_ul} Gbit/s** in Chrome and **{ff_10g_ul} Gbit/s** in Firefox with wide VM-to-VM spread. {loss_phrase}{long_phrase}.",
+    f"- **Unshaped native runner split:** Pooled medians hide a runner-hardware reversal — {native_comparison}",
+    f"- **Server resource trade-offs (1 Gbit/s):** {cpu_chr_phrase}{cpu_nat_phrase}{ram_phrase}.",
+])
 
 probes_comparison = ""
 if NO_LOADED_LATENCY in releases or TERMINAL_NO_LOADED_LATENCY in releases:
@@ -744,10 +838,10 @@ summary_heading = "\n\n".join([
     "Signed percentage differences from iperf3 on the same VM and pass. Each cell shows the median "
     "[25th, 75th percentile] and number of VMs after reducing the matched pass differences within each VM. " + match_timing,
     agreement_table,
-    "### Unshaped throughput and browser CPU",
+    "### Unshaped throughput and client CPU",
     uncapped_method + "\n" + "Each maximum is the fastest retained pass in that direction. "
-    "The two maxima can come from different passes. Browser CPU measures the client process tree "
-    "over the full run per GB at the shaper.",
+    "The two maxima can come from different passes. Client CPU divides browser process-tree CPU "
+    "(browser rows) or container cgroup CPU (native rows, where recorded) by total shaper GB.",
     uncapped_table,
     "#### Unshaped native upload by runner hardware",
     "Upload medians in Gbit/s. “GM above iperf3” counts VMs after matching same-pass comparisons. "
@@ -776,44 +870,42 @@ summary_heading = "\n\n".join([
 
 overview = f"""## Latest GitHub runner results
 
-**{report_date}** · {bench_count} {runner_scope}
+**{report_date}** · {bench_count} {runner_scope} Each chart plots the median across VMs after reducing each VM’s retained passes to its own median; whiskers and bands show the middle 50% (IQR) across VMs.
 
 {bench_links}
 
-**Browsers:** {browser_versions}  
-**Tools:** {tested_tools} ([exact pins & full tables]({report}/#tested-versions))
+{key_findings}
 
 ### 1. High-speed throughput (10 Gbit/s & Unshaped)
 
-{picture_figure("chart-throughput", "10 Gbit/s shaped and unshaped throughput with total server CPU and peak memory across browsers, native clients, and iperf3.")}
+{picture_figure("chart-throughput", "10 Gbit/s shaped and unshaped throughput with VM IQR whiskers across all default native, Chrome, and Firefox clients and iperf3.")}
 
-10 Gbit/s shaped links use 2 ms RTT with offloads on (`9.56 Gbit/s` TCP payload ceiling); unshaped runs remove rate limits on 4-vCPU runners (1 server / 2 client / 1 shaper).
-[Shaped summary]({report}/#shaped-throughput) · [10 Gbit/s spread]({report}/#10-gbits-upload-spread) · [Unshaped tables]({report}/#unshaped-throughput-and-browser-cpu)
+10 Gbit/s shaped links use 2 ms RTT with offloads on (`9.56 Gbit/s` modeled TCP payload ceiling); unshaped runs remove rate limits on 4-vCPU runners (1 server / 2 client / 1 shaper).
+[Shaped summary]({report}/#shaped-throughput) · [10 Gbit/s spread]({report}/#10-gbits-upload-spread) · [Unshaped tables]({report}/#unshaped-throughput-and-client-cpu)
 
 ### 2. Accuracy, hard links & latency
 
-{picture_figure("chart-accuracy", "1 Gbit/s upload agreement vs same-pass iperf3, 1% loss and 160 ms high-BDP throughput, 30 Mbit/s FIFO upload counter check, and FIFO bufferbloat latency.")}
+{picture_figure("chart-accuracy", "1 Gbit/s upload agreement vs same-pass iperf3, 1% loss and 160 ms high-BDP throughput, 30 Mbit/s FIFO upload counter dot plot, and paired Graphite Meter loaded RTT vs FIFO queue estimate.")}
 
-{fifo_notes} {match_timing}
+{fifo_notes}
 [1 Gbit/s agreement]({report}/#matched-1-gbits-agreement) · [Upload counter checks]({report}/#upload-counter-checks) · [Idle & FIFO latency]({report}/#idle-latency-against-icmp)
 
 ### 3. Server & client resource efficiency
 
-{picture_figure("chart-resources", "1 Gbit/s server CPU by phase, unshaped server CPU per GB, peak server container RAM across direct/H2/nginx, and client-side CPU efficiency.")}
+{picture_figure("chart-resources", "Split 1 Gbit/s server download and upload CPU, unshaped total server CPU per GB, deployment-faceted peak server memory with achieved rates, and grouped client-side CPU efficiency.")}
 
-{resource_method} {total_cpu_notes}
+{resource_method}
 [Full resource tables]({report}/#server-resources-at-1-gbits) · [All server CPU phases]({report}/server-cpu.md) · [Without-loaded-latency delta]({report}/#graphite-meter-without-loaded-latency)
 
 ### 4. Protocol & transport scaling
 
-{picture_figure("chart-transports", "HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput in Chrome (10 Gbit/s) and native terminal clients (10 Gbit/s and unshaped).")}
+{picture_figure("chart-transports", "HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput in Chrome (10 Gbit/s) and native terminal clients (separate 10 Gbit/s and unshaped scales).")}
 
-All TLS variants use one self-signed certificate per job; terminal variants force ALPN so protocols never silently fall back.
 [1 Gbit/s transports]({report}/{case_link(PLAIN)}) · [10 Gbit/s transports]({report}/{case_link(FAST)}) · [Reverse proxy]({report}/{case_link("proxy-1000")})
 
-### 5. Consistency & runner hardware
+### 5. Runner hardware & kernel split
 
-{picture_figure("chart-consistency", "Shaped link VM-to-VM spread and directional symmetry alongside unshaped native upload grouped by GitHub runner CPU and cloud kernel.")}
+{picture_figure("chart-hardware", "Per-VM unshaped native upload grouped by GitHub runner CPU and cloud kernel, alongside paired per-VM Graphite Meter Terminal minus iperf3 differences.")}
 
 {native_comparison} [Hardware breakdown]({report}/#unshaped-native-upload-by-runner-hardware) · [All pooled pass tables]({report}/#pooled-pass-tables)
 
@@ -894,10 +986,10 @@ if not historical:
         history_block = (
             "<!-- historic-trends-start -->\n"
             "## Historic trends\n\n"
-            f"Automatically updated after every full 15-job GitHub runner campaign (**{len(history_entries)} runs** "
-            f"from **{first_d}** to **{last_d}**). Points show per-VM medians across each campaign; shaded bands show "
-            "the middle 50% (IQR) across runner VMs; dotted vertical lines mark Graphite Meter release transitions.\n\n"
-            + picture_figure("history-trends", "Performance, accuracy and server resource trends across all published GitHub runner campaigns.", base="results")
+            f"Automatically updated after every full 15-job GitHub runner campaign (**{len(history_entries)} campaigns** "
+            f"from **{first_d}** to **{last_d}**). Each point is the campaign median of VM medians; faint bands show "
+            "the middle 50% of VMs; dotted vertical lines mark Graphite Meter release transitions.\n\n"
+            + picture_figure("history-trends", "Throughput, accuracy and server resource trends across all published GitHub runner campaigns.", base="results")
             + "\n<!-- historic-trends-end -->"
         )
         if "<!-- historic-trends-start -->" in updated and "<!-- historic-trends-end -->" in updated:
