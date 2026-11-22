@@ -15,66 +15,66 @@ measurements and generated configs while GitHub retains the artifacts. Correctio
 
 ## Latest GitHub runner results
 
-**15.11.2026** · **5,490/5,490** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule). The 25 and 40 Gbit/s shaped scenarios are skipped on these 4-vCPU runners. They require 8+ CPUs. Each chart plots the median across VMs after reducing each VM’s retained passes to its own median; whiskers and bands show the middle 50% (IQR) across VMs.
+**22.11.2026** · **5,489/5,490** retained runs completed across **15 runner jobs** (0 runs excluded by the busy-host rule). The 25 and 40 Gbit/s shaped scenarios are skipped on these 4-vCPU runners. They require 8+ CPUs. Each chart plots the median across VMs after reducing each VM’s retained passes to its own median; whiskers and bands show the middle 50% (IQR) across VMs.
 
-[Full report and tested versions](results/2026-11-15-ci-run-43720854999) · [Benchmark source](https://github.com/zR-JB/selfhosted-speedtest-bench/tree/dfc3d934b77f3ee96839225c1060fa53b1e71183) · [Workflow run and raw artifacts](https://github.com/zR-JB/selfhosted-speedtest-bench/actions/runs/43720854999) · [Previous report](results/2026-11-15-ci-run-43694138029)
+[Full report and tested versions](results/2026-11-22-ci-run-44971677456) · [Benchmark source](https://github.com/zR-JB/selfhosted-speedtest-bench/tree/7f25fce927cb5e839d53fe3fa09dcf47acce9349) · [Workflow run and raw artifacts](https://github.com/zR-JB/selfhosted-speedtest-bench/actions/runs/44971677456) · [Previous report](results/2026-11-15-ci-run-43720854999)
 
-- **10 Gbit/s & hard links (default plotted clients):** Chrome download medians reach **9.35–9.56 Gbit/s** (`9.56 Gbit/s` link), while upload medians stop at **3.21–4.29 Gbit/s** in Chrome and **3.11–5.32 Gbit/s** in Firefox with wide VM-to-VM spread. On 1% packet loss among plotted Chrome rows, OpenSpeedTest · Chrome leads both directions with medians of **19.3 / 21.4 Mbit/s**; on 160 ms RTT Chrome upload, OpenSpeedTest · Chrome leads at **274.0 Mbit/s**.
-- **Unshaped native runner split:** Pooled medians hide a runner-hardware reversal — Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** after matching passes. The split was 0/6 on AWS-kernel VMs, 9/9 on Azure-kernel VMs.
-- **Server resource trade-offs (1 Gbit/s):** OpenSpeedTest · Chrome uses the lowest Chrome server CPU per GB on both download (**0.183 s/GB**) and upload (**3.721 s/GB**), and LibreSpeed CLI uses the lowest server CPU during native upload (**2.488 s/GB** at 871 Mbit/s), while Graphite Meter Browser · Chrome uses the lowest peak server RAM with Chrome (**14.9 MB** direct vs 22.5–80.1 MB for other Chrome servers; **27.3 MB** sum of server + nginx peaks vs 218–624 MB).
+- **10 Gbit/s & hard links (default plotted clients):** Chrome download medians reach **9.51–9.56 Gbit/s** (`9.56 Gbit/s` link), while upload medians stop at **5.10–6.27 Gbit/s** in Chrome and **3.96–8.74 Gbit/s** in Firefox with wide VM-to-VM spread. On 1% packet loss among plotted Chrome rows, OpenSpeedTest · Chrome leads both directions with medians of **19.8 / 22.7 Mbit/s**; on 160 ms RTT Chrome upload, OpenSpeedTest · Chrome leads at **276.1 Mbit/s**.
+- **Unshaped native runner split:** Pooled medians hide a runner-hardware reversal — Graphite Meter Terminal had a higher upload rate than iperf3 on **15 of 15 VMs** after matching passes. The split was 8/8 on AWS-kernel VMs, 7/7 on Azure-kernel VMs.
+- **Server resource trade-offs (1 Gbit/s):** OpenSpeedTest · Chrome uses the lowest Chrome server CPU per GB on download (**0.167 s/GB**) and Graphite Meter Browser · Chrome on upload (**1.794 s/GB**), and Graphite Meter Terminal uses the lowest server CPU during native upload (**1.399 s/GB** at 956 Mbit/s), while Graphite Meter Browser · Chrome uses the lowest peak server RAM with Chrome (**17.3 MB** direct vs 22.5–79.9 MB for other Chrome servers; **32.7 MB** sum of server + nginx peaks vs 218–624 MB).
 
 ### 1. High-speed throughput (10 Gbit/s & Unshaped)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-throughput-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/chart-throughput-light.png" alt="10 Gbit/s shaped and unshaped throughput with VM IQR whiskers across all default native, Chrome, and Firefox clients and iperf3." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-22-ci-run-44971677456/chart-throughput-dark.png">
+  <img src="results/2026-11-22-ci-run-44971677456/chart-throughput-light.png" alt="10 Gbit/s shaped and unshaped throughput with VM IQR whiskers across all default native, Chrome, and Firefox clients and iperf3." width="100%">
 </picture>
 
 10 Gbit/s shaped links use 2 ms RTT with offloads on (`9.56 Gbit/s` modeled TCP payload ceiling); unshaped runs remove rate limits on 4-vCPU runners (1 server / 2 client / 1 shaper).
-[Shaped summary](results/2026-11-15-ci-run-43720854999/#shaped-throughput) · [10 Gbit/s spread](results/2026-11-15-ci-run-43720854999/#10-gbits-upload-spread) · [Unshaped tables](results/2026-11-15-ci-run-43720854999/#unshaped-throughput-and-client-cpu)
+[Shaped summary](results/2026-11-22-ci-run-44971677456/#shaped-throughput) · [10 Gbit/s spread](results/2026-11-22-ci-run-44971677456/#10-gbits-upload-spread) · [Unshaped tables](results/2026-11-22-ci-run-44971677456/#unshaped-throughput-and-client-cpu)
 
 ### 2. Accuracy, hard links & latency
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-accuracy-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/chart-accuracy-light.png" alt="1 Gbit/s upload agreement vs same-pass iperf3, 1% loss and 160 ms high-BDP throughput, 30 Mbit/s FIFO upload counter dot plot, and paired Graphite Meter loaded RTT vs FIFO queue estimate." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-22-ci-run-44971677456/chart-accuracy-dark.png">
+  <img src="results/2026-11-22-ci-run-44971677456/chart-accuracy-light.png" alt="1 Gbit/s upload agreement vs same-pass iperf3, 1% loss and 160 ms high-BDP throughput, 30 Mbit/s FIFO upload counter dot plot, and paired Graphite Meter loaded RTT vs FIFO queue estimate." width="100%">
 </picture>
 
-On the 30 Mbit/s FIFO path, OpenSpeedTest’s reported upload exceeded the matched iperf3 receiver rate in **30/30 Chrome** and **30/30 Firefox** passes. Matched FIFO passes ran a median of 2.8 minutes apart (maximum 4.7, n=60).
-[1 Gbit/s agreement](results/2026-11-15-ci-run-43720854999/#matched-1-gbits-agreement) · [Upload counter checks](results/2026-11-15-ci-run-43720854999/#upload-counter-checks) · [Idle & FIFO latency](results/2026-11-15-ci-run-43720854999/#idle-latency-against-icmp)
+On the 30 Mbit/s FIFO path, OpenSpeedTest’s reported upload exceeded the matched iperf3 receiver rate in **30/30 Chrome** and **30/30 Firefox** passes. Matched FIFO passes ran a median of 2.0 minutes apart (maximum 6.6, n=60).
+[1 Gbit/s agreement](results/2026-11-22-ci-run-44971677456/#matched-1-gbits-agreement) · [Upload counter checks](results/2026-11-22-ci-run-44971677456/#upload-counter-checks) · [Idle & FIFO latency](results/2026-11-22-ci-run-44971677456/#idle-latency-against-icmp)
 
 ### 3. Server & client resource efficiency
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-resources-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/chart-resources-light.png" alt="Split 1 Gbit/s server download and upload CPU, unshaped total server CPU per GB, deployment-faceted peak server memory with achieved rates, and grouped client-side CPU efficiency." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-22-ci-run-44971677456/chart-resources-dark.png">
+  <img src="results/2026-11-22-ci-run-44971677456/chart-resources-light.png" alt="Split 1 Gbit/s server download and upload CPU, unshaped total server CPU per GB, deployment-faceted peak server memory with achieved rates, and grouped client-side CPU efficiency." width="100%">
 </picture>
 
-Server CPU is container CPU time per decimal GB of server-interface traffic during each phase (counting both directions), or total container CPU per shaper GB on unshaped. Peak memory is per-run container memory.peak in decimal MB. Client CPU measures the browser process tree per shaper GB; native client cgroup CPU was not yet collected in this run.
-[Full resource tables](results/2026-11-15-ci-run-43720854999/#server-resources-at-1-gbits) · [All server CPU phases](results/2026-11-15-ci-run-43720854999/server-cpu.md) · [Without-loaded-latency delta](results/2026-11-15-ci-run-43720854999/#graphite-meter-without-loaded-latency)
+Server CPU is container CPU time per decimal GB of server-interface traffic during each phase (counting both directions), or total container CPU per shaper GB on unshaped. Peak memory is per-run container memory.peak in decimal MB. Client CPU divides browser process-tree CPU (browser rows) or container cgroup CPU (native rows) by shaper GB.
+[Full resource tables](results/2026-11-22-ci-run-44971677456/#server-resources-at-1-gbits) · [All server CPU phases](results/2026-11-22-ci-run-44971677456/server-cpu.md) · [Without-loaded-latency delta](results/2026-11-22-ci-run-44971677456/#graphite-meter-without-loaded-latency)
 
 ### 4. Protocol & transport scaling
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-transports-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/chart-transports-light.png" alt="HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput in Chrome (10 Gbit/s) and native terminal clients (separate 10 Gbit/s and unshaped scales)." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-22-ci-run-44971677456/chart-transports-dark.png">
+  <img src="results/2026-11-22-ci-run-44971677456/chart-transports-light.png" alt="HTTP/1.1 vs HTTP/2 vs HTTP/3 vs WebTransport throughput in Chrome (10 Gbit/s) and native terminal clients (separate 10 Gbit/s and unshaped scales)." width="100%">
 </picture>
 
-[1 Gbit/s transports](results/2026-11-15-ci-run-43720854999/#11-gbits-20-ms-rtt-fq_codel) · [10 Gbit/s transports](results/2026-11-15-ci-run-43720854999/#1010-gbits-2-ms-rtt-fq_codel-offloads-on) · [Reverse proxy](results/2026-11-15-ci-run-43720854999/#11-gbits-20-ms-rtt-fq_codel-behind-nginx)
+[1 Gbit/s transports](results/2026-11-22-ci-run-44971677456/#11-gbits-20-ms-rtt-fq_codel) · [10 Gbit/s transports](results/2026-11-22-ci-run-44971677456/#1010-gbits-2-ms-rtt-fq_codel-offloads-on) · [Reverse proxy](results/2026-11-22-ci-run-44971677456/#11-gbits-20-ms-rtt-fq_codel-behind-nginx)
 
 ### 5. Runner hardware & kernel split
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-15-ci-run-43720854999/chart-hardware-dark.png">
-  <img src="results/2026-11-15-ci-run-43720854999/chart-hardware-light.png" alt="Per-VM unshaped native upload grouped by GitHub runner CPU and cloud kernel, alongside paired per-VM Graphite Meter Terminal minus iperf3 differences." width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="results/2026-11-22-ci-run-44971677456/chart-hardware-dark.png">
+  <img src="results/2026-11-22-ci-run-44971677456/chart-hardware-light.png" alt="Per-VM unshaped native upload grouped by GitHub runner CPU and cloud kernel, alongside paired per-VM Graphite Meter Terminal minus iperf3 differences." width="100%">
 </picture>
 
-Graphite Meter Terminal had a higher upload rate than iperf3 on **9 of 15 VMs** after matching passes. The split was 0/6 on AWS-kernel VMs, 9/9 on Azure-kernel VMs. [Hardware breakdown](results/2026-11-15-ci-run-43720854999/#unshaped-native-upload-by-runner-hardware) · [All pooled pass tables](results/2026-11-15-ci-run-43720854999/#pooled-pass-tables)
+Graphite Meter Terminal had a higher upload rate than iperf3 on **15 of 15 VMs** after matching passes. The split was 8/8 on AWS-kernel VMs, 7/7 on Azure-kernel VMs. [Hardware breakdown](results/2026-11-22-ci-run-44971677456/#unshaped-native-upload-by-runner-hardware) · [All pooled pass tables](results/2026-11-22-ci-run-44971677456/#pooled-pass-tables)
 
 <!-- historic-trends-start -->
 ## Historic trends
 
-Automatically updated after every full 15-job GitHub runner campaign (**7 campaigns** from **18.10.2026** to **15.11.2026**). Each point is the campaign median of VM medians; faint bands show the middle 50% of VMs; dotted vertical lines mark Graphite Meter release transitions.
+Automatically updated after every full 15-job GitHub runner campaign (**8 campaigns** from **18.10.2026** to **22.11.2026**). Each point is the campaign median of VM medians; faint bands show the middle 50% of VMs; dotted vertical lines mark Graphite Meter release transitions.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="results/history-trends-dark.png">
