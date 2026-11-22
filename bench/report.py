@@ -443,7 +443,6 @@ charts.render_consistency_bento(
     rate=rate,
     jobs=jobs,
 )
-history_entries = charts.render_historic_trends(Path("results"), Path("results/history-trends"))
 
 
 def group_leaders(values, digits, preference):
@@ -950,6 +949,8 @@ if not args.from_archive:
         f"# Server CPU by phase, {report_date}\n\n[Full benchmark report and tested versions](README.md)\n\n"
         "These tables pool retained passes. The overview gives each VM equal weight.\n\n" + phases.split("\n\n", 1)[1]
     )
+# Render historic trends AFTER writing provenance.json & measurements.json.gz so new campaigns appear immediately.
+history_entries = charts.render_historic_trends(Path("results"), Path("results/history-trends")) if not historical else []
 scenario_labels = {
     "accuracy-100": "100 Mbit/s", PLAIN: "1 Gbit/s", FAST: "10 Gbit/s",
     "accuracy-25000": "25 Gbit/s", "accuracy-40000": "40 Gbit/s", FIFO: "Deep FIFO",

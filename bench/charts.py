@@ -596,6 +596,7 @@ def render_resources_bento(out_stem, *, report_date, vm_count, groups, measure, 
         ("graphite-meter", "firefox"),
         ("openspeedtest", "firefox"),
         ("librespeed-go", "firefox"),
+        ("librespeed-rust", "firefox"),
         ("librespeed", "firefox"),
         ("graphite-meter-client", None),
         ("librespeed-cli", None),
@@ -711,7 +712,11 @@ def render_resources_bento(out_stem, *, report_date, vm_count, groups, measure, 
             ax_c5.text(i, max(hi, med) + m5 * 0.04, f"{med:.2f}", ha="center", va="bottom",
                        fontsize=7.3, family="DejaVu Sans Mono", color=t["ink"], weight="bold")
         ax_c5.set_xticks(xs5)
-        ax_c5.set_xticklabels([r[0].replace(" · ", "\n") for r in c_rows], fontsize=7.0, color=t["text"])
+        ax_c5.set_xticklabels(
+            [r[0].replace("LibreSpeed ", "LS ").replace("OpenSpeedTest", "OST").replace(" · ", "\n") for r in c_rows],
+            fontsize=6.5 if len(c_rows) > 9 else 7.0,
+            color=t["text"],
+        )
         ax_c5.set_ylim(0, m5 * 1.24)
         ax_c5.set_ylabel("s/GB", fontsize=7.6, color=t["muted"])
 
