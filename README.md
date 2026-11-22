@@ -74,7 +74,7 @@ Graphite Meter Terminal had a higher upload rate than iperf3 on **15 of 15 VMs**
 <!-- historic-trends-start -->
 ## Historic trends
 
-Automatically updated after every full 15-job GitHub runner campaign (**8 campaigns** from **18.10.2026** to **22.11.2026**). Each point is the campaign median of VM medians; faint bands show the middle 50% of VMs; dotted vertical lines mark Graphite Meter release transitions.
+Automatically updated after every full 15-job GitHub runner campaign (**8 campaigns** from **18.10.2026** to **22.11.2026**). Each point is the campaign median of VM medians; vertical ticks show the middle 50% (IQR) of VMs; dotted vertical lines mark Graphite Meter release transitions.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="results/history-trends-dark.png">

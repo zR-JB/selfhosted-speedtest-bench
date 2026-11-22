@@ -987,8 +987,8 @@ if not historical:
             "<!-- historic-trends-start -->\n"
             "## Historic trends\n\n"
             f"Automatically updated after every full 15-job GitHub runner campaign (**{len(history_entries)} campaigns** "
-            f"from **{first_d}** to **{last_d}**). Each point is the campaign median of VM medians; faint bands show "
-            "the middle 50% of VMs; dotted vertical lines mark Graphite Meter release transitions.\n\n"
+            f"from **{first_d}** to **{last_d}**). Each point is the campaign median of VM medians; vertical ticks show "
+            "the middle 50% (IQR) of VMs; dotted vertical lines mark Graphite Meter release transitions.\n\n"
             + picture_figure("history-trends", "Throughput, accuracy and server resource trends across all published GitHub runner campaigns.", base="results")
             + "\n<!-- historic-trends-end -->"
         )

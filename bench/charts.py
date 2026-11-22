@@ -382,32 +382,56 @@ def render_throughput_chart(out_stem, *, report_date, vm_count, measure, rate):
                     fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
             ax.text(0.964, -0.78, "UL IQR [p25, p75]", transform=bl, ha="right", va="bottom",
                     fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+            # Identify per-section median leaders neutrally so the winning median in each group pops at a glance
+            sec_best_dl, sec_best_ul = {}, {}
+            cur_sec = None
+            for kind, lbl, ds, us in rows:
+                if kind == "sec":
+                    cur_sec = lbl
+                    continue
+                if ds is not None:
+                    sec_best_dl[cur_sec] = max(sec_best_dl.get(cur_sec, -1.0), round(ds[0], digits))
+                if us is not None:
+                    sec_best_ul[cur_sec] = max(sec_best_ul.get(cur_sec, -1.0), round(us[0], digits))
+
             bar_h = 0.34
+            cur_sec = None
             for i, (kind, lbl, ds, us) in enumerate(rows):
                 if kind == "sec":
+                    cur_sec = lbl
                     if i > 0:
                         ax.axhline(i - 0.52, color=t["divider"], linewidth=0.75, zorder=1)
                     ax.text(0.036, i, lbl, transform=bl, va="center", ha="left",
                             fontsize=9.1, weight="bold", color=t["ink"])
                     continue
-                ax.text(0.048, i, lbl, transform=bl, va="center", ha="left", fontsize=8.8, color=t["text"])
+                is_best_d = ds is not None and round(ds[0], digits) == sec_best_dl.get(cur_sec)
+                is_best_u = us is not None and round(us[0], digits) == sec_best_ul.get(cur_sec)
+                ax.text(0.048, i, lbl, transform=bl, va="center", ha="left", fontsize=8.8,
+                        color=t["ink"] if (is_best_d or is_best_u) else t["text"],
+                        weight="bold" if (is_best_d and is_best_u) else "normal")
                 if ds is not None:
-                    ax.barh(i - bar_h / 2, ds[0], height=bar_h, color=t["dl"], alpha=0.88, zorder=3)
+                    ax.barh(i - bar_h / 2, ds[0], height=bar_h, color=t["dl"], alpha=0.92, zorder=3)
                     if ds[2] > ds[1]:
-                        ax.plot([ds[1], ds[2]], [i - bar_h / 2, i - bar_h / 2], color=t["ink"],
-                                linewidth=1.6, solid_capstyle="round", zorder=5)
+                        ax.plot([ds[1], ds[2]], [i - bar_h / 2, i - bar_h / 2], color=t["muted"],
+                                alpha=0.72, linewidth=1.15, marker="|", markersize=4.2, markeredgewidth=1.0, zorder=5)
                 if us is not None:
-                    ax.barh(i + bar_h / 2, us[0], height=bar_h, color=t["ul"], alpha=0.88, zorder=3)
+                    ax.barh(i + bar_h / 2, us[0], height=bar_h, color=t["ul"], alpha=0.90, zorder=3)
                     if us[2] > us[1]:
-                        ax.plot([us[1], us[2]], [i + bar_h / 2, i + bar_h / 2], color=t["ink"],
-                                linewidth=1.6, solid_capstyle="round", zorder=5)
+                        ax.plot([us[1], us[2]], [i + bar_h / 2, i + bar_h / 2], color=t["muted"],
+                                alpha=0.72, linewidth=1.15, marker="|", markersize=4.2, markeredgewidth=1.0, zorder=5)
                 d_txt = fmt_num(ds[0], digits) if ds else "—"
                 u_txt = fmt_num(us[0], digits) if us else "—"
-                ax.text(0.818, i, f"{d_txt:>5} / {u_txt:>5}", transform=bl, ha="right", va="center",
-                        fontsize=8.5, family="DejaVu Sans Mono", color=t["ink"])
+                ax.text(0.752, i, f"{d_txt:>5}", transform=bl, ha="right", va="center",
+                        fontsize=8.5, family="DejaVu Sans Mono",
+                        color=t["dl_txt"] if is_best_d else t["text"], weight="bold" if is_best_d else "normal")
+                ax.text(0.768, i, "/", transform=bl, ha="center", va="center",
+                        fontsize=8.3, family="DejaVu Sans Mono", color=t["faint"])
+                ax.text(0.822, i, f"{u_txt:>5}", transform=bl, ha="right", va="center",
+                        fontsize=8.5, family="DejaVu Sans Mono",
+                        color=t["ul_txt"] if is_best_u else t["text"], weight="bold" if is_best_u else "normal")
                 iqr_txt = f"[{fmt_num(us[1], digits)}, {fmt_num(us[2], digits)}]" if us else "—"
                 ax.text(0.964, i, iqr_txt, transform=bl, ha="right", va="center",
-                        fontsize=8.2, family="DejaVu Sans Mono", color=t["muted"])
+                        fontsize=8.1, family="DejaVu Sans Mono", color=t["muted"])
             if ceiling is not None:
                 ax.axvline(ceiling, color=t["muted"], linestyle="--", linewidth=1.25, zorder=4)
             ax.set_yticks([])
@@ -420,9 +444,9 @@ def render_throughput_chart(out_stem, *, report_date, vm_count, measure, rate):
             fh - 0.78 - c1_h, c1_h,
             "1. 10 Gbit/s Shaped Link (2 ms RTT, offloads on)",
             rows_10g, 9.56, 2,
-            "Bars show median across VMs; whiskers span the middle 50% (IQR). Identical default roster in both panels.",
+            "Bars = median across VMs (bold = group leader); thin capped ticks = middle 50% (IQR).",
             [("Download", t["dl"], "bar"), ("Upload", t["ul"], "bar"),
-             ("VM middle 50% (IQR)", t["ink"], "whisker"),
+             ("VM middle 50% (IQR)", t["muted"], "whisker"),
              ("9.56 Gbit/s modeled TCP ceiling", t["muted"], "dashed")],
         )
         c2_h = 5.90
@@ -430,9 +454,9 @@ def render_throughput_chart(out_stem, *, report_date, vm_count, measure, rate):
             0.22, c2_h,
             "2. Unshaped Virtual Link (No Rate Limit, 1 Server vCPU / 2 Client vCPUs)",
             rows_un, None, 1,
-            "Observed single-test throughput on host-local virtual link (median across VMs; whiskers = VM IQR). Native order reverses across AWS/Azure VMs.",
+            "Observed single-test throughput on host-local virtual link (median across VMs; bold = group leader; ticks = VM IQR).",
             [("Download", t["dl"], "bar"), ("Upload", t["ul"], "bar"),
-             ("VM middle 50% (IQR)", t["ink"], "whisker")],
+             ("VM middle 50% (IQR)", t["muted"], "whisker")],
         )
 
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
@@ -581,10 +605,10 @@ def render_accuracy_chart(
         _draw_card(
             fig, 0.020, c3_y, 0.470, c3_h, t,
             title="4. 30M FIFO Upload Counters",
-            direction="Dot plot (Mbit/s)",
-            legend=[("App", t["dl"], "dot"), ("Shaper", t["shaper"], "diamond"),
-                    ("Server RX", t["rx"], "triangle"), ("28.7M TCP payload", t["muted"], "dashed")],
-            footer="Shaper/RX include overhead; right = APP/RX · passes > iperf3.",
+            direction="App closest to 28.7M",
+            legend=[("App payload", t["dl"], "dot"), ("Shaper", t["shaper"], "diamond"),
+                    ("Server RX", t["rx"], "triangle"), ("28.7M TCP max", t["muted"], "dashed")],
+            footer="28.7M = TCP max; Shaper/RX include overhead. APP/RX · >ip3.",
         )
         ax4 = _add_ax(fig, 0.145, c3_y + 0.86, 0.240, c3_h - 1.72, t, "x")
         uc_items = [
@@ -922,29 +946,42 @@ def render_resources_chart(out_stem, *, report_date, vm_count, groups, measure, 
             legend=[("GM H1", t["family"]["gm1"], "bar"), ("iperf3", t["family"]["ip"], "bar"),
                     ("LS PHP/CLI", t["family"]["ls"], "bar"), ("LS Go", t["family"]["lsg"], "bar"),
                     ("LS Rust", t["family"]["lsr"], "bar"), ("OST", t["family"]["ost"], "bar"),
-                    ("VM IQR", t["ink"], "whisker")],
-            footer="CPU seconds per shaper GB over the full run. Browser rows measure the browser process tree; native rows measure container cgroup.",
+                    ("VM IQR", t["muted"], "whisker")],
+            footer="CPU seconds per shaper GB over the full run (bold = lowest in group; ticks = VM IQR). Browser = process tree; native = cgroup.",
         )
         ax4 = _add_ax(fig, 0.250, c3_y + 0.84, 0.545, c4_h - 1.56, t, "x")
         bl4 = matplotlib.transforms.blended_transform_factory(fig.transFigure, ax4.transData)
         m4 = max([r[3][2] for r in c_rows if r[0] == "row"] + [1.0])
         ax4.text(0.962, -0.78, "MEDIAN [IQR] (n)", transform=bl4, ha="right", va="bottom",
                  fontsize=8.0, family="DejaVu Sans Mono", color=t["muted"], weight="bold")
+        sec_best_c = {}
+        cur_sec = None
+        for kind, lbl, _, sp, _ in c_rows:
+            if kind == "sec":
+                cur_sec = lbl
+            elif sp is not None:
+                sec_best_c[cur_sec] = min(sec_best_c.get(cur_sec, 1e9), round(sp[0], 2))
+        cur_sec = None
         for i, (kind, lbl, cl, sp, n) in enumerate(c_rows):
             if kind == "sec":
+                cur_sec = lbl
                 if i > 0:
                     ax4.axhline(i - 0.50, color=t["divider"], linewidth=0.75, zorder=1)
                 ax4.text(0.036, i, lbl, transform=bl4, va="center", ha="left",
                          fontsize=8.9, weight="bold", color=t["ink"])
                 continue
             med, lo, hi = sp
+            is_best = round(med, 2) == sec_best_c.get(cur_sec)
             col = t["family"][_family_of(cl[0])]
-            ax4.text(0.050, i, lbl, transform=bl4, va="center", ha="left", fontsize=8.6, color=t["text"])
-            ax4.barh(i, med, height=0.58, color=col, alpha=0.86, zorder=3)
+            ax4.text(0.050, i, lbl, transform=bl4, va="center", ha="left", fontsize=8.6,
+                     color=t["ink"] if is_best else t["text"], weight="bold" if is_best else "normal")
+            ax4.barh(i, med, height=0.58, color=col, alpha=0.90, zorder=3)
             if hi > lo:
-                ax4.plot([lo, hi], [i, i], color=t["ink"], linewidth=1.7, solid_capstyle="round", zorder=5)
+                ax4.plot([lo, hi], [i, i], color=t["muted"], alpha=0.75, linewidth=1.25,
+                         marker="|", markersize=4.5, markeredgewidth=1.0, zorder=5)
             ax4.text(0.962, i, f"{med:.2f} [{lo:.2f}, {hi:.2f}] (n={n})", transform=bl4, ha="right", va="center",
-                     fontsize=8.2, family="DejaVu Sans Mono", color=t["text"])
+                     fontsize=8.2, family="DejaVu Sans Mono",
+                     color=t["ink"] if is_best else t["text"], weight="bold" if is_best else "normal")
         ax4.set_yticks([])
         ax4.set_ylim(len(c_rows) - 0.35, -0.78)
         ax4.set_xlim(0, m4 * 1.12)
@@ -1143,7 +1180,11 @@ def render_hardware_chart(out_stem, *, report_date, vm_count, by_vm, paired_vms,
             return ys
 
         def _short_cpu(cpu):
-            return cpu.replace("Intel ", "").replace("AMD ", "")
+            s = re.sub(r"(?i)\(r\)|\(tm\)|\b(intel|amd|platinum|gold|silver|bronze|processor|cpu|\d+-core)\b", "", cpu)
+            s = re.sub(r"\s+", " ", s).strip()
+            s = re.sub(r"(?i)\bxeon\b", "Xeon", s)
+            s = re.sub(r"(?i)\bepyc\b", "EPYC", s)
+            return s
 
         # Panel 1: Per-VM dots + group medians by CPU & kernel (n=1 visibly single dot!)
         lr1 = _draw_card(
@@ -1457,10 +1498,13 @@ def render_historic_trends(results_root, out_stem):
                             first_valid = i
                 if np.all(np.isnan(ys_full)):
                     continue
-                # Preserve missing-campaign gaps cleanly (NaN breaks line & ribbon)
-                ax.fill_between(xs_full, lo_full, hi_full, color=col, alpha=0.07 if theme == "dark" else 0.08, zorder=2)
-                ax.plot(xs_full, ys_full, color=col, linestyle=ls, linewidth=2.2, marker=mk, markersize=5.2,
-                        markeredgecolor=t["card"], markeredgewidth=0.7, label=slbl, zorder=4)
+                # Preserve missing-campaign gaps cleanly (NaN breaks line); use crisp thin vertical IQR ticks instead of muddy overlapping ribbons
+                valid = ~np.isnan(ys_full)
+                if np.any(valid):
+                    ax.vlines(xs_full[valid], lo_full[valid], hi_full[valid], color=col,
+                              alpha=0.36 if theme == "dark" else 0.34, linewidth=1.3, zorder=2)
+                ax.plot(xs_full, ys_full, color=col, linestyle=ls, linewidth=2.3, marker=mk, markersize=5.4,
+                        markeredgecolor=t["card"], markeredgewidth=0.75, label=slbl, zorder=4)
                 # Only attach right-edge label when the latest campaign actually has a measurement!
                 if not np.isnan(ys_full[last_x]):
                     lv = float(ys_full[last_x])
@@ -1505,7 +1549,7 @@ def render_historic_trends(results_root, out_stem):
                 text.set_color(t["text"])
 
         fig.text(0.020, 0.08 / fh,
-                 "Each point is the campaign median of VM medians; faint bands = middle 50% of VMs. Dotted = GM releases. Oct runs use pre-pass busy filter.",
+                 "Points = campaign median of VM medians; thin vertical ticks = middle 50% (IQR) of VMs. Dotted = GM releases. Oct runs use pre-pass filter.",
                  color=t["muted"], fontsize=8.1, va="bottom", ha="left")
         fig.savefig(f"{out_stem}-{theme}.png", dpi=185, facecolor=t["bg"])
         plt.close(fig)
